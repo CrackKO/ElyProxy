@@ -23,9 +23,10 @@
 1. Перейдите в [Releases](https://github.com/CrackKO/ElyProxy/releases)
 2. Скачайте `ElyProxy-v1.0.0-win-x64.zip`
 3. Распакуйте в любую папку
-4. Скачайте [Xray-core](https://github.com/XTLS/Xray-core/releases) (`Xray-windows-64.zip`)
-5. Из архива Xray поместите `xray.exe`, `geoip.dat`, `geosite.dat` в папку `xray/` рядом с `ElyProxy.exe`
-6. Запустите `ElyProxy.exe`
+4. Если нету xray папки в Releases читайте 5 пункт.
+5. Скачайте [Xray-core](https://github.com/XTLS/Xray-core/releases) (`Xray-windows-64.zip`)
+6. Из архива Xray поместите `xray.exe`, `geoip.dat`, `geosite.dat` в папку `xray/` рядом с `ElyProxy.exe`
+7. Запустите `ElyProxy.exe`
 
 > Требуется [.NET 8 Runtime](https://dotnet.microsoft.com/download/dotnet/8.0/runtime) (если не установлен)
 
