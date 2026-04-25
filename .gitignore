@@ -1,0 +1,55 @@
+## .NET
+bin/
+obj/
+publish/
+out/
+
+## User-specific
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+## VS / Rider
+.vs/
+.idea/
+*.DotSettings.user
+
+## Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Ll]og/
+[Ll]ogs/
+
+## NuGet
+**/[Pp]ackages/*
+*.nupkg
+**/packages/*
+*.nuget.props
+*.nuget.targets
+project.lock.json
+project.fragment.lock.json
+
+## Xray binary (user downloads separately)
+bin/xray/xray.exe
+bin/xray/geoip.dat
+bin/xray/geosite.dat
+
+## Temp
+*.tmp
+*.bak
+*.swp
+~$*
+
+## OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
