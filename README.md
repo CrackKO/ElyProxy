@@ -13,36 +13,34 @@
 - Генерация конфига Xray «на лету»
 - SOCKS5 прокси на `127.0.0.1:1080`
 - Поддержка: TCP+REALITY, WS+TLS, gRPC, H2, SOCKS outbound
-- Полностью async — без зависаний UI
 - Автосохранение подписок, профилей, настроек
 - Сворачивание в системный трей
-- Тёмная тема, вкладки (Серверы / Подписки / Профили)
-- Ссылки на Telegram и Discord
 
-## Требования
+## Установка
 
-- Windows 10/11
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- [Xray-core](https://github.com/XTLS/Xray-core/releases)
+### Скачать готовую сборку
 
-## Установка Xray
+1. Перейдите в [Releases](https://github.com/CrackKO/ElyProxy/releases)
+2. Скачайте `ElyProxy-v1.0.0-win-x64.zip`
+3. Распакуйте в любую папку
+4. Скачайте [Xray-core](https://github.com/XTLS/Xray-core/releases) (`Xray-windows-64.zip`)
+5. Из архива Xray поместите `xray.exe`, `geoip.dat`, `geosite.dat` в папку `xray/` рядом с `ElyProxy.exe`
+6. Запустите `ElyProxy.exe`
 
-1. Скачайте `Xray-windows-64.zip` из [релизов Xray-core](https://github.com/XTLS/Xray-core/releases)
-2. Распакуйте в папку `bin/xray/`:
-   ```
-   bin/xray/
-   ├── xray.exe
-   ├── geoip.dat
-   └── geosite.dat
-   ```
+> Требуется [.NET 8 Runtime](https://dotnet.microsoft.com/download/dotnet/8.0/runtime) (если не установлен)
 
-## Сборка и запуск
+### Собрать из исходников
 
 ```bash
+git clone https://github.com/CrackKO/ElyProxy.git
+cd ElyProxy
 dotnet restore
 dotnet run
+```
 
-# Release
+Release-сборка:
+
+```bash
 dotnet publish -c Release -r win-x64 --self-contained false -o publish
 ```
 
@@ -58,9 +56,9 @@ dotnet publish -c Release -r win-x64 --self-contained false -o publish
 ```
 ElyProxy/
 ├── Core/
-│   ├── ConfigBuilder.cs        # VLESS + SOCKS outbound конфиг
-│   ├── ProcessManager.cs       # Async управление процессом
-│   └── XrayManager.cs          # Async Xray lifecycle
+│   ├── ConfigBuilder.cs
+│   ├── ProcessManager.cs
+│   └── XrayManager.cs
 ├── Models/
 │   ├── VlessNode.cs
 │   ├── SocksNode.cs
@@ -70,8 +68,8 @@ ElyProxy/
 ├── Services/
 │   ├── SubscriptionService.cs
 │   ├── ParserService.cs
-│   ├── StorageService.cs       # Персистентность (%AppData%/ElyProxy/)
-│   └── ImportExportService.cs  # Экспорт/импорт .elyproxy
+│   ├── StorageService.cs
+│   └── ImportExportService.cs
 ├── ViewModels/
 │   ├── ViewModelBase.cs
 │   ├── RelayCommand.cs
@@ -90,8 +88,3 @@ ElyProxy/
 - `subscriptions.json` — подписки и их серверы
 - `profiles.json` — пользовательские профили
 - `settings.json` — настройки, ручные серверы
-
-## Ссылки
-
-- Telegram: https://t.me/ProxyCheckXBot
-- Discord: https://discord.gg/sxjV3S7J2k
