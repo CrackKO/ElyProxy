@@ -12,17 +12,27 @@ namespace ElyProxy.ViewModels;
 
 public class MainViewModel : ViewModelBase, IDisposable
 {
+    private const string ChromeExtensionUrl = "https://chromewebstore.google.com/detail/proxy-switchyomega-3-zero/pfnededegaaopdmhkdmcofjmoldfiped?pli=1";
+    private const string FirefoxExtensionUrl = "https://addons.mozilla.org/ru/firefox/addon/zeroomega/";
+    private const string OmegaRulesFileName = "OmegaRules_auto_switch.sorl";
+
     private readonly SubscriptionService _subscriptionService;
     private readonly ParserService _parserService;
     private readonly StorageService _storageService;
     private readonly ImportExportService _importExportService;
+    private readonly AutoStartService _autoStartService;
+    private readonly PacServerService _pacServerService;
+    private readonly WindowsProxyService _windowsProxyService;
     private readonly XrayManager _xrayManager;
     private readonly Dispatcher _dispatcher;
+    private readonly DispatcherTimer _subscriptionUpdateTimer;
+    private readonly List<VlessNode> _manualNodes = new();
 
     private VlessNode? _selectedNode;
     private Subscription? _selectedSubscription;
     private ProxyProfile? _selectedProfile;
     private VlessNode? _selectedProfileNode;
+    private VlessNode? _connectedNode;
     private string _newSubName = string.Empty;
     private string _newSubUrl = string.Empty;
     private string _manualServerUri = string.Empty;
@@ -33,6 +43,20 @@ public class MainViewModel : ViewModelBase, IDisposable
     private string _logText = string.Empty;
     private bool _isConnected;
     private bool _isLoading;
+    private bool _autoStartWithWindows;
+    private bool _autoConnect;
+    private bool _autoReconnect;
+    private bool _showLogs = true;
+    private bool _systemProxyEnabled;
+    private bool _isLoadingSettings;
+    private bool _isReconnecting;
+    private bool _isDisposed;
+    private int _suppressedDisconnectNotifications;
+    private int _subscriptionUpdateIntervalMinutes;
+    private int _pacPort = 18080;
+    private string _systemProxyRulesText = string.Empty;
+    private string? _lastConnectedNodeId;
+    private string? _previousAutoConfigUrl;
     private int _socksPort = 1080;
 
     public MainViewModel()
@@ -42,10 +66,16 @@ public class MainViewModel : ViewModelBase, IDisposable
         _parserService = new ParserService();
         _storageService = new StorageService();
         _importExportService = new ImportExportService();
+        _autoStartService = new AutoStartService();
+        _pacServerService = new PacServerService();
+        _windowsProxyService = new WindowsProxyService();
         _xrayManager = new XrayManager();
 
         _xrayManager.LogReceived += OnLogReceived;
         _xrayManager.StatusChanged += OnStatusChanged;
+
+        _subscriptionUpdateTimer = new DispatcherTimer(DispatcherPriority.Background, _dispatcher);
+        _subscriptionUpdateTimer.Tick += OnSubscriptionUpdateTimerTick;
 
         AllNodes = new ObservableCollection<VlessNode>();
         Subscriptions = new ObservableCollection<Subscription>();
@@ -76,6 +106,10 @@ public class MainViewModel : ViewModelBase, IDisposable
         CopyProxyCommand = new RelayCommand(CopyProxy, () => IsConnected);
         OpenTelegramCommand = new RelayCommand(() => OpenUrl("https://t.me/ProxyCheckXBot"));
         OpenDiscordCommand = new RelayCommand(() => OpenUrl("https://discord.gg/sxjV3S7J2k"));
+        OpenChromeExtensionCommand = new RelayCommand(() => OpenUrl(ChromeExtensionUrl));
+        OpenFirefoxExtensionCommand = new RelayCommand(() => OpenUrl(FirefoxExtensionUrl));
+        ExportOmegaRulesCommand = new AsyncRelayCommand(ExportOmegaRulesAsync);
+        ResetSystemProxyRulesCommand = new RelayCommand(ResetSystemProxyRules);
 
         _ = LoadAllDataAsync();
     }
@@ -86,6 +120,14 @@ public class MainViewModel : ViewModelBase, IDisposable
     public ObservableCollection<Subscription> Subscriptions { get; }
     public ObservableCollection<ProxyProfile> Profiles { get; }
     public ObservableCollection<VlessNode> ProfileNodes { get; }
+    public IReadOnlyList<KeyValuePair<int, string>> SubscriptionUpdateIntervalOptions { get; } =
+    [
+        new(0, "Отключено"),
+        new(30, "Каждые 30 минут"),
+        new(60, "Каждый час"),
+        new(360, "Каждые 6 часов"),
+        new(1440, "Раз в день")
+    ];
 
     #endregion
 
@@ -185,7 +227,128 @@ public class MainViewModel : ViewModelBase, IDisposable
     public int SocksPort
     {
         get => _socksPort;
-        set => SetProperty(ref _socksPort, value);
+        set
+        {
+            if (!SetProperty(ref _socksPort, value))
+                return;
+
+            if (SystemProxyEnabled && IsConnected && !_isLoadingSettings)
+                _ = RestartSystemProxyAsync(PacUrl);
+        }
+    }
+
+    public bool AutoStartWithWindows
+    {
+        get => _autoStartWithWindows;
+        set
+        {
+            if (!SetProperty(ref _autoStartWithWindows, value))
+                return;
+
+            if (_isLoadingSettings)
+                return;
+
+            ApplyAutoStartSetting(value);
+            _ = SaveSettingsAsync();
+        }
+    }
+
+    public bool AutoConnect
+    {
+        get => _autoConnect;
+        set
+        {
+            if (SetProperty(ref _autoConnect, value) && !_isLoadingSettings)
+                _ = SaveSettingsAsync();
+        }
+    }
+
+    public bool AutoReconnect
+    {
+        get => _autoReconnect;
+        set
+        {
+            if (SetProperty(ref _autoReconnect, value) && !_isLoadingSettings)
+                _ = SaveSettingsAsync();
+        }
+    }
+
+    public bool ShowLogs
+    {
+        get => _showLogs;
+        set
+        {
+            if (SetProperty(ref _showLogs, value) && !_isLoadingSettings)
+                _ = SaveSettingsAsync();
+        }
+    }
+
+    public int SubscriptionUpdateIntervalMinutes
+    {
+        get => _subscriptionUpdateIntervalMinutes;
+        set
+        {
+            if (!SetProperty(ref _subscriptionUpdateIntervalMinutes, value))
+                return;
+
+            ConfigureSubscriptionUpdateTimer();
+
+            if (!_isLoadingSettings)
+                _ = SaveSettingsAsync();
+        }
+    }
+
+    public bool SystemProxyEnabled
+    {
+        get => _systemProxyEnabled;
+        set
+        {
+            if (!SetProperty(ref _systemProxyEnabled, value))
+                return;
+
+            if (_isLoadingSettings)
+                return;
+
+            _ = ApplySystemProxySettingAsync(value);
+        }
+    }
+
+    public int PacPort
+    {
+        get => _pacPort;
+        set
+        {
+            var oldPacUrl = PacUrl;
+            if (!SetProperty(ref _pacPort, value))
+                return;
+
+            OnPropertyChanged(nameof(PacUrl));
+
+            if (SystemProxyEnabled && IsConnected && !_isLoadingSettings)
+                _ = RestartSystemProxyAsync(oldPacUrl);
+            else if (!_isLoadingSettings)
+                _ = SaveSettingsAsync();
+        }
+    }
+
+    public string PacUrl => $"http://127.0.0.1:{PacPort}/proxy.pac";
+
+    public string SystemProxyRulesText
+    {
+        get => _systemProxyRulesText;
+        set
+        {
+            if (!SetProperty(ref _systemProxyRulesText, value))
+                return;
+
+            if (_isLoadingSettings)
+                return;
+
+            if (SystemProxyEnabled && IsConnected)
+                _ = StartSystemProxyAsync();
+
+            _ = SaveSettingsAsync();
+        }
     }
 
     #endregion
@@ -212,6 +375,10 @@ public class MainViewModel : ViewModelBase, IDisposable
     public ICommand CopyProxyCommand { get; }
     public ICommand OpenTelegramCommand { get; }
     public ICommand OpenDiscordCommand { get; }
+    public ICommand OpenChromeExtensionCommand { get; }
+    public ICommand OpenFirefoxExtensionCommand { get; }
+    public ICommand ExportOmegaRulesCommand { get; }
+    public ICommand ResetSystemProxyRulesCommand { get; }
 
     #endregion
 
@@ -365,12 +532,21 @@ public class MainViewModel : ViewModelBase, IDisposable
             }
 
             if (IsConnected)
+            {
+                DeactivateSystemProxyForDisconnectedServer(silent: true);
+                SuppressDisconnectNotifications();
                 await _xrayManager.StopAsync();
+            }
 
             await _xrayManager.StartAsync(node, SocksPort);
 
+            _connectedNode = node;
             ConnectedNodeName = node.DisplayName;
             ConnectionInfo = $"socks5://127.0.0.1:{SocksPort}  →  {node.DisplayName}";
+            RememberConnectedNode(node);
+
+            if (SystemProxyEnabled)
+                await TryActivateSystemProxyAsync();
         }
         catch (Exception ex)
         {
@@ -388,7 +564,10 @@ public class MainViewModel : ViewModelBase, IDisposable
         IsLoading = true;
         try
         {
+            DeactivateSystemProxyForDisconnectedServer(silent: false);
+            SuppressDisconnectNotifications();
             await _xrayManager.StopAsync();
+            _connectedNode = null;
             ConnectionInfo = string.Empty;
             ConnectedNodeName = string.Empty;
         }
@@ -472,6 +651,9 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
 
         AllNodes.Add(node);
+        if (!_manualNodes.Any(n => NodesMatch(n, node)))
+            _manualNodes.Add(node);
+
         ManualServerUri = string.Empty;
 
         _ = SaveSettingsAsync();
@@ -606,22 +788,204 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     #endregion
 
+    #region Extensions
+
+    private async Task ExportOmegaRulesAsync()
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            FileName = OmegaRulesFileName,
+            DefaultExt = ".sorl",
+            Filter = "ZeroOmega Rules|*.sorl|All files|*.*"
+        };
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            await CopyOmegaRulesAsync(dialog.FileName);
+            StatusText = "Файл правил ZeroOmega сохранён";
+            AppendLog($"[sys] Файл правил ZeroOmega сохранён: {dialog.FileName}");
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Ошибка сохранения файла правил";
+            AppendLog($"[err] Не удалось сохранить файл правил ZeroOmega: {ex.Message}");
+        }
+    }
+
+    private static async Task CopyOmegaRulesAsync(string destinationPath)
+    {
+        var assembly = typeof(MainViewModel).Assembly;
+        var resourceName = assembly
+            .GetManifestResourceNames()
+            .FirstOrDefault(name => name.EndsWith(OmegaRulesFileName, StringComparison.OrdinalIgnoreCase));
+
+        if (resourceName != null)
+        {
+            await using var input = assembly.GetManifestResourceStream(resourceName)
+                ?? throw new FileNotFoundException($"Встроенный ресурс {OmegaRulesFileName} не найден.");
+            await using var output = File.Create(destinationPath);
+            await input.CopyToAsync(output);
+            return;
+        }
+
+        var sourcePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, OmegaRulesFileName);
+        if (!File.Exists(sourcePath))
+            throw new FileNotFoundException($"Файл {OmegaRulesFileName} не найден.", sourcePath);
+
+        File.Copy(sourcePath, destinationPath, true);
+    }
+
+    #endregion
+
     #region Helpers
 
     private void RefreshAllNodes()
     {
-        _dispatcher.Invoke(() =>
+        void Refresh()
         {
             AllNodes.Clear();
             foreach (var sub in Subscriptions)
                 foreach (var node in sub.Nodes)
                     AllNodes.Add(node);
 
-            var settings = _storageService.LoadSettingsAsync().GetAwaiter().GetResult();
-            if (settings.ManualNodes != null)
-                foreach (var node in settings.ManualNodes)
+            foreach (var node in _manualNodes)
+                if (!AllNodes.Any(existing => NodesMatch(existing, node)))
                     AllNodes.Add(node);
-        });
+        }
+
+        if (_dispatcher.CheckAccess())
+            Refresh();
+        else
+            _dispatcher.Invoke(Refresh);
+    }
+
+    private void ApplyAutoStartSetting(bool enabled)
+    {
+        try
+        {
+            _autoStartService.SetEnabled(enabled);
+            StatusText = enabled ? "Автозапуск включён" : "Автозапуск выключен";
+            AppendLog(enabled
+                ? "[sys] Автозапуск вместе с Windows включён"
+                : "[sys] Автозапуск вместе с Windows выключен");
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Ошибка настройки автозапуска";
+            AppendLog($"[err] Не удалось изменить автозапуск: {ex.Message}");
+
+            try
+            {
+                var actual = _autoStartService.IsEnabled();
+                if (_autoStartWithWindows != actual)
+                {
+                    _autoStartWithWindows = actual;
+                    OnPropertyChanged(nameof(AutoStartWithWindows));
+                }
+            }
+            catch { }
+        }
+    }
+
+    private void SelectLastConnectedNode()
+    {
+        if (string.IsNullOrWhiteSpace(_lastConnectedNodeId))
+            return;
+
+        SelectedNode = AllNodes.FirstOrDefault(node => GetNodeKey(node) == _lastConnectedNodeId);
+    }
+
+    private void RememberConnectedNode(VlessNode node)
+    {
+        _lastConnectedNodeId = GetNodeKey(node);
+        _ = SaveSettingsAsync();
+    }
+
+    private void SuppressDisconnectNotifications()
+    {
+        _suppressedDisconnectNotifications = Math.Max(_suppressedDisconnectNotifications, 2);
+    }
+
+    private async Task ReconnectAsync(VlessNode node)
+    {
+        if (_isReconnecting || _isDisposed)
+            return;
+
+        _isReconnecting = true;
+        AppendLog($"[sys] Обрыв соединения. Переподключение через 3 сек.: {node.DisplayName}");
+
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3));
+
+            if (_isDisposed || !AutoReconnect || IsConnected)
+                return;
+
+            IsLoading = true;
+            StatusText = "Переподключение...";
+
+            await _xrayManager.StartAsync(node, SocksPort);
+
+            _connectedNode = node;
+            ConnectedNodeName = node.DisplayName;
+            ConnectionInfo = $"socks5://127.0.0.1:{SocksPort}  →  {node.DisplayName}";
+            RememberConnectedNode(node);
+
+            if (SystemProxyEnabled)
+                await TryActivateSystemProxyAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Ошибка переподключения";
+            AppendLog($"[err] Не удалось переподключиться: {ex.Message}");
+        }
+        finally
+        {
+            IsLoading = false;
+            _isReconnecting = false;
+        }
+    }
+
+    private static string GetNodeKey(VlessNode node)
+    {
+        return string.Join("|",
+            node.UUID,
+            node.Address,
+            node.Port,
+            node.Network,
+            node.Security,
+            node.SNI,
+            node.PublicKey,
+            node.ShortId);
+    }
+
+    private static bool NodesMatch(VlessNode left, VlessNode right)
+    {
+        return left.Address == right.Address
+            && left.Port == right.Port
+            && left.UUID == right.UUID
+            && left.Network == right.Network
+            && left.Security == right.Security;
+    }
+
+    private string[] GetSystemProxyRules()
+    {
+        var rules = SystemProxyRulesText
+            .Split(['\r', '\n', '|', ';', ','], StringSplitOptions.RemoveEmptyEntries)
+            .Select(rule => rule.Trim())
+            .Where(rule => !string.IsNullOrWhiteSpace(rule))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return rules.Length > 0 ? rules : PacServerService.DefaultBypassRules;
+    }
+
+    private static string FormatRules(IEnumerable<string> rules)
+    {
+        return string.Join(Environment.NewLine, rules);
     }
 
     private void CopyProxy()
@@ -632,6 +996,12 @@ public class MainViewModel : ViewModelBase, IDisposable
             StatusText = "Адрес прокси скопирован";
         }
         catch { }
+    }
+
+    private void ResetSystemProxyRules()
+    {
+        SystemProxyRulesText = FormatRules(PacServerService.DefaultBypassRules);
+        StatusText = "Правила разделения сброшены";
     }
 
     private static void OpenUrl(string url)
@@ -658,8 +1028,149 @@ public class MainViewModel : ViewModelBase, IDisposable
             {
                 ConnectionInfo = string.Empty;
                 ConnectedNodeName = string.Empty;
+
+                if (_suppressedDisconnectNotifications > 0)
+                {
+                    _suppressedDisconnectNotifications--;
+                    return;
+                }
+
+                DeactivateSystemProxyForDisconnectedServer(silent: true);
+
+                if (AutoReconnect && !_isReconnecting && !_isDisposed && _connectedNode != null)
+                    _ = ReconnectAsync(_connectedNode);
             }
         });
+    }
+
+    private async void OnSubscriptionUpdateTimerTick(object? sender, EventArgs e)
+    {
+        if (IsLoading || Subscriptions.Count == 0)
+            return;
+
+        AppendLog("[sys] Автообновление подписок...");
+        await UpdateAllSubscriptionsAsync();
+    }
+
+    private void ConfigureSubscriptionUpdateTimer()
+    {
+        _subscriptionUpdateTimer.Stop();
+
+        if (SubscriptionUpdateIntervalMinutes <= 0)
+            return;
+
+        _subscriptionUpdateTimer.Interval = TimeSpan.FromMinutes(SubscriptionUpdateIntervalMinutes);
+        _subscriptionUpdateTimer.Start();
+    }
+
+    private void DeactivateSystemProxyForDisconnectedServer(bool silent)
+    {
+        if (!SystemProxyEnabled)
+            return;
+
+        try
+        {
+            StopSystemProxy(PacUrl, restorePrevious: true, silent);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[err] Не удалось выключить системный прокси: {ex.Message}");
+        }
+    }
+
+    private async Task TryActivateSystemProxyAsync()
+    {
+        try
+        {
+            await StartSystemProxyAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Ошибка системного прокси";
+            AppendLog($"[err] Не удалось включить системный прокси: {ex.Message}");
+        }
+    }
+
+    private async Task ApplySystemProxySettingAsync(bool enabled)
+    {
+        try
+        {
+            if (enabled && IsConnected)
+                await StartSystemProxyAsync();
+            else if (enabled)
+                StatusText = "Системный прокси включится после подключения";
+            else
+                StopSystemProxy(PacUrl, restorePrevious: true, silent: false);
+
+            await SaveSettingsAsync();
+        }
+        catch (Exception ex)
+        {
+            if (enabled)
+            {
+                _pacServerService.Stop();
+                _systemProxyEnabled = false;
+                OnPropertyChanged(nameof(SystemProxyEnabled));
+            }
+
+            StatusText = "Ошибка системного прокси";
+            AppendLog($"[err] Не удалось изменить системный прокси: {ex.Message}");
+        }
+    }
+
+    private async Task RestartSystemProxyAsync(string oldPacUrl)
+    {
+        try
+        {
+            if (!string.Equals(oldPacUrl, PacUrl, StringComparison.OrdinalIgnoreCase))
+                StopSystemProxy(oldPacUrl, restorePrevious: false, silent: true);
+
+            await StartSystemProxyAsync();
+            await SaveSettingsAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Ошибка системного прокси";
+            AppendLog($"[err] Не удалось перезапустить системный прокси: {ex.Message}");
+        }
+    }
+
+    private async Task StartSystemProxyAsync()
+    {
+        ValidatePacPort();
+
+        await _pacServerService.StartAsync(PacPort, SocksPort, GetSystemProxyRules());
+
+        var currentAutoConfigUrl = _windowsProxyService.GetAutoConfigUrl();
+        if (!string.Equals(currentAutoConfigUrl, PacUrl, StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrWhiteSpace(_previousAutoConfigUrl))
+        {
+            _previousAutoConfigUrl = currentAutoConfigUrl;
+        }
+
+        _windowsProxyService.EnablePac(PacUrl);
+        StatusText = "Системный прокси включён";
+        AppendLog("[sys] Системный прокси включён");
+    }
+
+    private void StopSystemProxy(string pacUrl, bool restorePrevious, bool silent)
+    {
+        _windowsProxyService.DisablePac(pacUrl, restorePrevious ? _previousAutoConfigUrl : null);
+        if (restorePrevious)
+            _previousAutoConfigUrl = null;
+
+        _pacServerService.Stop();
+        if (!silent)
+        {
+            StatusText = "Системный прокси выключен";
+            AppendLog("[sys] Системный прокси выключен");
+        }
+    }
+
+    private void ValidatePacPort()
+    {
+        if (PacPort is < 1024 or > 65535)
+            throw new InvalidOperationException("PAC порт должен быть в диапазоне 1024-65535.");
     }
 
     private void AppendLog(string message)
@@ -681,7 +1192,40 @@ public class MainViewModel : ViewModelBase, IDisposable
         try
         {
             var settings = await _storageService.LoadSettingsAsync();
+            _isLoadingSettings = true;
             SocksPort = settings.SocksPort > 0 ? settings.SocksPort : 1080;
+            AutoConnect = settings.AutoConnect;
+            AutoReconnect = settings.AutoReconnect;
+            ShowLogs = settings.ShowLogs;
+            PacPort = settings.PacPort is >= 1024 and <= 65535 ? settings.PacPort : 18080;
+            _previousAutoConfigUrl = settings.PreviousAutoConfigUrl;
+            SystemProxyEnabled = settings.SystemProxyEnabled || settings.PacModeEnabled;
+            SystemProxyRulesText = FormatRules(settings.SystemProxyBypassRules.Count > 0
+                ? settings.SystemProxyBypassRules
+                : PacServerService.DefaultBypassRules);
+            SubscriptionUpdateIntervalMinutes = settings.SubscriptionUpdateIntervalMinutes;
+            _lastConnectedNodeId = settings.LastConnectedNodeId;
+            _manualNodes.Clear();
+            if (settings.ManualNodes?.Count > 0)
+                _manualNodes.AddRange(settings.ManualNodes);
+
+            try
+            {
+                if (settings.AutoStartWithWindows && !_autoStartService.IsEnabled())
+                    _autoStartService.SetEnabled(true);
+
+                AutoStartWithWindows = settings.AutoStartWithWindows || _autoStartService.IsEnabled();
+            }
+            catch (Exception ex)
+            {
+                AutoStartWithWindows = settings.AutoStartWithWindows;
+                AppendLog($"[err] Не удалось проверить автозапуск: {ex.Message}");
+            }
+            finally
+            {
+                _isLoadingSettings = false;
+                ConfigureSubscriptionUpdateTimer();
+            }
 
             var subs = await _storageService.LoadSubscriptionsAsync();
             foreach (var sub in subs)
@@ -693,18 +1237,27 @@ public class MainViewModel : ViewModelBase, IDisposable
 
             RefreshAllNodes();
 
-            if (settings.ManualNodes?.Count > 0)
-            {
-                foreach (var node in settings.ManualNodes)
-                    if (!AllNodes.Any(n => n.Address == node.Address && n.Port == node.Port && n.UUID == node.UUID))
-                        AllNodes.Add(node);
-            }
-
             AppendLog($"[sys] Загружено: {Subscriptions.Count} подписок, {AllNodes.Count} серверов, {Profiles.Count} профилей");
+
+            SelectLastConnectedNode();
+
+            if (AutoConnect)
+            {
+                if (SelectedNode != null)
+                {
+                    AppendLog($"[sys] Автоподключение к последнему серверу: {SelectedNode.DisplayName}");
+                    await ConnectToNodeAsync(SelectedNode);
+                }
+                else if (!string.IsNullOrWhiteSpace(_lastConnectedNodeId))
+                {
+                    AppendLog("[sys] Последний сервер для автоподключения не найден");
+                }
+            }
         }
         catch (Exception ex)
         {
             AppendLog($"[err] Ошибка загрузки данных: {ex.Message}");
+            _isLoadingSettings = false;
         }
     }
 
@@ -712,14 +1265,21 @@ public class MainViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            var manualNodes = AllNodes
-                .Where(n => !Subscriptions.Any(s => s.Nodes.Contains(n)))
-                .ToList();
-
             var settings = new AppSettings
             {
                 SocksPort = SocksPort,
-                ManualNodes = manualNodes
+                AutoStartWithWindows = AutoStartWithWindows,
+                AutoConnect = AutoConnect,
+                AutoReconnect = AutoReconnect,
+                ShowLogs = ShowLogs,
+                SystemProxyEnabled = SystemProxyEnabled,
+                SystemProxyBypassRules = GetSystemProxyRules().ToList(),
+                PacModeEnabled = SystemProxyEnabled,
+                PacPort = PacPort,
+                PreviousAutoConfigUrl = _previousAutoConfigUrl,
+                SubscriptionUpdateIntervalMinutes = SubscriptionUpdateIntervalMinutes,
+                LastConnectedNodeId = _lastConnectedNodeId,
+                ManualNodes = _manualNodes.ToList()
             };
 
             await _storageService.SaveSettingsAsync(settings);
@@ -731,6 +1291,17 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        _isDisposed = true;
+        _subscriptionUpdateTimer.Stop();
+        _subscriptionUpdateTimer.Tick -= OnSubscriptionUpdateTimerTick;
+        try
+        {
+            if (SystemProxyEnabled)
+                StopSystemProxy(PacUrl, restorePrevious: true, silent: true);
+        }
+        catch { }
+
+        _pacServerService.Dispose();
         _xrayManager.Dispose();
         _subscriptionService.Dispose();
         GC.SuppressFinalize(this);

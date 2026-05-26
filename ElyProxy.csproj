@@ -27,6 +27,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="OmegaRules_auto_switch.sorl" />
+    <None Update="OmegaRules_auto_switch.sorl">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="bin\xray\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

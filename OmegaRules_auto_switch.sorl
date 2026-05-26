@@ -1,0 +1,6 @@
+[SwitchyOmega Conditions]
+; Require: ZeroOmega >= 2.3.2
+; Date: 25.05.2026
+; Usage: https://github.com/FelisCatus/SwitchyOmega/wiki/RuleListUsage
+
+*.ru|*.рф|*.su|*.com.ru|*.edu.ru
