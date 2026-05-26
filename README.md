@@ -59,19 +59,13 @@ Windows-клиент для VLESS-подписок на базе Xray-core. Пр
 
 ### Готовая Сборка
 
-<<<<<<< HEAD
-1. Скачайте архив `ElyProxy-v1.0.0-win-x64.zip` из релиза.
-2. Распакуйте архив в удобную папку.
-3. Запустите `ElyProxy.exe`.
-=======
 1. Перейдите в [Releases](https://github.com/CrackKO/ElyProxy/releases)
-2. Скачайте `ElyProxy-v1.0.0-win-x64.zip`
+2. Скачайте архив `ElyProxy-v1.1.0-win-x64.zip`
 3. Распакуйте в любую папку
-4. Если нету xray папки в Releases читайте 5 пункт.
+4. Если в архиве нет папки `xray`, выполните пункты 5-6.
 5. Скачайте [Xray-core](https://github.com/XTLS/Xray-core/releases) (`Xray-windows-64.zip`)
 6. Из архива Xray поместите `xray.exe`, `geoip.dat`, `geosite.dat` в папку `xray/` рядом с `ElyProxy.exe`
 7. Запустите `ElyProxy.exe`
->>>>>>> 636741ec515ee22bb5ba68559b2fff81e3b4409d
 
 Если Xray-core не входит в сборку, скачайте `Xray-windows-64.zip` из релизов Xray-core и поместите рядом с приложением:
 
