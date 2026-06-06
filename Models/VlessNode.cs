@@ -20,12 +20,15 @@ public class VlessNode
     public string SpiderX { get; set; } = string.Empty;
     public string Encryption { get; set; } = "none";
     public int? Latency { get; set; }
+    public string PingDetails { get; set; } = string.Empty;
 
     public string DisplayName => string.IsNullOrEmpty(Name)
         ? $"{Address}:{Port}"
         : Name;
 
-    public string LatencyDisplay => Latency.HasValue
+    public string LatencyDisplay => !string.IsNullOrWhiteSpace(PingDetails)
+        ? PingDetails
+        : Latency.HasValue
         ? $"{Latency.Value} ms"
         : "—";
 

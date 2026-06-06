@@ -5,14 +5,18 @@ namespace ElyProxy.Core;
 
 public class ConfigBuilder
 {
-    public string Build(VlessNode node, int socksPort = 1080)
+    public string Build(VlessNode node, int socksPort = 1080, XrayTunOptions? tunOptions = null)
     {
+        var inbounds = new JArray { BuildSocksInbound(socksPort) };
+        if (tunOptions != null)
+            inbounds.Add(BuildTunInbound(tunOptions));
+
         var config = new JObject
         {
             ["log"] = new JObject { ["loglevel"] = "warning" },
-            ["inbounds"] = new JArray { BuildSocksInbound(socksPort) },
+            ["inbounds"] = inbounds,
             ["outbounds"] = BuildVlessOutbounds(node),
-            ["routing"] = BuildRouting()
+            ["routing"] = BuildRouting(tunOptions != null)
         };
 
         return config.ToString(Newtonsoft.Json.Formatting.Indented);
@@ -52,6 +56,43 @@ public class ConfigBuilder
         };
     }
 
+    private static JObject BuildTunInbound(XrayTunOptions options)
+    {
+        var gateway = new JArray("172.19.0.1/30");
+        var routes = new JArray("0.0.0.0/0");
+
+        if (options.IncludeIpv6)
+        {
+            gateway.Add("fdfe:dcba:9876::1/126");
+            routes.Add("::/0");
+        }
+
+        var settings = new JObject
+        {
+            ["name"] = string.IsNullOrWhiteSpace(options.InterfaceName) ? "ElyTun" : options.InterfaceName,
+            ["mtu"] = options.Mtu,
+            ["gateway"] = gateway,
+            ["userLevel"] = 0,
+            ["autoSystemRoutingTable"] = routes,
+            ["autoOutboundsInterface"] = "auto"
+        };
+
+        if (options.DnsServers.Count > 0)
+            settings["dns"] = new JArray(options.DnsServers);
+
+        return new JObject
+        {
+            ["tag"] = "elytun-in",
+            ["protocol"] = "tun",
+            ["settings"] = settings,
+            ["sniffing"] = new JObject
+            {
+                ["enabled"] = true,
+                ["destOverride"] = new JArray("http", "tls", "quic")
+            }
+        };
+    }
+
     private static JArray BuildVlessOutbounds(VlessNode node)
     {
         var user = new JObject
@@ -78,12 +119,14 @@ public class ConfigBuilder
             ["streamSettings"] = BuildStreamSettings(node)
         };
 
-        return new JArray
+        var outbounds = new JArray
         {
             proxy,
             new JObject { ["tag"] = "direct", ["protocol"] = "freedom" },
             new JObject { ["tag"] = "block", ["protocol"] = "blackhole" }
         };
+
+        return outbounds;
     }
 
     private static JArray BuildSocksOutbounds(SocksNode node)
@@ -241,26 +284,47 @@ public class ConfigBuilder
         return obj;
     }
 
-    private static JObject BuildRouting()
+    private static JObject BuildRouting(bool includeTunRules = false)
     {
+        var rules = new JArray();
+
+        if (includeTunRules)
+        {
+            rules.Add(new JObject
+            {
+                ["type"] = "field",
+                ["inboundTag"] = new JArray("elytun-in"),
+                ["port"] = 53,
+                ["network"] = "tcp,udp",
+                ["outboundTag"] = "direct"
+            });
+            rules.Add(new JObject
+            {
+                ["type"] = "field",
+                ["inboundTag"] = new JArray("elytun-in"),
+                ["port"] = 443,
+                ["network"] = "udp",
+                ["outboundTag"] = "block"
+            });
+        }
+
+        rules.Add(new JObject
+        {
+            ["type"] = "field",
+            ["outboundTag"] = "direct",
+            ["domain"] = new JArray("geosite:private")
+        });
+        rules.Add(new JObject
+        {
+            ["type"] = "field",
+            ["outboundTag"] = "direct",
+            ["ip"] = new JArray("geoip:private")
+        });
+
         return new JObject
         {
             ["domainStrategy"] = "AsIs",
-            ["rules"] = new JArray
-            {
-                new JObject
-                {
-                    ["type"] = "field",
-                    ["outboundTag"] = "direct",
-                    ["domain"] = new JArray("geosite:private")
-                },
-                new JObject
-                {
-                    ["type"] = "field",
-                    ["outboundTag"] = "direct",
-                    ["ip"] = new JArray("geoip:private")
-                }
-            }
+            ["rules"] = rules
         };
     }
 

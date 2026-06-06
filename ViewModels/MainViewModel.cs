@@ -1,6 +1,10 @@
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Security.Principal;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -15,6 +19,23 @@ public class MainViewModel : ViewModelBase, IDisposable
     private const string ChromeExtensionUrl = "https://chromewebstore.google.com/detail/proxy-switchyomega-3-zero/pfnededegaaopdmhkdmcofjmoldfiped?pli=1";
     private const string FirefoxExtensionUrl = "https://addons.mozilla.org/ru/firefox/addon/zeroomega/";
     private const string OmegaRulesFileName = "OmegaRules_auto_switch.sorl";
+    private const string DefaultProxyPingUrl = "https://youtube.com";
+    private const string LegacyProxyPingUrl = "http://cp.cloudflare.com/generate_204";
+    private const string PingModeTcp = "Tcp";
+    private const string PingModeProxyGet = "ProxyGet";
+    private const string PingModeElyTurbo = "ElyTurbo";
+    private const string PingModeElyHard = "ElyHard";
+    private const int DefaultProxyPingConcurrency = 10;
+    private const int MinProxyPingConcurrency = 1;
+    private const int MaxProxyPingConcurrency = 32;
+    private const int DefaultElyTunMtu = 1500;
+    private const int MaxAutoReconnectAttempts = 3;
+    private static readonly Version MinElyTunXrayVersion = new(26, 4, 0);
+    private static readonly string[] DefaultElyTunDnsServers = ["1.1.1.1", "8.8.8.8"];
+    private static readonly TimeSpan TcpPingTimeout = TimeSpan.FromMilliseconds(2500);
+    private static readonly TimeSpan ProxyPingHttpTimeout = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan ProxyPingStartupTimeout = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan AutoReconnectAttemptWindow = TimeSpan.FromMinutes(2);
 
     private readonly SubscriptionService _subscriptionService;
     private readonly ParserService _parserService;
@@ -23,6 +44,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     private readonly AutoStartService _autoStartService;
     private readonly PacServerService _pacServerService;
     private readonly WindowsProxyService _windowsProxyService;
+    private readonly ElyHardService _elyHardService;
     private readonly XrayManager _xrayManager;
     private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _subscriptionUpdateTimer;
@@ -41,6 +63,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     private string _connectionInfo = string.Empty;
     private string _connectedNodeName = string.Empty;
     private string _logText = string.Empty;
+    private string _pingSummary = string.Empty;
     private bool _isConnected;
     private bool _isLoading;
     private bool _autoStartWithWindows;
@@ -48,16 +71,32 @@ public class MainViewModel : ViewModelBase, IDisposable
     private bool _autoReconnect;
     private bool _showLogs = true;
     private bool _systemProxyEnabled;
+    private bool _elyTunEnabled;
+    private bool _elyTunIgnoreOtherTunAdapters;
     private bool _isLoadingSettings;
     private bool _isReconnecting;
     private bool _isDisposed;
     private int _suppressedDisconnectNotifications;
+    private int _autoReconnectAttempts;
     private int _subscriptionUpdateIntervalMinutes;
     private int _pacPort = 18080;
+    private int _proxyPingConcurrency = DefaultProxyPingConcurrency;
     private string _systemProxyRulesText = string.Empty;
+    private string _pingMode = PingModeTcp;
+    private string _proxyPingUrl = DefaultProxyPingUrl;
     private string? _lastConnectedNodeId;
     private string? _previousAutoConfigUrl;
     private int _socksPort = 1080;
+
+    private static readonly ElyTurboTarget[] ElyTurboTargets =
+    [
+        new("Discord", "https://discord.com/api/v9/experiments"),
+        new("Telegram", "https://telegram.org"),
+        new("YouTube", "https://www.youtube.com/generate_204"),
+        new("Spotify", "https://open.spotify.com"),
+        new("GitHub", "https://github.com"),
+        new("Gmail", "https://mail.google.com/mail/generate_204")
+    ];
 
     public MainViewModel()
     {
@@ -69,6 +108,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         _autoStartService = new AutoStartService();
         _pacServerService = new PacServerService();
         _windowsProxyService = new WindowsProxyService();
+        _elyHardService = new ElyHardService();
         _xrayManager = new XrayManager();
 
         _xrayManager.LogReceived += OnLogReceived;
@@ -127,6 +167,14 @@ public class MainViewModel : ViewModelBase, IDisposable
         new(60, "Каждый час"),
         new(360, "Каждые 6 часов"),
         new(1440, "Раз в день")
+    ];
+
+    public IReadOnlyList<KeyValuePair<string, string>> PingModeOptions { get; } =
+    [
+        new(PingModeTcp, "TCP"),
+        new(PingModeProxyGet, "Proxy GET"),
+        new(PingModeElyTurbo, "ElyTurbo"),
+        new(PingModeElyHard, "ElyHard")
     ];
 
     #endregion
@@ -212,6 +260,18 @@ public class MainViewModel : ViewModelBase, IDisposable
         set => SetProperty(ref _logText, value);
     }
 
+    public string PingSummary
+    {
+        get => _pingSummary;
+        set
+        {
+            if (SetProperty(ref _pingSummary, value))
+                OnPropertyChanged(nameof(HasPingSummary));
+        }
+    }
+
+    public bool HasPingSummary => !string.IsNullOrWhiteSpace(PingSummary);
+
     public bool IsConnected
     {
         get => _isConnected;
@@ -229,11 +289,16 @@ public class MainViewModel : ViewModelBase, IDisposable
         get => _socksPort;
         set
         {
+            if (value is < 1 or > 65535)
+                return;
+
             if (!SetProperty(ref _socksPort, value))
                 return;
 
             if (SystemProxyEnabled && IsConnected && !_isLoadingSettings)
                 _ = RestartSystemProxyAsync(PacUrl);
+            else if (!_isLoadingSettings)
+                _ = SaveSettingsAsync();
         }
     }
 
@@ -283,6 +348,48 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
+    public string PingMode
+    {
+        get => _pingMode;
+        set
+        {
+            var normalized = NormalizePingMode(value);
+            if (!SetProperty(ref _pingMode, normalized))
+                return;
+
+            OnPropertyChanged(nameof(IsProxyGetPingMode));
+            OnPropertyChanged(nameof(IsProxyBasedPingMode));
+
+            if (!_isLoadingSettings)
+                _ = SaveSettingsAsync();
+        }
+    }
+
+    public bool IsProxyGetPingMode => PingMode == PingModeProxyGet;
+    public bool IsProxyBasedPingMode => PingMode is PingModeProxyGet or PingModeElyTurbo or PingModeElyHard;
+
+    public string ProxyPingUrl
+    {
+        get => _proxyPingUrl;
+        set
+        {
+            var normalized = NormalizeProxyPingUrl(value);
+            if (SetProperty(ref _proxyPingUrl, normalized) && !_isLoadingSettings)
+                _ = SaveSettingsAsync();
+        }
+    }
+
+    public int ProxyPingConcurrency
+    {
+        get => _proxyPingConcurrency;
+        set
+        {
+            var normalized = Math.Clamp(value, MinProxyPingConcurrency, MaxProxyPingConcurrency);
+            if (SetProperty(ref _proxyPingConcurrency, normalized) && !_isLoadingSettings)
+                _ = SaveSettingsAsync();
+        }
+    }
+
     public int SubscriptionUpdateIntervalMinutes
     {
         get => _subscriptionUpdateIntervalMinutes;
@@ -310,6 +417,31 @@ public class MainViewModel : ViewModelBase, IDisposable
                 return;
 
             _ = ApplySystemProxySettingAsync(value);
+        }
+    }
+
+    public bool ElyTunEnabled
+    {
+        get => _elyTunEnabled;
+        set
+        {
+            if (!SetProperty(ref _elyTunEnabled, value))
+                return;
+
+            if (_isLoadingSettings)
+                return;
+
+            _ = ApplyElyTunSettingAsync(value);
+        }
+    }
+
+    public bool ElyTunIgnoreOtherTunAdapters
+    {
+        get => _elyTunIgnoreOtherTunAdapters;
+        set
+        {
+            if (SetProperty(ref _elyTunIgnoreOtherTunAdapters, value) && !_isLoadingSettings)
+                _ = SaveSettingsAsync();
         }
     }
 
@@ -534,19 +666,29 @@ public class MainViewModel : ViewModelBase, IDisposable
             if (IsConnected)
             {
                 DeactivateSystemProxyForDisconnectedServer(silent: true);
-                SuppressDisconnectNotifications();
+                SuppressDisconnectNotifications(3);
                 await _xrayManager.StopAsync();
             }
 
-            await _xrayManager.StartAsync(node, SocksPort);
+            if (ElyTunEnabled && !EnsureElyTunCanRun(showMessage: true))
+                return;
+
+            if (!EnsureSocksPortAvailableForStart())
+                return;
+
+            await _xrayManager.StartAsync(node, SocksPort, BuildElyTunOptionsOrNull());
 
             _connectedNode = node;
+            _autoReconnectAttempts = 0;
             ConnectedNodeName = node.DisplayName;
-            ConnectionInfo = $"socks5://127.0.0.1:{SocksPort}  →  {node.DisplayName}";
+            UpdateConnectionInfo(node);
             RememberConnectedNode(node);
 
             if (SystemProxyEnabled)
                 await TryActivateSystemProxyAsync();
+
+            if (ElyTunEnabled)
+                _ = VerifyElyTunConnectivityAsync();
         }
         catch (Exception ex)
         {
@@ -585,20 +727,414 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     #region Ping
 
-    private async Task PingAllAsync()
+    private Task PingAllAsync()
+    {
+        return PingMode switch
+        {
+            PingModeProxyGet => ProxyPingAllAsync(),
+            PingModeElyTurbo => ElyTurboAllAsync(),
+            PingModeElyHard => ElyHardAllAsync(),
+            _ => TcpPingAllAsync()
+        };
+    }
+
+    private async Task TcpPingAllAsync()
     {
         IsLoading = true;
-        StatusText = "Проверка серверов...";
-        AppendLog("[sys] Запуск проверки пинга...");
+        StatusText = "TCP-пинг серверов...";
+        PingSummary = string.Empty;
+        AppendLog("[sys] Запуск TCP-пинга...");
+
+        try
+        {
+            var nodes = AllNodes.ToList();
+            var completed = 0;
+            using var semaphore = new SemaphoreSlim(64);
+            var tasks = nodes.Select(async node =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    node.PingDetails = string.Empty;
+                    node.Latency = await MeasureTcpLatencyAsync(node.Address, node.Port);
+                    var current = Interlocked.Increment(ref completed);
+                    if (current % 5 == 0 || current == nodes.Count)
+                    {
+                        await _dispatcher.InvokeAsync(() =>
+                            StatusText = $"TCP-пинг: {current}/{nodes.Count}");
+                    }
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+
+            await Task.WhenAll(tasks);
+
+            SortNodesByLatency();
+
+            var reachable = nodes.Count(n => n.Latency.HasValue);
+            StatusText = $"TCP-пинг: {reachable}/{nodes.Count} доступно";
+            AppendLog($"[sys] TCP-пинг завершён: {reachable}/{nodes.Count} доступно");
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task ProxyPingAllAsync()
+    {
+        IsLoading = true;
+        StatusText = "Proxy GET-пинг серверов...";
+        PingSummary = string.Empty;
+
+        if (!TryGetProxyPingUri(out var pingUri))
+        {
+            StatusText = "Некорректный URL пинга";
+            AppendLog($"[err] Некорректный URL Proxy GET-пинга: {ProxyPingUrl}");
+            IsLoading = false;
+            return;
+        }
+
+        AppendLog($"[sys] Запуск Proxy GET-пинга: {pingUri}, потоков: {ProxyPingConcurrency}");
 
         var nodes = AllNodes.ToList();
-        var tasks = nodes.Select(async node =>
+        var reachable = 0;
+        var completed = 0;
+
+        try
         {
-            node.Latency = await MeasureLatencyAsync(node.Address, node.Port);
-        });
+            using var semaphore = new SemaphoreSlim(ProxyPingConcurrency);
+            var tasks = nodes.Select(async node =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    node.PingDetails = string.Empty;
+                    node.Latency = await MeasureProxyGetLatencyAsync(node, pingUri);
 
-        await Task.WhenAll(tasks);
+                    if (node.Latency.HasValue)
+                    {
+                        Interlocked.Increment(ref reachable);
+                        AppendLog($"[ping] Proxy GET {node.DisplayName}: {node.Latency.Value} ms");
+                    }
+                }
+                finally
+                {
+                    semaphore.Release();
+                    var current = Interlocked.Increment(ref completed);
+                    if (current % 3 == 0 || current == nodes.Count)
+                    {
+                        var ok = Volatile.Read(ref reachable);
+                        await _dispatcher.InvokeAsync(() =>
+                            StatusText = $"Proxy GET: {current}/{nodes.Count}, ок: {ok}");
+                    }
+                }
+            });
 
+            await Task.WhenAll(tasks);
+
+            SortNodesByLatency();
+
+            StatusText = $"Proxy GET: {reachable}/{nodes.Count} доступно";
+            AppendLog($"[sys] Proxy GET-пинг завершён: {reachable}/{nodes.Count} доступно");
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task ElyTurboAllAsync()
+    {
+        IsLoading = true;
+        StatusText = "ElyTurbo серверов...";
+        PingSummary = string.Empty;
+        AppendLog($"[sys] Запуск ElyTurbo: сервисов {ElyTurboTargets.Length}, потоков: {ProxyPingConcurrency}");
+
+        var nodes = AllNodes.ToList();
+        var results = new ConcurrentBag<ElyTurboNodeResult>();
+        var completed = 0;
+
+        try
+        {
+            using var semaphore = new SemaphoreSlim(ProxyPingConcurrency);
+            var tasks = nodes.Select(async node =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    var result = await MeasureElyTurboAsync(node);
+                    results.Add(result);
+
+                    node.Latency = result.AverageLatencyMs;
+                    node.PingDetails = result.SuccessCount > 0
+                        ? $"{result.SuccessCount}/{result.TotalCount} · {result.AverageLatencyMs} ms"
+                        : $"0/{result.TotalCount}";
+                }
+                finally
+                {
+                    semaphore.Release();
+                    var current = Interlocked.Increment(ref completed);
+                    if (current % 3 == 0 || current == nodes.Count)
+                    {
+                        var best = results
+                            .OrderByDescending(result => result.SuccessCount)
+                            .ThenBy(result => result.AverageLatencyMs ?? int.MaxValue)
+                            .FirstOrDefault();
+                        var bestText = best == null
+                            ? string.Empty
+                            : $" · лучший: {best.Node.DisplayName} {best.SuccessCount}/{best.TotalCount}";
+
+                        await _dispatcher.InvokeAsync(() =>
+                            StatusText = $"ElyTurbo: {current}/{nodes.Count}{bestText}");
+                    }
+                }
+            });
+
+            await Task.WhenAll(tasks);
+
+            var ordered = results
+                .OrderByDescending(result => result.SuccessCount)
+                .ThenBy(result => result.AverageLatencyMs ?? int.MaxValue)
+                .ThenBy(result => result.FastestLatencyMs ?? int.MaxValue)
+                .ToList();
+
+            _dispatcher.Invoke(() =>
+            {
+                AllNodes.Clear();
+                foreach (var result in ordered)
+                    AllNodes.Add(result.Node);
+
+                SelectedNode = ordered.FirstOrDefault()?.Node;
+            });
+
+            var bestResult = ordered.FirstOrDefault();
+            if (bestResult == null || bestResult.SuccessCount == 0)
+            {
+                StatusText = "ElyTurbo: рабочие серверы не найдены";
+                PingSummary = "ElyTurbo: рабочие серверы не найдены";
+                AppendLog("[sys] ElyTurbo завершён: рабочие серверы не найдены");
+                return;
+            }
+
+            PingSummary = BuildElyTurboSummary(bestResult);
+            StatusText = $"ElyTurbo: лучший {bestResult.SuccessCount}/{bestResult.TotalCount}, {bestResult.AverageLatencyMs} ms";
+            AppendLog($"[turbo] {PingSummary}");
+
+            foreach (var result in ordered.Take(5))
+            {
+                AppendLog($"[turbo] {result.Node.DisplayName}: {result.SuccessCount}/{result.TotalCount}, {FormatNullableLatency(result.AverageLatencyMs)}");
+            }
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task ElyHardAllAsync()
+    {
+        IsLoading = true;
+        StatusText = "ElyHard серверов...";
+        PingSummary = string.Empty;
+        AppendLog($"[sys] Запуск ElyHard: full real session, потоков: {ProxyPingConcurrency}");
+
+        var nodes = AllNodes.ToList();
+        var results = new ConcurrentBag<ElyHardService.ElyHardNodeResult>();
+        var completed = 0;
+        var options = new ElyHardService.ElyHardOptions(
+            AttemptsPerTarget: 2,
+            StartupTimeout: TimeSpan.FromSeconds(3),
+            RequestTimeout: TimeSpan.FromSeconds(6));
+
+        try
+        {
+            using var semaphore = new SemaphoreSlim(ProxyPingConcurrency);
+            var tasks = nodes.Select(async node =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    var result = await _elyHardService.CheckNodeAsync(node, options);
+                    results.Add(result);
+
+                    node.Latency = result.AverageLatencyMs;
+                    node.PingDetails = result.ReachableServices > 0
+                        ? $"{result.StableServices}/{result.TotalServices} · {FormatNullableLatency(result.AverageLatencyMs)}"
+                        : $"0/{result.TotalServices}";
+                }
+                finally
+                {
+                    semaphore.Release();
+                    var current = Interlocked.Increment(ref completed);
+                    if (current % 2 == 0 || current == nodes.Count)
+                    {
+                        var best = OrderElyHardResults(results).FirstOrDefault();
+                        var bestText = best == null
+                            ? string.Empty
+                            : $" · лучший: {best.Node.DisplayName} {best.StableServices}/{best.TotalServices}";
+
+                        await _dispatcher.InvokeAsync(() =>
+                            StatusText = $"ElyHard: {current}/{nodes.Count}{bestText}");
+                    }
+                }
+            });
+
+            await Task.WhenAll(tasks);
+
+            var ordered = OrderElyHardResults(results).ToList();
+            _dispatcher.Invoke(() =>
+            {
+                AllNodes.Clear();
+                foreach (var result in ordered)
+                    AllNodes.Add(result.Node);
+
+                SelectedNode = ordered.FirstOrDefault()?.Node;
+            });
+
+            var bestResult = ordered.FirstOrDefault();
+            if (bestResult == null || bestResult.ReachableServices == 0)
+            {
+                StatusText = "ElyHard: рабочие серверы не найдены";
+                PingSummary = "ElyHard: рабочие серверы не найдены";
+                AppendLog("[sys] ElyHard завершён: рабочие серверы не найдены");
+                return;
+            }
+
+            PingSummary = BuildElyHardSummary(bestResult);
+            StatusText = $"ElyHard: лучший {bestResult.StableServices}/{bestResult.TotalServices}, {FormatNullableLatency(bestResult.AverageLatencyMs)}";
+            AppendLog($"[hard] {PingSummary}");
+
+            foreach (var result in ordered.Take(5))
+            {
+                AppendLog($"[hard] {result.Node.DisplayName}: стабильно {result.StableServices}/{result.TotalServices}, попытки {result.TotalSuccessfulAttempts}/{result.TotalAttempts}, среднее {FormatNullableLatency(result.AverageLatencyMs)}");
+            }
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private static async Task<int?> MeasureTcpLatencyAsync(string host, int port)
+    {
+        try
+        {
+            using var client = new TcpClient();
+            var sw = Stopwatch.StartNew();
+            await client.ConnectAsync(host, port).WaitAsync(TcpPingTimeout);
+            sw.Stop();
+            return (int)sw.ElapsedMilliseconds;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task<int?> MeasureProxyGetLatencyAsync(VlessNode node, Uri pingUri)
+    {
+        var probePort = GetFreeTcpPort();
+        using var probeXray = new XrayManager();
+
+        try
+        {
+            await probeXray.StartAsync(node, probePort);
+
+            if (!await WaitForLocalPortAsync(probePort, ProxyPingStartupTimeout))
+                return null;
+
+            using var handler = new HttpClientHandler
+            {
+                Proxy = new WebProxy($"socks5://127.0.0.1:{probePort}"),
+                UseProxy = true
+            };
+            using var http = new HttpClient(handler)
+            {
+                Timeout = ProxyPingHttpTimeout
+            };
+
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("ElyProxy/1.1");
+
+            var sw = Stopwatch.StartNew();
+            using var response = await http.GetAsync(pingUri, HttpCompletionOption.ResponseHeadersRead);
+            sw.Stop();
+
+            return response.IsSuccessStatusCode || (int)response.StatusCode is >= 300 and < 500
+                ? (int)sw.ElapsedMilliseconds
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            await probeXray.StopAsync();
+        }
+    }
+
+    private async Task<ElyTurboNodeResult> MeasureElyTurboAsync(VlessNode node)
+    {
+        var probePort = GetFreeTcpPort();
+        using var probeXray = new XrayManager();
+
+        try
+        {
+            await probeXray.StartAsync(node, probePort);
+
+            if (!await WaitForLocalPortAsync(probePort, ProxyPingStartupTimeout))
+                return ElyTurboNodeResult.Empty(node, ElyTurboTargets.Length);
+
+            using var handler = new HttpClientHandler
+            {
+                Proxy = new WebProxy($"socks5://127.0.0.1:{probePort}"),
+                UseProxy = true,
+                AllowAutoRedirect = false
+            };
+            using var http = new HttpClient(handler)
+            {
+                Timeout = ProxyPingHttpTimeout
+            };
+
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("ElyProxy/1.1");
+
+            var checks = await Task.WhenAll(ElyTurboTargets.Select(target => MeasureElyTurboTargetAsync(http, target)));
+            return new ElyTurboNodeResult(node, checks);
+        }
+        catch
+        {
+            return ElyTurboNodeResult.Empty(node, ElyTurboTargets.Length);
+        }
+        finally
+        {
+            await probeXray.StopAsync();
+        }
+    }
+
+    private static async Task<ElyTurboServiceResult> MeasureElyTurboTargetAsync(HttpClient http, ElyTurboTarget target)
+    {
+        try
+        {
+            var sw = Stopwatch.StartNew();
+            using var response = await http.GetAsync(target.Url, HttpCompletionOption.ResponseHeadersRead);
+            sw.Stop();
+
+            var statusCode = (int)response.StatusCode;
+            var isReachable = statusCode is >= 200 and < 500;
+            return new ElyTurboServiceResult(target.Name, isReachable ? (int)sw.ElapsedMilliseconds : null);
+        }
+        catch
+        {
+            return new ElyTurboServiceResult(target.Name, null);
+        }
+    }
+
+    private void SortNodesByLatency()
+    {
         _dispatcher.Invoke(() =>
         {
             var sorted = AllNodes.OrderBy(n => n.Latency ?? int.MaxValue).ToList();
@@ -606,32 +1142,146 @@ public class MainViewModel : ViewModelBase, IDisposable
             foreach (var node in sorted)
                 AllNodes.Add(node);
         });
-
-        var reachable = nodes.Count(n => n.Latency.HasValue);
-        StatusText = $"Пинг: {reachable}/{nodes.Count} доступно";
-        AppendLog($"[sys] Пинг завершён: {reachable}/{nodes.Count} доступно");
-        IsLoading = false;
     }
 
-    private static async Task<int?> MeasureLatencyAsync(string host, int port)
+    private static int GetFreeTcpPort()
     {
-        try
-        {
-            using var client = new TcpClient();
-            var sw = Stopwatch.StartNew();
-            var connectTask = client.ConnectAsync(host, port);
-            var completed = await Task.WhenAny(connectTask, Task.Delay(5000));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
 
-            if (completed == connectTask && connectTask.IsCompletedSuccessfully)
-            {
-                sw.Stop();
-                return (int)sw.ElapsedMilliseconds;
-            }
-            return null;
-        }
-        catch
+    private static async Task<bool> WaitForLocalPortAsync(int port, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+
+        while (DateTime.UtcNow < deadline)
         {
-            return null;
+            try
+            {
+                using var client = new TcpClient();
+                var connectTask = client.ConnectAsync(IPAddress.Loopback, port);
+                var completed = await Task.WhenAny(connectTask, Task.Delay(250));
+                if (completed == connectTask && connectTask.IsCompletedSuccessfully)
+                    return true;
+            }
+            catch { }
+
+            await Task.Delay(100);
+        }
+
+        return false;
+    }
+
+    private bool TryGetProxyPingUri(out Uri pingUri)
+    {
+        if (Uri.TryCreate(ProxyPingUrl, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            pingUri = uri;
+            return true;
+        }
+
+        pingUri = new Uri(DefaultProxyPingUrl);
+        return false;
+    }
+
+    private static string NormalizePingMode(string? value)
+    {
+        if (string.Equals(value, PingModeProxyGet, StringComparison.OrdinalIgnoreCase))
+            return PingModeProxyGet;
+
+        if (string.Equals(value, PingModeElyTurbo, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value, string.Concat("Super", "Ping"), StringComparison.OrdinalIgnoreCase))
+            return PingModeElyTurbo;
+
+        if (string.Equals(value, PingModeElyHard, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value, string.Concat("Ultra", "Ping"), StringComparison.OrdinalIgnoreCase))
+            return PingModeElyHard;
+
+        return PingModeTcp;
+    }
+
+    private static string NormalizeProxyPingUrl(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return DefaultProxyPingUrl;
+
+        var trimmed = value.Trim();
+        return string.Equals(trimmed, LegacyProxyPingUrl, StringComparison.OrdinalIgnoreCase)
+            ? DefaultProxyPingUrl
+            : trimmed;
+    }
+
+    private static string BuildElyTurboSummary(ElyTurboNodeResult result)
+    {
+        var services = string.Join(", ", result.Services.Select(service =>
+            $"{service.Name}: {FormatNullableLatency(service.LatencyMs)}"));
+
+        return $"Лучший: {result.Node.DisplayName} · сервисы {result.SuccessCount}/{result.TotalCount} · среднее {FormatNullableLatency(result.AverageLatencyMs)} · {services}";
+    }
+
+    private static IOrderedEnumerable<ElyHardService.ElyHardNodeResult> OrderElyHardResults(IEnumerable<ElyHardService.ElyHardNodeResult> results)
+    {
+        return results
+            .OrderByDescending(result => result.StableServices)
+            .ThenByDescending(result => result.ReachableServices)
+            .ThenByDescending(result => result.TotalSuccessfulAttempts)
+            .ThenBy(result => result.AverageLatencyMs ?? int.MaxValue)
+            .ThenBy(result => result.WorstLatencyMs ?? int.MaxValue);
+    }
+
+    private static string BuildElyHardSummary(ElyHardService.ElyHardNodeResult result)
+    {
+        var services = string.Join(", ", result.Services.Select(service => service.CompactDisplay));
+
+        return $"ElyHard лучший: {result.Node.DisplayName} · стабильно {result.StableServices}/{result.TotalServices} · попытки {result.TotalSuccessfulAttempts}/{result.TotalAttempts} · среднее {FormatNullableLatency(result.AverageLatencyMs)} · худший {FormatNullableLatency(result.WorstLatencyMs)} · {services}";
+    }
+
+    private static string FormatNullableLatency(int? latency)
+    {
+        return latency.HasValue ? $"{latency.Value} ms" : "—";
+    }
+
+    private sealed record ElyTurboTarget(string Name, string Url);
+
+    private sealed record ElyTurboServiceResult(string Name, int? LatencyMs)
+    {
+        public bool IsSuccess => LatencyMs.HasValue;
+    }
+
+    private sealed class ElyTurboNodeResult
+    {
+        public ElyTurboNodeResult(VlessNode node, IReadOnlyList<ElyTurboServiceResult> services)
+        {
+            Node = node;
+            Services = services;
+        }
+
+        public VlessNode Node { get; }
+        public IReadOnlyList<ElyTurboServiceResult> Services { get; }
+        public int TotalCount => Services.Count;
+        public int SuccessCount => Services.Count(service => service.IsSuccess);
+        public int? AverageLatencyMs => SuccessCount > 0
+            ? (int)Math.Round(Services.Where(service => service.LatencyMs.HasValue).Average(service => service.LatencyMs!.Value))
+            : null;
+        public int? FastestLatencyMs => Services
+            .Where(service => service.LatencyMs.HasValue)
+            .Select(service => service.LatencyMs!.Value)
+            .DefaultIfEmpty()
+            .Min() is var fastest && fastest > 0
+                ? fastest
+                : null;
+
+        public static ElyTurboNodeResult Empty(VlessNode node, int serviceCount)
+        {
+            var services = ElyTurboTargets
+                .Take(serviceCount)
+                .Select(target => new ElyTurboServiceResult(target.Name, null))
+                .ToList();
+            return new ElyTurboNodeResult(node, services);
         }
     }
 
@@ -904,9 +1554,369 @@ public class MainViewModel : ViewModelBase, IDisposable
         _ = SaveSettingsAsync();
     }
 
-    private void SuppressDisconnectNotifications()
+    private void UpdateConnectionInfo(VlessNode node)
     {
-        _suppressedDisconnectNotifications = Math.Max(_suppressedDisconnectNotifications, 2);
+        var prefix = ElyTunEnabled
+            ? $"ElyTun + socks5://127.0.0.1:{SocksPort}"
+            : $"socks5://127.0.0.1:{SocksPort}";
+
+        ConnectionInfo = $"{prefix}  →  {node.DisplayName}";
+    }
+
+    private XrayTunOptions? BuildElyTunOptionsOrNull()
+    {
+        return ElyTunEnabled
+            ? new XrayTunOptions(CreateElyTunInterfaceName(), DefaultElyTunMtu, GetElyTunDnsServers(), IncludeIpv6: false)
+            : null;
+    }
+
+    private static string CreateElyTunInterfaceName()
+    {
+        return $"ElyTun-{Guid.NewGuid():N}"[..15];
+    }
+
+    private static IReadOnlyList<string> GetElyTunDnsServers()
+    {
+        try
+        {
+            var servers = NetworkInterface.GetAllNetworkInterfaces()
+                .Where(adapter =>
+                    adapter.OperationalStatus == OperationalStatus.Up
+                    && adapter.NetworkInterfaceType != NetworkInterfaceType.Loopback
+                    && adapter.NetworkInterfaceType != NetworkInterfaceType.Tunnel
+                    && adapter.NetworkInterfaceType != NetworkInterfaceType.Ppp
+                    && !IsVirtualOrVpnAdapter(adapter))
+                .SelectMany(adapter => adapter.GetIPProperties().DnsAddresses)
+                .Where(address => address.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(address))
+                .Select(address => address.ToString())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(3)
+                .ToList();
+
+            return servers.Count > 0 ? servers : DefaultElyTunDnsServers;
+        }
+        catch
+        {
+            return DefaultElyTunDnsServers;
+        }
+    }
+
+    private static bool IsVirtualOrVpnAdapter(NetworkInterface adapter)
+    {
+        var text = $"{adapter.Name} {adapter.Description}".ToLowerInvariant();
+        string[] markers = ["elytun", "happ", "tun", "tap", "vpn", "wintun", "wireguard", "sing-tun", "virtualbox", "radmin"];
+        return markers.Any(text.Contains);
+    }
+
+    private bool EnsureElyTunCanRun(bool showMessage)
+    {
+        if (!IsRunningAsAdministrator())
+        {
+            DisableElyTunAfterPreflightFailure();
+            StatusText = "ElyTun требует запуск от администратора";
+            AppendLog("[err] ElyTun требует запуск приложения от администратора");
+
+            if (showMessage)
+            {
+                MessageBox.Show(
+                    "ElyTun работает как полноценный TUN/VPN-режим и меняет системные маршруты Windows.\n\n" +
+                    "Запустите ElyProxy от имени администратора и включите ElyTun ещё раз.",
+                    "ElyProxy — нужны права администратора",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+
+            return false;
+        }
+
+        var xrayPath = _xrayManager.GetXrayPath();
+        if (!File.Exists(xrayPath))
+        {
+            DisableElyTunAfterPreflightFailure();
+            StatusText = "ElyTun: Xray не найден";
+            AppendLog($"[err] ElyTun требует Xray: {xrayPath}");
+            return false;
+        }
+
+        if (TryFindExternalXrayProcess(xrayPath, out var externalXray))
+        {
+            if (!ConfirmElyTunConflict("другой Xray-процесс", externalXray, showMessage))
+                return false;
+        }
+
+        if (TryFindConflictingTunAdapter(out var conflictingAdapter))
+        {
+            if (!ConfirmElyTunConflict("активный VPN/TUN-адаптер", conflictingAdapter, showMessage))
+                return false;
+        }
+
+        if (!TryGetXrayVersion(xrayPath, out var xrayVersion)
+            || xrayVersion.CompareTo(MinElyTunXrayVersion) < 0)
+        {
+            DisableElyTunAfterPreflightFailure();
+            var versionText = xrayVersion?.ToString() ?? "неизвестная версия";
+            StatusText = "ElyTun: обновите Xray";
+            AppendLog($"[err] ElyTun требует Xray {MinElyTunXrayVersion}+; сейчас: {versionText}");
+
+            if (showMessage)
+            {
+                MessageBox.Show(
+                    $"ElyTun требует Xray {MinElyTunXrayVersion} или новее.\n\n" +
+                    $"Сейчас найден: {versionText}.\n" +
+                    "Обновите файлы xray/xray.exe и xray/wintun.dll из свежего Xray-windows-64.zip.",
+                    "ElyProxy — обновите Xray",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+
+            return false;
+        }
+
+        var xrayDir = Path.GetDirectoryName(xrayPath);
+        var wintunPath = xrayDir == null ? string.Empty : Path.Combine(xrayDir, "wintun.dll");
+        if (!File.Exists(wintunPath))
+        {
+            DisableElyTunAfterPreflightFailure();
+            StatusText = "ElyTun: не найден wintun.dll";
+            AppendLog($"[err] ElyTun требует wintun.dll рядом с xray.exe: {wintunPath}");
+
+            if (showMessage)
+            {
+                MessageBox.Show(
+                    "Для ElyTun нужен файл wintun.dll рядом с xray.exe.\n\n" +
+                    "Скачайте Xray-windows-64.zip и поместите wintun.dll в папку xray/ рядом с ElyProxy.exe.",
+                    "ElyProxy — не найден wintun.dll",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool ConfirmElyTunConflict(string conflictKind, string description, bool showMessage)
+    {
+        if (ElyTunIgnoreOtherTunAdapters)
+        {
+            AppendLog($"[warn] ElyTun игнорирует возможный конфликт: {conflictKind}: {description}");
+            return true;
+        }
+
+        if (!showMessage)
+        {
+            DisableElyTunAfterPreflightFailure();
+            StatusText = "ElyTun: другой VPN/TUN";
+            AppendLog($"[err] ElyTun найден возможный конфликт: {conflictKind}: {description}");
+            return false;
+        }
+
+        var result = MessageBox.Show(
+            $"Найден {conflictKind}:\n{description}\n\n" +
+            "ElyTun может работать нестабильно, если несколько VPN/TUN-клиентов одновременно меняют маршруты Windows.\n\n" +
+            "Запустить ElyTun всё равно?",
+            "ElyProxy — возможен конфликт VPN/TUN",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            AppendLog($"[warn] ElyTun запущен несмотря на возможный конфликт: {conflictKind}: {description}");
+            return true;
+        }
+
+        DisableElyTunAfterPreflightFailure();
+        StatusText = "ElyTun отменён";
+        AppendLog($"[sys] ElyTun отменён пользователем из-за возможного конфликта: {description}");
+        return false;
+    }
+
+    private static bool TryFindExternalXrayProcess(string expectedXrayPath, out string description)
+    {
+        description = string.Empty;
+
+        foreach (var process in Process.GetProcessesByName("xray"))
+        {
+            try
+            {
+                var path = process.MainModule?.FileName;
+                if (string.IsNullOrWhiteSpace(path))
+                    continue;
+
+                if (AreSamePath(path, expectedXrayPath))
+                    continue;
+
+                description = $"{path} (PID {process.Id})";
+                return true;
+            }
+            catch
+            {
+                description = $"xray.exe (PID {process.Id})";
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryFindConflictingTunAdapter(out string description)
+    {
+        description = string.Empty;
+
+        try
+        {
+            var adapter = NetworkInterface.GetAllNetworkInterfaces()
+                .FirstOrDefault(item =>
+                    item.OperationalStatus == OperationalStatus.Up
+                    && !item.Name.StartsWith("ElyTun", StringComparison.OrdinalIgnoreCase)
+                    && IsKnownTunAdapter(item));
+
+            if (adapter == null)
+                return false;
+
+            description = $"{adapter.Name} ({adapter.Description})";
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsKnownTunAdapter(NetworkInterface adapter)
+    {
+        var text = $"{adapter.Name} {adapter.Description}".ToLowerInvariant();
+        string[] ignoredSystemTunnels = ["teredo", "isatap", "iphttps", "6to4"];
+        if (ignoredSystemTunnels.Any(text.Contains))
+            return false;
+
+        string[] markers = ["happ", "sing-tun", "wintun", "wireguard", "tap-windows", "openvpn", "outline"];
+        return markers.Any(text.Contains);
+    }
+
+    private static bool AreSamePath(string left, string right)
+    {
+        try
+        {
+            return string.Equals(
+                Path.GetFullPath(left).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                Path.GetFullPath(right).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private void DisableElyTunAfterPreflightFailure()
+    {
+        _elyTunEnabled = false;
+        OnPropertyChanged(nameof(ElyTunEnabled));
+        _ = SaveSettingsAsync();
+    }
+
+    private static bool IsRunningAsAdministrator()
+    {
+        using var identity = WindowsIdentity.GetCurrent();
+        var principal = new WindowsPrincipal(identity);
+        return principal.IsInRole(WindowsBuiltInRole.Administrator);
+    }
+
+    private static bool TryGetXrayVersion(string xrayPath, out Version version)
+    {
+        version = new Version(0, 0, 0);
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = xrayPath,
+                Arguments = "version",
+                WorkingDirectory = Path.GetDirectoryName(xrayPath) ?? string.Empty,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null)
+                return false;
+
+            if (!process.WaitForExit(2500))
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                return false;
+            }
+
+            var output = process.StandardOutput.ReadToEnd();
+            if (string.IsNullOrWhiteSpace(output))
+                output = process.StandardError.ReadToEnd();
+
+            var firstLine = output
+                .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .FirstOrDefault();
+
+            var versionText = firstLine?
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Skip(1)
+                .FirstOrDefault();
+
+            if (!Version.TryParse(versionText, out var parsed) || parsed == null)
+                return false;
+
+            version = parsed;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void SuppressDisconnectNotifications(int count = 2)
+    {
+        _suppressedDisconnectNotifications = Math.Max(_suppressedDisconnectNotifications, count);
+    }
+
+    private bool EnsureSocksPortAvailableForStart()
+    {
+        if (IsLocalTcpPortAvailable(SocksPort))
+            return true;
+
+        var xrayPath = _xrayManager.GetXrayPath();
+        if (PortOwnerService.TryStopStaleXrayOnPort(SocksPort, xrayPath, out var cleanupMessage))
+        {
+            AppendLog(cleanupMessage);
+            if (IsLocalTcpPortAvailable(SocksPort))
+                return true;
+        }
+
+        StatusText = $"Порт {SocksPort} занят";
+        var owner = string.IsNullOrWhiteSpace(cleanupMessage)
+            ? PortOwnerService.DescribeTcpPortOwner(SocksPort)
+            : cleanupMessage;
+        AppendLog($"[err] {owner}");
+        SuppressDisconnectNotifications();
+        return false;
+    }
+
+    private static bool IsLocalTcpPortAvailable(int port)
+    {
+        try
+        {
+            var listener = new TcpListener(IPAddress.Loopback, port);
+            listener.Start();
+            listener.Stop();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private async Task ReconnectAsync(VlessNode node)
@@ -919,6 +1929,9 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         try
         {
+            if (!CanTryAutoReconnect())
+                return;
+
             await Task.Delay(TimeSpan.FromSeconds(3));
 
             if (_isDisposed || !AutoReconnect || IsConnected)
@@ -927,11 +1940,27 @@ public class MainViewModel : ViewModelBase, IDisposable
             IsLoading = true;
             StatusText = "Переподключение...";
 
-            await _xrayManager.StartAsync(node, SocksPort);
+            if (ElyTunEnabled && !EnsureElyTunCanRun(showMessage: true))
+            {
+                _connectedNode = null;
+                ConnectionInfo = string.Empty;
+                ConnectedNodeName = string.Empty;
+                return;
+            }
+
+            if (!EnsureSocksPortAvailableForStart())
+            {
+                _connectedNode = null;
+                ConnectionInfo = string.Empty;
+                ConnectedNodeName = string.Empty;
+                return;
+            }
+
+            await _xrayManager.StartAsync(node, SocksPort, BuildElyTunOptionsOrNull());
 
             _connectedNode = node;
             ConnectedNodeName = node.DisplayName;
-            ConnectionInfo = $"socks5://127.0.0.1:{SocksPort}  →  {node.DisplayName}";
+            UpdateConnectionInfo(node);
             RememberConnectedNode(node);
 
             if (SystemProxyEnabled)
@@ -947,6 +1976,28 @@ public class MainViewModel : ViewModelBase, IDisposable
             IsLoading = false;
             _isReconnecting = false;
         }
+    }
+
+    private DateTime _lastAutoReconnectAttemptUtc;
+
+    private bool CanTryAutoReconnect()
+    {
+        var now = DateTime.UtcNow;
+        if (now - _lastAutoReconnectAttemptUtc > AutoReconnectAttemptWindow)
+            _autoReconnectAttempts = 0;
+
+        _lastAutoReconnectAttemptUtc = now;
+        _autoReconnectAttempts++;
+
+        if (_autoReconnectAttempts <= MaxAutoReconnectAttempts)
+            return true;
+
+        StatusText = "Автопереподключение остановлено";
+        AppendLog($"[err] Автопереподключение остановлено после {MaxAutoReconnectAttempts} неудачных попыток.");
+        _connectedNode = null;
+        ConnectionInfo = string.Empty;
+        ConnectedNodeName = string.Empty;
+        return false;
     }
 
     private static string GetNodeKey(VlessNode node)
@@ -1091,10 +2142,133 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
+    private async Task ApplyElyTunSettingAsync(bool enabled)
+    {
+        try
+        {
+            if (enabled && !EnsureElyTunCanRun(showMessage: true))
+                return;
+
+            if (enabled && SystemProxyEnabled)
+            {
+                StopSystemProxy(PacUrl, restorePrevious: true, silent: true);
+                _systemProxyEnabled = false;
+                OnPropertyChanged(nameof(SystemProxyEnabled));
+                AppendLog("[sys] Системный прокси выключен: ElyTun использует полный TUN-режим");
+            }
+
+            if (IsConnected)
+                await RestartActiveXrayAsync();
+            else
+                StatusText = enabled
+                    ? "ElyTun включится после подключения"
+                    : "ElyTun выключен";
+
+            await SaveSettingsAsync();
+        }
+        catch (Exception ex)
+        {
+            if (enabled)
+            {
+                _elyTunEnabled = false;
+                OnPropertyChanged(nameof(ElyTunEnabled));
+            }
+
+            StatusText = "Ошибка ElyTun";
+            AppendLog($"[err] Не удалось изменить режим ElyTun: {ex.Message}");
+        }
+    }
+
+    private async Task RestartActiveXrayAsync()
+    {
+        if (_connectedNode == null || !IsConnected)
+            return;
+
+        if (ElyTunEnabled && !EnsureElyTunCanRun(showMessage: true))
+            return;
+
+        try
+        {
+            IsLoading = true;
+            StatusText = "Перезапуск Xray...";
+            SuppressDisconnectNotifications(3);
+            await _xrayManager.RestartAsync(_connectedNode, SocksPort, BuildElyTunOptionsOrNull());
+            UpdateConnectionInfo(_connectedNode);
+
+            if (SystemProxyEnabled)
+                await TryActivateSystemProxyAsync();
+
+            if (ElyTunEnabled)
+                _ = VerifyElyTunConnectivityAsync();
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task VerifyElyTunConnectivityAsync()
+    {
+        await Task.Delay(TimeSpan.FromSeconds(3));
+
+        try
+        {
+            using var handler = new HttpClientHandler
+            {
+                UseProxy = false,
+                AllowAutoRedirect = false
+            };
+            using var http = new HttpClient(handler)
+            {
+                Timeout = TimeSpan.FromSeconds(8)
+            };
+
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("ElyProxy/ElyTun");
+
+            var sw = Stopwatch.StartNew();
+            using var response = await http.GetAsync("https://www.gstatic.com/generate_204", HttpCompletionOption.ResponseHeadersRead);
+            sw.Stop();
+
+            if ((int)response.StatusCode is >= 200 and < 400)
+            {
+                await _dispatcher.InvokeAsync(() =>
+                {
+                    StatusText = $"ElyTun работает: {sw.ElapsedMilliseconds} ms";
+                    AppendLog($"[sys] ElyTun self-test OK: HTTP {(int)response.StatusCode}, {sw.ElapsedMilliseconds} ms");
+                });
+                return;
+            }
+
+            await _dispatcher.InvokeAsync(() =>
+            {
+                StatusText = "ElyTun: HTTP-тест не прошёл";
+                AppendLog($"[err] ElyTun self-test failed: HTTP {(int)response.StatusCode}");
+            });
+        }
+        catch (Exception ex)
+        {
+            await _dispatcher.InvokeAsync(() =>
+            {
+                StatusText = "ElyTun: сеть не отвечает";
+                AppendLog($"[err] ElyTun self-test failed: {ex.GetType().Name}: {ex.Message}");
+            });
+        }
+    }
+
     private async Task ApplySystemProxySettingAsync(bool enabled)
     {
         try
         {
+            if (enabled && ElyTunEnabled)
+            {
+                _elyTunEnabled = false;
+                OnPropertyChanged(nameof(ElyTunEnabled));
+                AppendLog("[sys] ElyTun выключен: системный прокси использует PAC-режим");
+
+                if (IsConnected)
+                    await RestartActiveXrayAsync();
+            }
+
             if (enabled && IsConnected)
                 await StartSystemProxyAsync();
             else if (enabled)
@@ -1197,9 +2371,14 @@ public class MainViewModel : ViewModelBase, IDisposable
             AutoConnect = settings.AutoConnect;
             AutoReconnect = settings.AutoReconnect;
             ShowLogs = settings.ShowLogs;
+            PingMode = settings.PingMode;
+            ProxyPingUrl = settings.ProxyPingUrl;
+            ProxyPingConcurrency = settings.ProxyPingConcurrency;
             PacPort = settings.PacPort is >= 1024 and <= 65535 ? settings.PacPort : 18080;
             _previousAutoConfigUrl = settings.PreviousAutoConfigUrl;
-            SystemProxyEnabled = settings.SystemProxyEnabled || settings.PacModeEnabled;
+            ElyTunEnabled = settings.ElyTunEnabled;
+            ElyTunIgnoreOtherTunAdapters = settings.ElyTunIgnoreOtherTunAdapters;
+            SystemProxyEnabled = !ElyTunEnabled && (settings.SystemProxyEnabled || settings.PacModeEnabled);
             SystemProxyRulesText = FormatRules(settings.SystemProxyBypassRules.Count > 0
                 ? settings.SystemProxyBypassRules
                 : PacServerService.DefaultBypassRules);
@@ -1272,10 +2451,15 @@ public class MainViewModel : ViewModelBase, IDisposable
                 AutoConnect = AutoConnect,
                 AutoReconnect = AutoReconnect,
                 ShowLogs = ShowLogs,
+                PingMode = PingMode,
+                ProxyPingUrl = ProxyPingUrl,
+                ProxyPingConcurrency = ProxyPingConcurrency,
                 SystemProxyEnabled = SystemProxyEnabled,
                 SystemProxyBypassRules = GetSystemProxyRules().ToList(),
                 PacModeEnabled = SystemProxyEnabled,
                 PacPort = PacPort,
+                ElyTunEnabled = ElyTunEnabled,
+                ElyTunIgnoreOtherTunAdapters = ElyTunIgnoreOtherTunAdapters,
                 PreviousAutoConfigUrl = _previousAutoConfigUrl,
                 SubscriptionUpdateIntervalMinutes = SubscriptionUpdateIntervalMinutes,
                 LastConnectedNodeId = _lastConnectedNodeId,

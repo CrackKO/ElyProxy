@@ -328,9 +328,111 @@
             <Setter Property="Foreground" Value="{StaticResource FgBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderBr}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="10,7"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="MinWidth" Value="210"/>
+            <Setter Property="MinHeight" Value="36"/>
+            <Setter Property="MaxDropDownHeight" Value="220"/>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Foreground" Value="{StaticResource FgBrush}"/>
+                        <Setter Property="Background" Value="{StaticResource Bg2Brush}"/>
+                        <Setter Property="Padding" Value="10,8"/>
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ComboBoxItem">
+                                    <Border x:Name="Bd"
+                                            Background="{TemplateBinding Background}"
+                                            Padding="{TemplateBinding Padding}"
+                                            SnapsToDevicePixels="True">
+                                        <TextBlock Text="{Binding Content.Value, RelativeSource={RelativeSource TemplatedParent}}"
+                                                   Foreground="{TemplateBinding Foreground}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsHighlighted" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="#132A35"/>
+                                            <Setter Property="Foreground" Value="{StaticResource FgBrush}"/>
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Bg4Brush}"/>
+                                            <Setter Property="Foreground" Value="{StaticResource FgBrush}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton"
+                                          Background="{TemplateBinding Background}"
+                                          BorderBrush="{TemplateBinding BorderBrush}"
+                                          BorderThickness="{TemplateBinding BorderThickness}"
+                                          ClickMode="Press"
+                                          Focusable="False"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Bd"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="8"
+                                                SnapsToDevicePixels="True">
+                                            <Grid>
+                                                <TextBlock Text="{Binding SelectedItem.Value, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                           Foreground="{StaticResource FgBrush}"
+                                                           HorizontalAlignment="Left"
+                                                           IsHitTestVisible="False"
+                                                           Margin="10,0,30,0"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           VerticalAlignment="Center"/>
+                                                <Path Data="M 0 0 L 4 4 L 8 0 Z"
+                                                      Fill="{StaticResource FgSecBrush}"
+                                                      HorizontalAlignment="Right"
+                                                      Margin="0,0,12,0"
+                                                      VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter TargetName="Bd" Property="Opacity" Value="0.45"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+
+                            <Popup x:Name="PART_Popup"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   Placement="Bottom"
+                                   PopupAnimation="Fade">
+                                <Border Background="{StaticResource Bg2Brush}"
+                                        BorderBrush="{StaticResource BorderBr}"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Margin="0,4,0,0"
+                                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ScrollViewer MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                        <ItemsPresenter/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- ── ListView ── -->
@@ -460,6 +562,7 @@
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <ListView Grid.Row="0" ItemsSource="{Binding AllNodes}"
@@ -470,7 +573,7 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="60"/>
+                                            <ColumnDefinition Width="135"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding DisplayName}" FontSize="13"
@@ -504,8 +607,22 @@
                                     Command="{Binding AddManualServerCommand}" Margin="8,0,0,0"/>
                         </Grid>
 
+                        <Border Grid.Row="2"
+                                Background="{StaticResource Bg2Brush}"
+                                BorderBrush="{StaticResource BorderBr}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="12,9"
+                                Margin="0,0,0,10"
+                                Visibility="{Binding HasPingSummary, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="{Binding PingSummary}"
+                                       FontSize="12"
+                                       Foreground="{StaticResource FgSecBrush}"
+                                       TextWrapping="Wrap"/>
+                        </Border>
+
                         <!-- Actions -->
-                        <WrapPanel Grid.Row="2" Orientation="Horizontal">
+                        <WrapPanel Grid.Row="3" Orientation="Horizontal">
                             <Button Content="Подключить" Style="{StaticResource BtnGreen}"
                                     Command="{Binding ConnectCommand}" MinWidth="120"/>
                             <Button Content="Отключить" Style="{StaticResource BtnRed}"
@@ -531,6 +648,23 @@
                                                VerticalAlignment="Center"/>
                                     <CheckBox Style="{StaticResource ToggleSwitch}"
                                               IsChecked="{Binding SystemProxyEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Background="{StaticResource Bg2Brush}"
+                                    BorderBrush="{StaticResource BorderBr}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="10,7"
+                                    Margin="6,0,0,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="ElyTun"
+                                               FontSize="12.5"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource FgBrush}"
+                                               Margin="0,0,10,0"
+                                               VerticalAlignment="Center"/>
+                                    <CheckBox Style="{StaticResource ToggleSwitch}"
+                                              IsChecked="{Binding ElyTunEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                 </StackPanel>
                             </Border>
                         </WrapPanel>
@@ -674,7 +808,7 @@
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="55"/>
+                                                <ColumnDefinition Width="115"/>
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding DisplayName}" FontSize="13"
@@ -779,6 +913,55 @@
                         <CheckBox Content="Показывать логи"
                                   Style="{StaticResource DarkCheckBox}"
                                   IsChecked="{Binding ShowLogs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                        <TextBlock Text="Сеть" FontSize="18" FontWeight="Bold"
+                                   Foreground="{StaticResource FgBrush}" Margin="0,12,0,14"/>
+                        <TextBlock Text="SOCKS5 порт" FontSize="12"
+                                   Foreground="{StaticResource FgSecBrush}" Margin="0,0,0,6"/>
+                        <TextBox Style="{StaticResource DarkTextBox}"
+                                 Text="{Binding SocksPort, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                 Width="110"
+                                 HorizontalAlignment="Left"
+                                 VerticalContentAlignment="Center"/>
+                        <CheckBox Content="Разрешить ElyTun при других VPN/TUN"
+                                  Style="{StaticResource DarkCheckBox}"
+                                  IsChecked="{Binding ElyTunIgnoreOtherTunAdapters, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  Margin="0,10,0,0"/>
+                        <TextBlock Text="Экспертный режим: ElyProxy не будет останавливать запуск ElyTun при найденном Happ, Wintun, WireGuard или OpenVPN."
+                                   FontSize="11"
+                                   Foreground="{StaticResource FgDimBrush}"
+                                   Margin="0,6,0,0"
+                                   TextWrapping="Wrap"/>
+                        <TextBlock Text="Тип пинга" FontSize="12"
+                                   Foreground="{StaticResource FgSecBrush}" Margin="0,10,0,6"/>
+                        <ComboBox Style="{StaticResource DarkComboBox}"
+                                  ItemsSource="{Binding PingModeOptions}"
+                                  DisplayMemberPath="Value"
+                                  SelectedValuePath="Key"
+                                  SelectedValue="{Binding PingMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  HorizontalAlignment="Left"/>
+                        <StackPanel Visibility="{Binding IsProxyGetPingMode, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="URL для Proxy GET" FontSize="12"
+                                       Foreground="{StaticResource FgSecBrush}" Margin="0,10,0,6"/>
+                            <TextBox Style="{StaticResource DarkTextBox}"
+                                     Text="{Binding ProxyPingUrl, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     HorizontalAlignment="Stretch"
+                                     VerticalContentAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Visibility="{Binding IsProxyBasedPingMode, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="Потоки" FontSize="12"
+                                       Foreground="{StaticResource FgSecBrush}" Margin="0,10,0,6"/>
+                            <TextBox Style="{StaticResource DarkTextBox}"
+                                     Text="{Binding ProxyPingConcurrency, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     Width="110"
+                                     HorizontalAlignment="Left"
+                                     VerticalContentAlignment="Center"/>
+                            <TextBlock Text="Рекомендуется 10. Чем больше потоков, тем быстрее проверка и выше нагрузка."
+                                       FontSize="11"
+                                       Foreground="{StaticResource FgDimBrush}"
+                                       Margin="0,6,0,0"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
 
                         <TextBlock Text="Подписки" FontSize="18" FontWeight="Bold"
                                    Foreground="{StaticResource FgBrush}" Margin="0,12,0,14"/>

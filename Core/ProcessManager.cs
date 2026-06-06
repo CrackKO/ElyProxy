@@ -21,9 +21,10 @@ public class ProcessManager : IDisposable
     public event Action<string>? ErrorReceived;
     public event Action<int>? ProcessExited;
 
-    public async Task StartAsync(string executablePath, string arguments, string? workingDirectory = null)
+    public async Task StartAsync(string executablePath, string arguments, string? workingDirectory = null, bool stopExisting = true)
     {
-        await StopAsync();
+        if (stopExisting)
+            await StopAsync();
 
         var psi = new ProcessStartInfo
         {
