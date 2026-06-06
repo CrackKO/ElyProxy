@@ -16,7 +16,6 @@ public class AppSettings
     public bool PacModeEnabled { get; set; }
     public int PacPort { get; set; } = 18080;
     public bool ElyTunEnabled { get; set; }
-    public bool ElyTunIgnoreOtherTunAdapters { get; set; }
     public string? PreviousAutoConfigUrl { get; set; }
     public int SubscriptionUpdateIntervalMinutes { get; set; }
     public string? LastConnectedNodeId { get; set; }

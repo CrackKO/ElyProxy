@@ -72,7 +72,6 @@ public class MainViewModel : ViewModelBase, IDisposable
     private bool _showLogs = true;
     private bool _systemProxyEnabled;
     private bool _elyTunEnabled;
-    private bool _elyTunIgnoreOtherTunAdapters;
     private bool _isLoadingSettings;
     private bool _isReconnecting;
     private bool _isDisposed;
@@ -432,16 +431,6 @@ public class MainViewModel : ViewModelBase, IDisposable
                 return;
 
             _ = ApplyElyTunSettingAsync(value);
-        }
-    }
-
-    public bool ElyTunIgnoreOtherTunAdapters
-    {
-        get => _elyTunIgnoreOtherTunAdapters;
-        set
-        {
-            if (SetProperty(ref _elyTunIgnoreOtherTunAdapters, value) && !_isLoadingSettings)
-                _ = SaveSettingsAsync();
         }
     }
 
@@ -1640,14 +1629,42 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         if (TryFindExternalXrayProcess(xrayPath, out var externalXray))
         {
-            if (!ConfirmElyTunConflict("другой Xray-процесс", externalXray, showMessage))
-                return false;
+            DisableElyTunAfterPreflightFailure();
+            StatusText = "ElyTun: закройте другой VPN";
+            AppendLog($"[err] ElyTun не запускается параллельно с другим Xray: {externalXray}");
+
+            if (showMessage)
+            {
+                MessageBox.Show(
+                    "ElyTun нельзя надёжно запускать параллельно с другим VPN/TUN-клиентом на Xray.\n\n" +
+                    $"Сейчас найден другой Xray:\n{externalXray}\n\n" +
+                    "Закройте Happ или другой VPN-клиент и включите ElyTun ещё раз.",
+                    "ElyProxy — другой VPN уже запущен",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+
+            return false;
         }
 
         if (TryFindConflictingTunAdapter(out var conflictingAdapter))
         {
-            if (!ConfirmElyTunConflict("активный VPN/TUN-адаптер", conflictingAdapter, showMessage))
-                return false;
+            DisableElyTunAfterPreflightFailure();
+            StatusText = "ElyTun: выключите другой TUN";
+            AppendLog($"[err] ElyTun не запускается с активным TUN/VPN-адаптером: {conflictingAdapter}");
+
+            if (showMessage)
+            {
+                MessageBox.Show(
+                    "ElyTun нельзя запускать, пока активен другой TUN/VPN-адаптер.\n\n" +
+                    $"Сейчас найден:\n{conflictingAdapter}\n\n" +
+                    "Выключите Radmin VPN, Happ или другой VPN/TUN-клиент и включите ElyTun ещё раз.",
+                    "ElyProxy — другой TUN уже активен",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+
+            return false;
         }
 
         if (!TryGetXrayVersion(xrayPath, out var xrayVersion)
@@ -1694,43 +1711,6 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
 
         return true;
-    }
-
-    private bool ConfirmElyTunConflict(string conflictKind, string description, bool showMessage)
-    {
-        if (ElyTunIgnoreOtherTunAdapters)
-        {
-            AppendLog($"[warn] ElyTun игнорирует возможный конфликт: {conflictKind}: {description}");
-            return true;
-        }
-
-        if (!showMessage)
-        {
-            DisableElyTunAfterPreflightFailure();
-            StatusText = "ElyTun: другой VPN/TUN";
-            AppendLog($"[err] ElyTun найден возможный конфликт: {conflictKind}: {description}");
-            return false;
-        }
-
-        var result = MessageBox.Show(
-            $"Найден {conflictKind}:\n{description}\n\n" +
-            "ElyTun может работать нестабильно, если несколько VPN/TUN-клиентов одновременно меняют маршруты Windows.\n\n" +
-            "Запустить ElyTun всё равно?",
-            "ElyProxy — возможен конфликт VPN/TUN",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning,
-            MessageBoxResult.No);
-
-        if (result == MessageBoxResult.Yes)
-        {
-            AppendLog($"[warn] ElyTun запущен несмотря на возможный конфликт: {conflictKind}: {description}");
-            return true;
-        }
-
-        DisableElyTunAfterPreflightFailure();
-        StatusText = "ElyTun отменён";
-        AppendLog($"[sys] ElyTun отменён пользователем из-за возможного конфликта: {description}");
-        return false;
     }
 
     private static bool TryFindExternalXrayProcess(string expectedXrayPath, out string description)
@@ -1792,7 +1772,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         if (ignoredSystemTunnels.Any(text.Contains))
             return false;
 
-        string[] markers = ["happ", "sing-tun", "wintun", "wireguard", "tap-windows", "openvpn", "outline"];
+        string[] markers = ["happ", "sing-tun", "wintun", "wireguard", "tap-windows", "openvpn", "outline", "radmin", "vpn"];
         return markers.Any(text.Contains);
     }
 
@@ -2377,7 +2357,6 @@ public class MainViewModel : ViewModelBase, IDisposable
             PacPort = settings.PacPort is >= 1024 and <= 65535 ? settings.PacPort : 18080;
             _previousAutoConfigUrl = settings.PreviousAutoConfigUrl;
             ElyTunEnabled = settings.ElyTunEnabled;
-            ElyTunIgnoreOtherTunAdapters = settings.ElyTunIgnoreOtherTunAdapters;
             SystemProxyEnabled = !ElyTunEnabled && (settings.SystemProxyEnabled || settings.PacModeEnabled);
             SystemProxyRulesText = FormatRules(settings.SystemProxyBypassRules.Count > 0
                 ? settings.SystemProxyBypassRules
@@ -2459,7 +2438,6 @@ public class MainViewModel : ViewModelBase, IDisposable
                 PacModeEnabled = SystemProxyEnabled,
                 PacPort = PacPort,
                 ElyTunEnabled = ElyTunEnabled,
-                ElyTunIgnoreOtherTunAdapters = ElyTunIgnoreOtherTunAdapters,
                 PreviousAutoConfigUrl = _previousAutoConfigUrl,
                 SubscriptionUpdateIntervalMinutes = SubscriptionUpdateIntervalMinutes,
                 LastConnectedNodeId = _lastConnectedNodeId,
