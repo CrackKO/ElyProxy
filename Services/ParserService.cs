@@ -58,6 +58,9 @@ public class ParserService
             var uuid = body[..atIdx];
             var hostPort = body[(atIdx + 1)..];
 
+            if (string.IsNullOrWhiteSpace(uuid) || string.IsNullOrWhiteSpace(hostPort))
+                return null;
+
             string address;
             int port;
 
@@ -77,6 +80,9 @@ public class ParserService
                 address = hostPort[..lastColon];
                 port = int.Parse(hostPort[(lastColon + 1)..]);
             }
+
+            if (string.IsNullOrWhiteSpace(address) || port is < 1 or > 65535)
+                return null;
 
             var qp = HttpUtility.ParseQueryString(queryString);
 

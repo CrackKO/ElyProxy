@@ -538,6 +538,16 @@
         <!-- ═══ Header ═══ -->
         <DockPanel Grid.Row="0" Margin="2,0,2,16">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Style="{StaticResource BtnLink}"
+                        Command="{Binding CheckForUpdatesCommand}"
+                        ToolTip="{Binding UpdateStatus}"
+                        Margin="0,0,18,0">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="6" Height="6" Fill="{Binding UpdateBadgeBrush}"
+                                 VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBlock Text="{Binding UpdateBadgeText}"/>
+                    </StackPanel>
+                </Button>
                 <Button Content="Telegram" Style="{StaticResource BtnLink}" Command="{Binding OpenTelegramCommand}"/>
                 <Button Content="Discord" Style="{StaticResource BtnLink}" Command="{Binding OpenDiscordCommand}" Margin="10,0,0,0"/>
             </StackPanel>
@@ -923,6 +933,25 @@
                                  Width="110"
                                  HorizontalAlignment="Left"
                                  VerticalContentAlignment="Center"/>
+                        <TextBlock Text="Обновления" FontSize="18" FontWeight="Bold"
+                                   Foreground="{StaticResource FgBrush}" Margin="0,12,0,8"/>
+                        <TextBlock Text="{Binding ApplicationVersion}" FontSize="12"
+                                   Foreground="{StaticResource FgSecBrush}"/>
+                        <TextBlock Text="{Binding UpdateStatus}" FontSize="11"
+                                   Foreground="{StaticResource FgDimBrush}" Margin="0,4,0,8"/>
+                        <Button Content="Проверить обновления"
+                                Style="{StaticResource BtnGhost}"
+                                Command="{Binding CheckForUpdatesCommand}"
+                                HorizontalAlignment="Left"
+                                Margin="0,0,0,8"/>
+                        <CheckBox Content="Автообновления (включая хотфиксы)"
+                                  Style="{StaticResource DarkCheckBox}"
+                                  IsChecked="{Binding AutoUpdate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Text="{Binding AutoUpdateDescription}"
+                                   FontSize="11"
+                                   Foreground="{StaticResource FgDimBrush}"
+                                   Margin="0,5,0,10"
+                                   TextWrapping="Wrap"/>
                         <TextBlock Text="Тип пинга" FontSize="12"
                                    Foreground="{StaticResource FgSecBrush}" Margin="0,10,0,6"/>
                         <ComboBox Style="{StaticResource DarkComboBox}"
@@ -954,6 +983,12 @@
                                        TextWrapping="Wrap"/>
                         </StackPanel>
 
+                        <TextBlock Text="ElyTun" FontSize="18" FontWeight="Bold"
+                                   Foreground="{StaticResource FgBrush}" Margin="0,18,0,14"/>
+                        <CheckBox Content="Туннелировать IPv6"
+                                  Style="{StaticResource DarkCheckBox}"
+                                  IsChecked="{Binding ElyTunIpv6Enabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
                         <TextBlock Text="Подписки" FontSize="18" FontWeight="Bold"
                                    Foreground="{StaticResource FgBrush}" Margin="0,12,0,14"/>
                         <TextBlock Text="Автообновление" FontSize="12"
@@ -967,8 +1002,20 @@
 
                         <TextBlock Text="Разделение трафика" FontSize="18" FontWeight="Bold"
                                    Foreground="{StaticResource FgBrush}" Margin="0,18,0,14"/>
-                        <TextBlock Text="Домены напрямую" FontSize="12"
+                        <TextBlock Text="Bypass-правила для системного прокси и ElyTun" FontSize="12"
                                    Foreground="{StaticResource FgSecBrush}" Margin="0,0,0,6"/>
+                        <TextBlock Text="Профиль маршрутизации ElyTun" FontSize="12"
+                                   Foreground="{StaticResource FgSecBrush}" Margin="0,0,0,6"/>
+                        <RadioButton Content="Свои правила"
+                                     Foreground="{StaticResource FgBrush}"
+                                     GroupName="ElyTunRoutingPreset"
+                                     IsChecked="{Binding UseCustomRouting, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,0,6"/>
+                        <RadioButton Content="RoscomVPN DEFAULT — встроенный готовый набор"
+                                     Foreground="{StaticResource FgBrush}"
+                                     GroupName="ElyTunRoutingPreset"
+                                     IsChecked="{Binding UseRoscomVpnDefaultRouting, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,0,6"/>
                         <TextBox Style="{StaticResource DarkTextBox}"
                                  Text="{Binding SystemProxyRulesText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                  AcceptsReturn="True"
@@ -978,6 +1025,11 @@
                                  FontFamily="Cascadia Mono, Consolas, monospace"
                                  FontSize="12"
                                  Margin="0,0,0,10"/>
+                        <TextBlock Text="Домены и wildcard (*.ru) направляются напрямую и в системном прокси, и в ElyTun. IP/CIDR (например, 26.0.0.0/8) — прямые маршруты ElyTun."
+                                   FontSize="11"
+                                   Foreground="{StaticResource FgDimBrush}"
+                                   Margin="0,0,0,10"
+                                   TextWrapping="Wrap"/>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>

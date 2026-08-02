@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Security.Principal;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using ElyProxy.Core;
 using ElyProxy.Models;
@@ -30,7 +31,9 @@ public class MainViewModel : ViewModelBase, IDisposable
     private const int MaxProxyPingConcurrency = 32;
     private const int DefaultElyTunMtu = 1500;
     private const int MaxAutoReconnectAttempts = 3;
-    private static readonly Version MinElyTunXrayVersion = new(26, 4, 0);
+    private const int MaxLogLength = 50_000;
+    private const int MaxPendingLogMessages = 1_000;
+    private const int MaxLogMessagesPerBatch = 200;
     private static readonly string[] DefaultElyTunDnsServers = ["1.1.1.1", "8.8.8.8"];
     private static readonly TimeSpan TcpPingTimeout = TimeSpan.FromMilliseconds(2500);
     private static readonly TimeSpan ProxyPingHttpTimeout = TimeSpan.FromSeconds(3);
@@ -46,8 +49,12 @@ public class MainViewModel : ViewModelBase, IDisposable
     private readonly WindowsProxyService _windowsProxyService;
     private readonly ElyHardService _elyHardService;
     private readonly XrayManager _xrayManager;
+    private readonly SingBoxTunManager _singBoxTunManager;
+    private readonly UpdateService _updateService;
     private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _subscriptionUpdateTimer;
+    private readonly DispatcherTimer _logFlushTimer;
+    private readonly ConcurrentQueue<string> _pendingLogMessages = new();
     private readonly List<VlessNode> _manualNodes = new();
 
     private VlessNode? _selectedNode;
@@ -64,14 +71,22 @@ public class MainViewModel : ViewModelBase, IDisposable
     private string _connectedNodeName = string.Empty;
     private string _logText = string.Empty;
     private string _pingSummary = string.Empty;
+    private string _updateStatus = "Проверка обновлений ещё не выполнялась";
+    private string _updateBadgeText = "Обновления";
+    private Brush _updateBadgeBrush = Brushes.Gray;
     private bool _isConnected;
     private bool _isLoading;
     private bool _autoStartWithWindows;
     private bool _autoConnect;
     private bool _autoReconnect;
     private bool _showLogs = true;
+    private bool _autoUpdate;
+    private bool _isCheckingForUpdates;
+    private bool _isUpdating;
     private bool _systemProxyEnabled;
     private bool _elyTunEnabled;
+    private bool _elyTunIpv6Enabled = true;
+    private RoutingPreset _routingPreset = RoutingPreset.Custom;
     private bool _isLoadingSettings;
     private bool _isReconnecting;
     private bool _isDisposed;
@@ -80,6 +95,8 @@ public class MainViewModel : ViewModelBase, IDisposable
     private int _subscriptionUpdateIntervalMinutes;
     private int _pacPort = 18080;
     private int _proxyPingConcurrency = DefaultProxyPingConcurrency;
+    private int _pendingLogMessageCount;
+    private int _droppedLogMessageCount;
     private string _systemProxyRulesText = string.Empty;
     private string _pingMode = PingModeTcp;
     private string _proxyPingUrl = DefaultProxyPingUrl;
@@ -109,12 +126,22 @@ public class MainViewModel : ViewModelBase, IDisposable
         _windowsProxyService = new WindowsProxyService();
         _elyHardService = new ElyHardService();
         _xrayManager = new XrayManager();
+        _singBoxTunManager = new SingBoxTunManager();
+        _updateService = new UpdateService();
 
         _xrayManager.LogReceived += OnLogReceived;
-        _xrayManager.StatusChanged += OnStatusChanged;
+        _xrayManager.StatusChanged += OnXrayStatusChanged;
+        _singBoxTunManager.LogReceived += OnLogReceived;
+        _singBoxTunManager.StatusChanged += OnSingBoxTunStatusChanged;
 
         _subscriptionUpdateTimer = new DispatcherTimer(DispatcherPriority.Background, _dispatcher);
         _subscriptionUpdateTimer.Tick += OnSubscriptionUpdateTimerTick;
+        _logFlushTimer = new DispatcherTimer(DispatcherPriority.Background, _dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(250)
+        };
+        _logFlushTimer.Tick += OnLogFlushTimerTick;
+        _logFlushTimer.Start();
 
         AllNodes = new ObservableCollection<VlessNode>();
         Subscriptions = new ObservableCollection<Subscription>();
@@ -141,7 +168,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         ExportProfileCommand = new AsyncRelayCommand(ExportProfileAsync, () => SelectedProfile != null);
         ImportProfileCommand = new AsyncRelayCommand(ImportProfileAsync);
 
-        ClearLogCommand = new RelayCommand(() => LogText = string.Empty);
+        ClearLogCommand = new RelayCommand(ClearLog);
         CopyProxyCommand = new RelayCommand(CopyProxy, () => IsConnected);
         OpenTelegramCommand = new RelayCommand(() => OpenUrl("https://t.me/ProxyCheckXBot"));
         OpenDiscordCommand = new RelayCommand(() => OpenUrl("https://discord.gg/sxjV3S7J2k"));
@@ -149,6 +176,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         OpenFirefoxExtensionCommand = new RelayCommand(() => OpenUrl(FirefoxExtensionUrl));
         ExportOmegaRulesCommand = new AsyncRelayCommand(ExportOmegaRulesAsync);
         ResetSystemProxyRulesCommand = new RelayCommand(ResetSystemProxyRules);
+        CheckForUpdatesCommand = new AsyncRelayCommand(CheckForUpdatesFromCommandAsync, () => !IsCheckingForUpdates && !IsLoading);
 
         _ = LoadAllDataAsync();
     }
@@ -347,6 +375,54 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
+    public string ApplicationVersion => $"Версия {UpdateService.CurrentVersion.ToString(3)}";
+
+    public string UpdateStatus
+    {
+        get => _updateStatus;
+        private set => SetProperty(ref _updateStatus, value);
+    }
+
+    public string UpdateBadgeText
+    {
+        get => _updateBadgeText;
+        private set => SetProperty(ref _updateBadgeText, value);
+    }
+
+    public Brush UpdateBadgeBrush
+    {
+        get => _updateBadgeBrush;
+        private set => SetProperty(ref _updateBadgeBrush, value);
+    }
+
+    public bool IsCheckingForUpdates
+    {
+        get => _isCheckingForUpdates;
+        private set
+        {
+            if (SetProperty(ref _isCheckingForUpdates, value))
+                CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    public bool AutoUpdate
+    {
+        get => _autoUpdate;
+        set
+        {
+            if (!SetProperty(ref _autoUpdate, value))
+                return;
+
+            OnPropertyChanged(nameof(AutoUpdateDescription));
+            if (!_isLoadingSettings)
+                _ = SaveSettingsAsync();
+        }
+    }
+
+    public string AutoUpdateDescription => AutoUpdate
+        ? "Включено: новые версии и срочные исправления устанавливаются автоматически после проверки SHA-256."
+        : "Выключено: программа всегда спрашивает перед загрузкой и установкой обновления.";
+
     public string PingMode
     {
         get => _pingMode;
@@ -434,6 +510,56 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
+    public bool ElyTunIpv6Enabled
+    {
+        get => _elyTunIpv6Enabled;
+        set
+        {
+            if (!SetProperty(ref _elyTunIpv6Enabled, value) || _isLoadingSettings)
+                return;
+
+            ApplyTunRuntimeSetting();
+        }
+    }
+
+    public RoutingPreset RoutingPreset
+    {
+        get => _routingPreset;
+        set
+        {
+            if (!SetProperty(ref _routingPreset, value))
+                return;
+
+            OnPropertyChanged(nameof(UseCustomRouting));
+            OnPropertyChanged(nameof(UseRoscomVpnDefaultRouting));
+
+            if (_isLoadingSettings)
+                return;
+
+            _ = ApplyRoutingPresetAsync();
+        }
+    }
+
+    public bool UseCustomRouting
+    {
+        get => RoutingPreset == RoutingPreset.Custom;
+        set
+        {
+            if (value)
+                RoutingPreset = RoutingPreset.Custom;
+        }
+    }
+
+    public bool UseRoscomVpnDefaultRouting
+    {
+        get => RoutingPreset == RoutingPreset.RoscomVpnDefault;
+        set
+        {
+            if (value)
+                RoutingPreset = RoutingPreset.RoscomVpnDefault;
+        }
+    }
+
     public int PacPort
     {
         get => _pacPort;
@@ -465,7 +591,9 @@ public class MainViewModel : ViewModelBase, IDisposable
             if (_isLoadingSettings)
                 return;
 
-            if (SystemProxyEnabled && IsConnected)
+            if (ElyTunEnabled && RoutingPreset == RoutingPreset.Custom && IsConnected)
+                _ = RestartActiveXrayAsync();
+            else if (SystemProxyEnabled && IsConnected)
                 _ = StartSystemProxyAsync();
 
             _ = SaveSettingsAsync();
@@ -500,6 +628,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     public ICommand OpenFirefoxExtensionCommand { get; }
     public ICommand ExportOmegaRulesCommand { get; }
     public ICommand ResetSystemProxyRulesCommand { get; }
+    public ICommand CheckForUpdatesCommand { get; }
 
     #endregion
 
@@ -637,26 +766,29 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         try
         {
-            var xrayPath = _xrayManager.GetXrayPath();
-            if (!File.Exists(xrayPath))
+            if (!ElyTunEnabled)
             {
-                StatusText = "Xray не найден!";
-                AppendLog($"[err] Xray не найден: {xrayPath}");
-                MessageBox.Show(
-                    $"Xray не найден по пути:\n{xrayPath}\n\n" +
-                    "Скачайте Xray-core с:\ngithub.com/XTLS/Xray-core/releases\n\n" +
-                    "Поместите xray.exe в папку xray/ рядом с программой.",
-                    "ElyProxy — Xray не найден",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                return;
+                var xrayPath = _xrayManager.GetXrayPath();
+                if (!File.Exists(xrayPath))
+                {
+                    StatusText = "Xray не найден!";
+                    AppendLog($"[err] Xray не найден: {xrayPath}");
+                    MessageBox.Show(
+                        $"Xray не найден по пути:\n{xrayPath}\n\n" +
+                        "Скачайте Xray-core с:\ngithub.com/XTLS/Xray-core/releases\n\n" +
+                        "Поместите xray.exe в папку xray/ рядом с программой.",
+                        "ElyProxy — Xray не найден",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
             }
 
             if (IsConnected)
             {
                 DeactivateSystemProxyForDisconnectedServer(silent: true);
                 SuppressDisconnectNotifications(3);
-                await _xrayManager.StopAsync();
+                await StopAllCoresAsync();
             }
 
             if (ElyTunEnabled && !EnsureElyTunCanRun(showMessage: true))
@@ -665,7 +797,7 @@ public class MainViewModel : ViewModelBase, IDisposable
             if (!EnsureSocksPortAvailableForStart())
                 return;
 
-            await _xrayManager.StartAsync(node, SocksPort, BuildElyTunOptionsOrNull());
+            await StartSelectedCoreAsync(node);
 
             _connectedNode = node;
             _autoReconnectAttempts = 0;
@@ -697,7 +829,7 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             DeactivateSystemProxyForDisconnectedServer(silent: false);
             SuppressDisconnectNotifications();
-            await _xrayManager.StopAsync();
+            await StopAllCoresAsync();
             _connectedNode = null;
             ConnectionInfo = string.Empty;
             ConnectedNodeName = string.Empty;
@@ -1555,9 +1687,52 @@ public class MainViewModel : ViewModelBase, IDisposable
     private XrayTunOptions? BuildElyTunOptionsOrNull()
     {
         return ElyTunEnabled
-            ? new XrayTunOptions(CreateElyTunInterfaceName(), DefaultElyTunMtu, GetElyTunDnsServers(), IncludeIpv6: false)
+            ? new XrayTunOptions(
+                CreateElyTunInterfaceName(),
+                DefaultElyTunMtu,
+                GetElyTunDnsServers(),
+                ElyTunIpv6Enabled,
+                GetSystemProxyRules(),
+                GetActiveAdapterNetworkCidrs(),
+                RoutingPreset)
             : null;
     }
+
+    private void ApplyTunRuntimeSetting()
+    {
+        if (ElyTunEnabled && IsConnected)
+            _ = RestartActiveXrayAsync();
+        else
+            _ = SaveSettingsAsync();
+    }
+
+    private async Task ApplyRoutingPresetAsync()
+    {
+        try
+        {
+            if (ElyTunEnabled && IsConnected)
+            {
+                AppendLog($"[sys] Маршрутизация ElyTun изменена: {GetRoutingPresetDisplayName()}; безопасный перезапуск...");
+                await RestartActiveXrayAsync();
+            }
+            else
+            {
+                StatusText = ElyTunEnabled
+                    ? $"Маршрутизация ElyTun: {GetRoutingPresetDisplayName()}"
+                    : $"Профиль {GetRoutingPresetDisplayName()} сохранён для ElyTun";
+            }
+
+            await SaveSettingsAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Ошибка смены маршрутизации ElyTun";
+            AppendLog($"[err] Не удалось применить профиль маршрутизации: {ex.Message}");
+        }
+    }
+
+    private string GetRoutingPresetDisplayName() =>
+        RoutingPreset == RoutingPreset.RoscomVpnDefault ? "RoscomVPN DEFAULT" : "Свои правила";
 
     private static string CreateElyTunInterfaceName()
     {
@@ -1590,6 +1765,68 @@ public class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
+    private static IReadOnlyList<string> GetActiveAdapterNetworkCidrs()
+    {
+        var networks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            foreach (var adapter in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (adapter.OperationalStatus != OperationalStatus.Up
+                    || adapter.NetworkInterfaceType == NetworkInterfaceType.Loopback
+                    || adapter.Name.StartsWith("ElyTun", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                foreach (var address in adapter.GetIPProperties().UnicastAddresses)
+                {
+                    var ip = address.Address;
+                    if (IPAddress.IsLoopback(ip)
+                        || ip.Equals(IPAddress.Any)
+                        || ip.Equals(IPAddress.IPv6Any)
+                        || address.PrefixLength <= 0)
+                    {
+                        continue;
+                    }
+
+                    var cidr = ToNetworkCidr(ip, address.PrefixLength);
+                    if (cidr != null)
+                        networks.Add(cidr);
+                }
+            }
+        }
+        catch
+        {
+            // Local-network bypass is an optimisation. The TUN can still start without it.
+        }
+
+        return networks.ToArray();
+    }
+
+    private static string? ToNetworkCidr(IPAddress address, int prefixLength)
+    {
+        var bytes = address.GetAddressBytes();
+        var maxBits = bytes.Length * 8;
+        if (prefixLength <= 0 || prefixLength > maxBits)
+            return null;
+
+        var network = bytes.ToArray();
+        for (var index = 0; index < network.Length; index++)
+        {
+            var bitsLeft = prefixLength - index * 8;
+            if (bitsLeft >= 8)
+                continue;
+
+            network[index] = bitsLeft <= 0
+                ? (byte)0
+                : (byte)(network[index] & (0xFF << (8 - bitsLeft)));
+        }
+
+        return $"{new IPAddress(network)}/{prefixLength}";
+    }
+
     private static bool IsVirtualOrVpnAdapter(NetworkInterface adapter)
     {
         var text = $"{adapter.Name} {adapter.Description}".ToLowerInvariant();
@@ -1618,28 +1855,19 @@ public class MainViewModel : ViewModelBase, IDisposable
             return false;
         }
 
-        var xrayPath = _xrayManager.GetXrayPath();
-        if (!File.Exists(xrayPath))
+        var singBoxPath = _singBoxTunManager.GetSingBoxPath();
+        if (!File.Exists(singBoxPath))
         {
             DisableElyTunAfterPreflightFailure();
-            StatusText = "ElyTun: Xray не найден";
-            AppendLog($"[err] ElyTun требует Xray: {xrayPath}");
-            return false;
-        }
-
-        if (TryFindExternalXrayProcess(xrayPath, out var externalXray))
-        {
-            DisableElyTunAfterPreflightFailure();
-            StatusText = "ElyTun: закройте другой VPN";
-            AppendLog($"[err] ElyTun не запускается параллельно с другим Xray: {externalXray}");
+            StatusText = "ElyTun: sing-box не найден";
+            AppendLog($"[err] ElyTun требует sing-box: {singBoxPath}");
 
             if (showMessage)
             {
                 MessageBox.Show(
-                    "ElyTun нельзя надёжно запускать параллельно с другим VPN/TUN-клиентом на Xray.\n\n" +
-                    $"Сейчас найден другой Xray:\n{externalXray}\n\n" +
-                    "Закройте Happ или другой VPN-клиент и включите ElyTun ещё раз.",
-                    "ElyProxy — другой VPN уже запущен",
+                    "ElyTun использует sing-box с автоматической маршрутизацией Windows.\n\n" +
+                    "Добавьте sing-box.exe в папку sing-box рядом с ElyProxy.exe.",
+                    "ElyProxy — sing-box не найден",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
             }
@@ -1649,65 +1877,12 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         if (TryFindConflictingTunAdapter(out var conflictingAdapter))
         {
-            DisableElyTunAfterPreflightFailure();
-            StatusText = "ElyTun: выключите другой TUN";
-            AppendLog($"[err] ElyTun не запускается с активным TUN/VPN-адаптером: {conflictingAdapter}");
-
-            if (showMessage)
-            {
-                MessageBox.Show(
-                    "ElyTun нельзя запускать, пока активен другой TUN/VPN-адаптер.\n\n" +
-                    $"Сейчас найден:\n{conflictingAdapter}\n\n" +
-                    "Выключите Radmin VPN, Happ или другой VPN/TUN-клиент и включите ElyTun ещё раз.",
-                    "ElyProxy — другой TUN уже активен",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-            }
-
-            return false;
+            AppendLog($"[warn] Найден активный VPN/TUN-адаптер: {conflictingAdapter}. Его локальная сеть будет направлена напрямую.");
         }
 
-        if (!TryGetXrayVersion(xrayPath, out var xrayVersion)
-            || xrayVersion.CompareTo(MinElyTunXrayVersion) < 0)
+        if (TryFindZapretProcess(out var zapret))
         {
-            DisableElyTunAfterPreflightFailure();
-            var versionText = xrayVersion?.ToString() ?? "неизвестная версия";
-            StatusText = "ElyTun: обновите Xray";
-            AppendLog($"[err] ElyTun требует Xray {MinElyTunXrayVersion}+; сейчас: {versionText}");
-
-            if (showMessage)
-            {
-                MessageBox.Show(
-                    $"ElyTun требует Xray {MinElyTunXrayVersion} или новее.\n\n" +
-                    $"Сейчас найден: {versionText}.\n" +
-                    "Обновите файлы xray/xray.exe и xray/wintun.dll из свежего Xray-windows-64.zip.",
-                    "ElyProxy — обновите Xray",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-            }
-
-            return false;
-        }
-
-        var xrayDir = Path.GetDirectoryName(xrayPath);
-        var wintunPath = xrayDir == null ? string.Empty : Path.Combine(xrayDir, "wintun.dll");
-        if (!File.Exists(wintunPath))
-        {
-            DisableElyTunAfterPreflightFailure();
-            StatusText = "ElyTun: не найден wintun.dll";
-            AppendLog($"[err] ElyTun требует wintun.dll рядом с xray.exe: {wintunPath}");
-
-            if (showMessage)
-            {
-                MessageBox.Show(
-                    "Для ElyTun нужен файл wintun.dll рядом с xray.exe.\n\n" +
-                    "Скачайте Xray-windows-64.zip и поместите wintun.dll в папку xray/ рядом с ElyProxy.exe.",
-                    "ElyProxy — не найден wintun.dll",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-            }
-
-            return false;
+            AppendLog($"[warn] Обнаружен {zapret}. ElyTun запускается без strict route, чтобы не конфликтовать с WinDivert/WFP. Если фильтр перехватывает сам VLESS-сервер, исключите его IP в zapret.");
         }
 
         return true;
@@ -1763,6 +1938,35 @@ public class MainViewModel : ViewModelBase, IDisposable
         {
             return false;
         }
+    }
+
+    private static bool TryFindZapretProcess(out string description)
+    {
+        description = string.Empty;
+
+        foreach (var processName in new[] { "winws", "nfqws", "tpws" })
+        {
+            Process? process = null;
+            try
+            {
+                process = Process.GetProcessesByName(processName).FirstOrDefault();
+                if (process == null)
+                    continue;
+
+                description = $"{process.ProcessName}.exe (PID {process.Id})";
+                return true;
+            }
+            catch
+            {
+                // Process enumeration is best-effort only.
+            }
+            finally
+            {
+                process?.Dispose();
+            }
+        }
+
+        return false;
     }
 
     private static bool IsKnownTunAdapter(NetworkInterface adapter)
@@ -1867,8 +2071,10 @@ public class MainViewModel : ViewModelBase, IDisposable
         if (IsLocalTcpPortAvailable(SocksPort))
             return true;
 
-        var xrayPath = _xrayManager.GetXrayPath();
-        if (PortOwnerService.TryStopStaleXrayOnPort(SocksPort, xrayPath, out var cleanupMessage))
+        var corePath = ElyTunEnabled
+            ? _singBoxTunManager.GetSingBoxPath()
+            : _xrayManager.GetXrayPath();
+        if (PortOwnerService.TryStopStaleCoreOnPort(SocksPort, corePath, out var cleanupMessage))
         {
             AppendLog(cleanupMessage);
             if (IsLocalTcpPortAvailable(SocksPort))
@@ -1936,7 +2142,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                 return;
             }
 
-            await _xrayManager.StartAsync(node, SocksPort, BuildElyTunOptionsOrNull());
+            await StartSelectedCoreAsync(node);
 
             _connectedNode = node;
             ConnectedNodeName = node.DisplayName;
@@ -2046,7 +2252,17 @@ public class MainViewModel : ViewModelBase, IDisposable
 
     private void OnLogReceived(string message)
     {
-        _dispatcher.InvokeAsync(() => AppendLog(message));
+        if (_isDisposed)
+            return;
+
+        if (Interlocked.Increment(ref _pendingLogMessageCount) > MaxPendingLogMessages)
+        {
+            Interlocked.Decrement(ref _pendingLogMessageCount);
+            Interlocked.Increment(ref _droppedLogMessageCount);
+            return;
+        }
+
+        _pendingLogMessages.Enqueue(message);
     }
 
     private void OnStatusChanged(bool running)
@@ -2068,10 +2284,41 @@ public class MainViewModel : ViewModelBase, IDisposable
 
                 DeactivateSystemProxyForDisconnectedServer(silent: true);
 
-                if (AutoReconnect && !_isReconnecting && !_isDisposed && _connectedNode != null)
+                if (AutoReconnect && !_isReconnecting && !_isDisposed && !_isUpdating && _connectedNode != null)
                     _ = ReconnectAsync(_connectedNode);
             }
         });
+    }
+
+    private void OnXrayStatusChanged(bool running)
+    {
+        if (!ElyTunEnabled)
+            OnStatusChanged(running);
+    }
+
+    private void OnSingBoxTunStatusChanged(bool running)
+    {
+        if (ElyTunEnabled)
+            OnStatusChanged(running);
+    }
+
+    private async Task StartSelectedCoreAsync(VlessNode node)
+    {
+        if (ElyTunEnabled)
+        {
+            var options = BuildElyTunOptionsOrNull()
+                ?? throw new InvalidOperationException("Параметры ElyTun не подготовлены.");
+            await _singBoxTunManager.StartAsync(node, SocksPort, options);
+            return;
+        }
+
+        await _xrayManager.StartAsync(node, SocksPort);
+    }
+
+    private async Task StopAllCoresAsync()
+    {
+        await _xrayManager.StopAsync();
+        await _singBoxTunManager.StopAsync();
     }
 
     private async void OnSubscriptionUpdateTimerTick(object? sender, EventArgs e)
@@ -2170,9 +2417,10 @@ public class MainViewModel : ViewModelBase, IDisposable
         try
         {
             IsLoading = true;
-            StatusText = "Перезапуск Xray...";
+            StatusText = ElyTunEnabled ? "Перезапуск ElyTun..." : "Перезапуск Xray...";
             SuppressDisconnectNotifications(3);
-            await _xrayManager.RestartAsync(_connectedNode, SocksPort, BuildElyTunOptionsOrNull());
+            await StopAllCoresAsync();
+            await StartSelectedCoreAsync(_connectedNode);
             UpdateConnectionInfo(_connectedNode);
 
             if (SystemProxyEnabled)
@@ -2332,9 +2580,176 @@ public class MainViewModel : ViewModelBase, IDisposable
         var timestamp = DateTime.Now.ToString("HH:mm:ss");
         LogText += $"[{timestamp}] {message}\n";
 
-        const int maxLogLength = 50_000;
-        if (LogText.Length > maxLogLength)
-            LogText = LogText[^(maxLogLength / 2)..];
+        if (LogText.Length > MaxLogLength)
+            LogText = LogText[^(MaxLogLength / 2)..];
+    }
+
+    private void OnLogFlushTimerTick(object? sender, EventArgs e)
+    {
+        var messages = new List<string>(MaxLogMessagesPerBatch);
+        while (messages.Count < MaxLogMessagesPerBatch && _pendingLogMessages.TryDequeue(out var message))
+        {
+            Interlocked.Decrement(ref _pendingLogMessageCount);
+            messages.Add(message);
+        }
+
+        var dropped = Interlocked.Exchange(ref _droppedLogMessageCount, 0);
+        if (messages.Count == 0 && dropped == 0)
+            return;
+
+        var log = new System.Text.StringBuilder(LogText);
+        foreach (var message in messages)
+        {
+            var timestamp = DateTime.Now.ToString("HH:mm:ss");
+            log.Append('[').Append(timestamp).Append("] ").Append(message).AppendLine();
+        }
+
+        if (dropped > 0)
+        {
+            var timestamp = DateTime.Now.ToString("HH:mm:ss");
+            log.Append('[').Append(timestamp).Append("] [warn] Лог перегружен: пропущено ")
+                .Append(dropped).AppendLine(" сообщений.");
+        }
+
+        var text = log.ToString();
+        LogText = text.Length > MaxLogLength ? text[^(MaxLogLength / 2)..] : text;
+    }
+
+    private void ClearLog()
+    {
+        while (_pendingLogMessages.TryDequeue(out _)) { }
+        Interlocked.Exchange(ref _pendingLogMessageCount, 0);
+        Interlocked.Exchange(ref _droppedLogMessageCount, 0);
+        LogText = string.Empty;
+    }
+
+    private async Task CheckForUpdatesFromCommandAsync()
+    {
+        await CheckForUpdatesAsync(showNoUpdateMessage: true);
+    }
+
+    /// <returns>True when an updater was started and this application is closing.</returns>
+    private async Task<bool> CheckForUpdatesAsync(bool showNoUpdateMessage)
+    {
+        if (IsCheckingForUpdates || _isUpdating)
+            return false;
+
+        IsCheckingForUpdates = true;
+        SetUpdateState("Проверка обновлений…", "Проверка…", Brushes.DeepSkyBlue);
+        try
+        {
+            var result = await _updateService.CheckAsync();
+            if (!result.IsAvailable)
+            {
+                SetUpdateState(
+                    $"Установлена актуальная версия {UpdateService.CurrentVersion.ToString(3)}",
+                    $"v{UpdateService.CurrentVersion.ToString(3)} · актуально",
+                    Brushes.MediumSeaGreen);
+                AppendLog("[sys] Обновления: установлена актуальная версия");
+                if (showNoUpdateMessage)
+                {
+                    MessageBox.Show(
+                        "У вас установлена актуальная версия ElyProxy.",
+                        "ElyProxy — обновления",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+
+                return false;
+            }
+
+            SetUpdateState(
+                $"Доступна версия {result.Version.ToString(3)}",
+                $"v{result.Version.ToString(3)} · доступно",
+                Brushes.Gold);
+            AppendLog($"[sys] Обновления: доступна версия {result.Version.ToString(3)}");
+
+            if (AutoUpdate)
+                return await DownloadAndInstallUpdateAsync(result);
+
+            var action = MessageBox.Show(
+                $"Доступна версия ElyProxy {result.Version.ToString(3)}.\n\n{result.Manifest.ReleaseNotes}\n\nСкачать и установить её сейчас?",
+                "ElyProxy — обновление",
+                MessageBoxButton.YesNo,
+                result.Manifest.Mandatory ? MessageBoxImage.Warning : MessageBoxImage.Information);
+            return action == MessageBoxResult.Yes && await DownloadAndInstallUpdateAsync(result);
+        }
+        catch (Exception ex)
+        {
+            SetUpdateState("Не удалось проверить обновления", "Обновления · ошибка", Brushes.IndianRed);
+            AppendLog($"[warn] Обновления: {ex.Message}");
+            if (showNoUpdateMessage)
+            {
+                MessageBox.Show(
+                    $"Не удалось проверить обновления.\n\n{ex.Message}",
+                    "ElyProxy — обновления",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+
+            return false;
+        }
+        finally
+        {
+            IsCheckingForUpdates = false;
+        }
+    }
+
+    private async Task<bool> DownloadAndInstallUpdateAsync(UpdateCheckResult result)
+    {
+        _isUpdating = true;
+        IsLoading = true;
+        try
+        {
+            SetUpdateState($"Скачивание версии {result.Version.ToString(3)}…", "Обновление…", Brushes.DeepSkyBlue);
+            var progress = new Progress<double>(value =>
+                SetUpdateState(
+                    $"Скачивание версии {result.Version.ToString(3)}: {value:0}%",
+                    $"Обновление · {value:0}%",
+                    Brushes.DeepSkyBlue));
+            var packagePath = await _updateService.DownloadVerifiedPackageAsync(result.Manifest, progress);
+
+            SetUpdateState("Проверка пройдена, подготовка установки…", "Установка…", Brushes.DeepSkyBlue);
+            AppendLog($"[sys] Обновления: пакет {result.Version.ToString(3)} проверен по SHA-256");
+            await StopForUpdateAsync();
+            await SaveSettingsAsync();
+            UpdateService.LaunchUpdater(packagePath);
+
+            _ = Application.Current.Dispatcher.BeginInvoke(Application.Current.Shutdown);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _isUpdating = false;
+            SetUpdateState("Не удалось установить обновление", "Обновления · ошибка", Brushes.IndianRed);
+            AppendLog($"[err] Обновления: {ex.Message}");
+            MessageBox.Show(
+                $"Не удалось установить обновление. Текущая версия сохранена.\n\n{ex.Message}",
+                "ElyProxy — обновление",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return false;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task StopForUpdateAsync()
+    {
+        if (IsConnected)
+            await StopAllCoresAsync();
+
+        if (SystemProxyEnabled)
+            StopSystemProxy(PacUrl, restorePrevious: true, silent: true);
+    }
+
+    private void SetUpdateState(string status, string badgeText, Brush badgeBrush)
+    {
+        UpdateStatus = status;
+        UpdateBadgeText = badgeText;
+        UpdateBadgeBrush = badgeBrush;
     }
 
     #endregion
@@ -2357,11 +2772,16 @@ public class MainViewModel : ViewModelBase, IDisposable
             PacPort = settings.PacPort is >= 1024 and <= 65535 ? settings.PacPort : 18080;
             _previousAutoConfigUrl = settings.PreviousAutoConfigUrl;
             ElyTunEnabled = settings.ElyTunEnabled;
+            ElyTunIpv6Enabled = settings.ElyTunIpv6Enabled;
+            RoutingPreset = Enum.IsDefined(settings.RoutingPreset)
+                ? settings.RoutingPreset
+                : RoutingPreset.Custom;
             SystemProxyEnabled = !ElyTunEnabled && (settings.SystemProxyEnabled || settings.PacModeEnabled);
             SystemProxyRulesText = FormatRules(settings.SystemProxyBypassRules.Count > 0
                 ? settings.SystemProxyBypassRules
                 : PacServerService.DefaultBypassRules);
             SubscriptionUpdateIntervalMinutes = settings.SubscriptionUpdateIntervalMinutes;
+            AutoUpdate = settings.AutoUpdate;
             _lastConnectedNodeId = settings.LastConnectedNodeId;
             _manualNodes.Clear();
             if (settings.ManualNodes?.Count > 0)
@@ -2399,6 +2819,9 @@ public class MainViewModel : ViewModelBase, IDisposable
 
             SelectLastConnectedNode();
 
+            if (await CheckForUpdatesAsync(showNoUpdateMessage: false))
+                return;
+
             if (AutoConnect)
             {
                 if (SelectedNode != null)
@@ -2430,6 +2853,7 @@ public class MainViewModel : ViewModelBase, IDisposable
                 AutoConnect = AutoConnect,
                 AutoReconnect = AutoReconnect,
                 ShowLogs = ShowLogs,
+                AutoUpdate = AutoUpdate,
                 PingMode = PingMode,
                 ProxyPingUrl = ProxyPingUrl,
                 ProxyPingConcurrency = ProxyPingConcurrency,
@@ -2438,6 +2862,8 @@ public class MainViewModel : ViewModelBase, IDisposable
                 PacModeEnabled = SystemProxyEnabled,
                 PacPort = PacPort,
                 ElyTunEnabled = ElyTunEnabled,
+                ElyTunIpv6Enabled = ElyTunIpv6Enabled,
+                RoutingPreset = RoutingPreset,
                 PreviousAutoConfigUrl = _previousAutoConfigUrl,
                 SubscriptionUpdateIntervalMinutes = SubscriptionUpdateIntervalMinutes,
                 LastConnectedNodeId = _lastConnectedNodeId,
@@ -2455,6 +2881,7 @@ public class MainViewModel : ViewModelBase, IDisposable
     {
         _isDisposed = true;
         _subscriptionUpdateTimer.Stop();
+        _logFlushTimer.Stop();
         _subscriptionUpdateTimer.Tick -= OnSubscriptionUpdateTimerTick;
         try
         {
@@ -2465,6 +2892,7 @@ public class MainViewModel : ViewModelBase, IDisposable
 
         _pacServerService.Dispose();
         _xrayManager.Dispose();
+        _singBoxTunManager.Dispose();
         _subscriptionService.Dispose();
         GC.SuppressFinalize(this);
     }

@@ -11,6 +11,11 @@ public static class PortOwnerService
 
     public static bool TryStopStaleXrayOnPort(int port, string expectedXrayPath, out string message)
     {
+        return TryStopStaleCoreOnPort(port, expectedXrayPath, out message);
+    }
+
+    public static bool TryStopStaleCoreOnPort(int port, string expectedCorePath, out string message)
+    {
         message = string.Empty;
         var pid = GetTcpListenOwnerPid(port);
         if (!pid.HasValue)
@@ -22,7 +27,7 @@ public static class PortOwnerService
             process = Process.GetProcessById(pid.Value);
             var processPath = GetProcessPath(process);
 
-            if (!IsExpectedXray(process, processPath, expectedXrayPath))
+            if (!IsExpectedCore(process, processPath, expectedCorePath))
             {
                 message = FormatPortOwner(port, process, processPath);
                 return false;
@@ -31,11 +36,11 @@ public static class PortOwnerService
             process.Kill(entireProcessTree: true);
             if (!process.WaitForExit(3000))
             {
-                message = $"SOCKS5 порт 127.0.0.1:{port} занят зависшим Xray, но его не удалось остановить.";
+                message = $"SOCKS5 порт 127.0.0.1:{port} занят зависшим proxy-core, но его не удалось остановить.";
                 return false;
             }
 
-            message = $"[sys] Остановлен зависший Xray на 127.0.0.1:{port} (PID {pid.Value})";
+            message = $"[sys] Остановлен зависший proxy-core на 127.0.0.1:{port} (PID {pid.Value})";
             return true;
         }
         catch (Exception ex)
@@ -104,9 +109,10 @@ public static class PortOwnerService
         return null;
     }
 
-    private static bool IsExpectedXray(Process process, string? processPath, string expectedXrayPath)
+    private static bool IsExpectedCore(Process process, string? processPath, string expectedCorePath)
     {
-        if (!string.Equals(process.ProcessName, "xray", StringComparison.OrdinalIgnoreCase))
+        var expectedProcessName = Path.GetFileNameWithoutExtension(expectedCorePath);
+        if (!string.Equals(process.ProcessName, expectedProcessName, StringComparison.OrdinalIgnoreCase))
             return false;
 
         if (string.IsNullOrWhiteSpace(processPath))
@@ -114,7 +120,7 @@ public static class PortOwnerService
 
         return string.Equals(
             NormalizePath(processPath),
-            NormalizePath(expectedXrayPath),
+            NormalizePath(expectedCorePath),
             StringComparison.OrdinalIgnoreCase);
     }
 

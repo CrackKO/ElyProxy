@@ -1,4 +1,7 @@
 using Newtonsoft.Json.Linq;
+using System.Globalization;
+using System.Net;
+using System.Text.RegularExpressions;
 using ElyProxy.Models;
 
 namespace ElyProxy.Core;
@@ -16,7 +19,7 @@ public class ConfigBuilder
             ["log"] = new JObject { ["loglevel"] = "warning" },
             ["inbounds"] = inbounds,
             ["outbounds"] = BuildVlessOutbounds(node),
-            ["routing"] = BuildRouting(tunOptions != null)
+            ["routing"] = BuildRouting(tunOptions)
         };
 
         return config.ToString(Newtonsoft.Json.Formatting.Indented);
@@ -29,7 +32,7 @@ public class ConfigBuilder
             ["log"] = new JObject { ["loglevel"] = "warning" },
             ["inbounds"] = new JArray { BuildSocksInbound(localPort) },
             ["outbounds"] = BuildSocksOutbounds(node),
-            ["routing"] = BuildRouting()
+            ["routing"] = BuildRouting(null)
         };
 
         return config.ToString(Newtonsoft.Json.Formatting.Indented);
@@ -284,12 +287,14 @@ public class ConfigBuilder
         return obj;
     }
 
-    private static JObject BuildRouting(bool includeTunRules = false)
+    private static JObject BuildRouting(XrayTunOptions? tunOptions)
     {
         var rules = new JArray();
 
-        if (includeTunRules)
+        if (tunOptions != null)
         {
+            AddTunBypassRules(rules, tunOptions);
+
             rules.Add(new JObject
             {
                 ["type"] = "field",
@@ -298,14 +303,7 @@ public class ConfigBuilder
                 ["network"] = "tcp,udp",
                 ["outboundTag"] = "direct"
             });
-            rules.Add(new JObject
-            {
-                ["type"] = "field",
-                ["inboundTag"] = new JArray("elytun-in"),
-                ["port"] = 443,
-                ["network"] = "udp",
-                ["outboundTag"] = "block"
-            });
+
         }
 
         rules.Add(new JObject
@@ -326,6 +324,118 @@ public class ConfigBuilder
             ["domainStrategy"] = "AsIs",
             ["rules"] = rules
         };
+    }
+
+    private static void AddTunBypassRules(JArray rules, XrayTunOptions options)
+    {
+        var domains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var ips = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var rule in options.BypassRules)
+            AddBypassRule(rule, domains, ips);
+
+        foreach (var cidr in options.DirectIpCidrs)
+        {
+            if (IsIpOrCidr(cidr))
+                ips.Add(cidr);
+        }
+
+        if (domains.Count > 0)
+        {
+            rules.Add(new JObject
+            {
+                ["type"] = "field",
+                ["inboundTag"] = new JArray("elytun-in"),
+                ["domain"] = new JArray(domains),
+                ["outboundTag"] = "direct"
+            });
+        }
+
+        if (ips.Count > 0)
+        {
+            rules.Add(new JObject
+            {
+                ["type"] = "field",
+                ["inboundTag"] = new JArray("elytun-in"),
+                ["ip"] = new JArray(ips),
+                ["outboundTag"] = "direct"
+            });
+        }
+    }
+
+    private static void AddBypassRule(string? source, ISet<string> domains, ISet<string> ips)
+    {
+        var rule = source?.Trim();
+        if (string.IsNullOrWhiteSpace(rule) || rule.StartsWith('#'))
+            return;
+
+        if (rule.StartsWith("geoip:", StringComparison.OrdinalIgnoreCase))
+        {
+            ips.Add(rule.ToLowerInvariant());
+            return;
+        }
+
+        if (rule.StartsWith("geosite:", StringComparison.OrdinalIgnoreCase)
+            || rule.StartsWith("domain:", StringComparison.OrdinalIgnoreCase)
+            || rule.StartsWith("full:", StringComparison.OrdinalIgnoreCase)
+            || rule.StartsWith("regexp:", StringComparison.OrdinalIgnoreCase)
+            || rule.StartsWith("keyword:", StringComparison.OrdinalIgnoreCase))
+        {
+            domains.Add(rule);
+            return;
+        }
+
+        if (IsIpOrCidr(rule))
+        {
+            ips.Add(rule);
+            return;
+        }
+
+        var host = rule.Trim().TrimStart('.');
+        if (host.StartsWith("*."))
+            host = host[2..];
+
+        if (string.IsNullOrWhiteSpace(host) || host.Contains('/') || host.Contains(' '))
+            return;
+
+        foreach (var variant in GetDomainVariants(host))
+        {
+            var escaped = Regex.Escape(variant).Replace("\\*", ".*");
+            domains.Add($"regexp:(^|\\.){escaped}$");
+        }
+    }
+
+    private static IReadOnlyList<string> GetDomainVariants(string host)
+    {
+        var variants = new List<string> { host.ToLowerInvariant() };
+
+        try
+        {
+            var ascii = new IdnMapping().GetAscii(host).ToLowerInvariant();
+            if (!string.Equals(ascii, host, StringComparison.OrdinalIgnoreCase))
+                variants.Add(ascii);
+        }
+        catch
+        {
+            // Invalid IDN values are still kept as literal Xray regexp rules.
+        }
+
+        return variants;
+    }
+
+    private static bool IsIpOrCidr(string value)
+    {
+        var slash = value.LastIndexOf('/');
+        var addressText = slash >= 0 ? value[..slash] : value;
+        if (!IPAddress.TryParse(addressText, out var address))
+            return false;
+
+        if (slash < 0)
+            return true;
+
+        return int.TryParse(value[(slash + 1)..], out var prefix)
+            && prefix >= 0
+            && prefix <= address.GetAddressBytes().Length * 8;
     }
 
     private static string Fallback(string? value, string fallback) =>
