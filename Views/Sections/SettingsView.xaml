@@ -1,0 +1,459 @@
+<UserControl x:Class="ElyProxy.Views.Sections.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:ElyProxy.Controls"
+             xmlns:behaviors="clr-namespace:ElyProxy.Controls.Behaviors">
+  <Grid Margin="22,18,22,16">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <StackPanel Grid.Row="0" Margin="0,0,0,10">
+      <TextBlock Text="Настройки" Style="{StaticResource Text.LargeTitle}" />
+      <TextBlock Text="Оформление, сеть, обновления и маршрутизация"
+                 Style="{StaticResource Text.Caption}"
+                 Margin="1,4,0,0" />
+    </StackPanel>
+
+    <ScrollViewer Grid.Row="1"
+                  VerticalScrollBarVisibility="Auto"
+                  behaviors:SmoothScroll.IsEnabled="True">
+      <StackPanel MaxWidth="760" HorizontalAlignment="Left" Margin="0,0,20,0">
+
+        <!-- ================= Appearance ================= -->
+        <TextBlock Text="Оформление" Style="{StaticResource Text.SectionHeader}" />
+        <Border Style="{StaticResource AppleInsetGroup}">
+          <StackPanel>
+            <Border Style="{StaticResource AppleSettingRow}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                  <TextBlock Text="Тема" Style="{StaticResource Text.Body}" />
+                  <TextBlock Text="Светлая, тёмная или как в Windows" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" />
+                </StackPanel>
+                <ComboBox Grid.Column="1"
+                           Width="250"
+                          HorizontalAlignment="Right"
+                          DisplayMemberPath="Value"
+                          SelectedValuePath="Key"
+                          AutomationProperties.Name="Тема оформления"
+                          ItemsSource="{Binding ThemeModeOptions}"
+                          SelectedValue="{Binding ThemeMode, Mode=TwoWay}" />
+              </Grid>
+            </Border>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                  <TextBlock Text="Прозрачность окна" Style="{StaticResource Text.Body}" />
+                </StackPanel>
+                <ComboBox Grid.Column="1"
+                           Width="250"
+                          HorizontalAlignment="Right"
+                          DisplayMemberPath="Value"
+                          SelectedValuePath="Key"
+                          AutomationProperties.Name="Материал окна"
+                          ItemsSource="{Binding BackdropModeOptions}"
+                          SelectedValue="{Binding BackdropMode, Mode=TwoWay}" />
+              </Grid>
+            </Border>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                  <TextBlock Text="Анимации" Style="{StaticResource Text.Body}" />
+                  <TextBlock Text="Пружинные переходы; отключаются в режиме экономии" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" />
+                </StackPanel>
+                <ComboBox Grid.Column="1"
+                           Width="250"
+                          HorizontalAlignment="Right"
+                          DisplayMemberPath="Value"
+                          SelectedValuePath="Key"
+                          AutomationProperties.Name="Анимации интерфейса"
+                          ItemsSource="{Binding MotionModeOptions}"
+                          SelectedValue="{Binding MotionMode, Mode=TwoWay}" />
+              </Grid>
+            </Border>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                  <TextBlock Text="Аватар сервера" Style="{StaticResource Text.Body}" />
+                  <TextBlock Text="Метка слева от названия в списках серверов и профилей"
+                             Style="{StaticResource Text.Caption}"
+                             Margin="0,2,0,0"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+                <ComboBox Grid.Column="1"
+                           Width="250"
+                          HorizontalAlignment="Right"
+                          DisplayMemberPath="Value"
+                          SelectedValuePath="Key"
+                          AutomationProperties.Name="Аватар сервера"
+                          ItemsSource="{Binding ServerBadgeOptions}"
+                          SelectedValue="{Binding ServerBadgeMode, Mode=TwoWay}" />
+              </Grid>
+            </Border>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                  <TextBlock Text="Показывать журнал" Style="{StaticResource Text.Body}" />
+                  <TextBlock Text="Сворачиваемая панель внизу окна (Ctrl+L)" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" />
+                </StackPanel>
+                <controls:SpringToggleSwitch Grid.Column="1"
+                                             HorizontalAlignment="Right"
+                                             VerticalAlignment="Center"
+                                             AutomationProperties.Name="Показывать журнал"
+                                             IsChecked="{Binding ShowLogs, Mode=TwoWay}" />
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+
+        <!-- ================= Startup ================= -->
+        <TextBlock Text="Запуск" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <Border Style="{StaticResource AppleInsetGroup}">
+          <StackPanel>
+            <Border Style="{StaticResource AppleSettingRow}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Запускать вместе с Windows" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                <controls:SpringToggleSwitch Grid.Column="1"
+                                             HorizontalAlignment="Right"
+                                             AutomationProperties.Name="Запускать вместе с Windows"
+                                             IsChecked="{Binding AutoStartWithWindows, Mode=TwoWay}" />
+              </Grid>
+            </Border>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Подключаться к последнему серверу" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                <controls:SpringToggleSwitch Grid.Column="1"
+                                             HorizontalAlignment="Right"
+                                             AutomationProperties.Name="Подключаться к последнему серверу"
+                                             IsChecked="{Binding AutoConnect, Mode=TwoWay}" />
+              </Grid>
+            </Border>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Переподключаться при обрыве" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                <controls:SpringToggleSwitch Grid.Column="1"
+                                             HorizontalAlignment="Right"
+                                             AutomationProperties.Name="Переподключаться при обрыве"
+                                             IsChecked="{Binding AutoReconnect, Mode=TwoWay}" />
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+
+        <!-- ================= Network ================= -->
+        <TextBlock Text="Сеть" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <Border Style="{StaticResource AppleInsetGroup}">
+          <StackPanel>
+            <Border Style="{StaticResource AppleSettingRow}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                  <TextBlock Text="SOCKS5 порт" Style="{StaticResource Text.Body}" />
+                  <TextBlock Text="Локальный прокси: socks5://127.0.0.1:порт" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" />
+                </StackPanel>
+                <TextBox Grid.Column="1"
+                          Width="110"
+                         HorizontalAlignment="Right"
+                         TextAlignment="Center"
+                         AutomationProperties.Name="Порт SOCKS5"
+                         Text="{Binding SocksPort, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+              </Grid>
+            </Border>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                  <TextBlock Text="Тип пинга" Style="{StaticResource Text.Body}" />
+                  <TextBlock Text="Как кнопка «Пинг» проверяет серверы" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" />
+                </StackPanel>
+                <ComboBox Grid.Column="1"
+                           Width="250"
+                          HorizontalAlignment="Right"
+                          DisplayMemberPath="Value"
+                          SelectedValuePath="Key"
+                          AutomationProperties.Name="Тип пинга"
+                          ItemsSource="{Binding PingModeOptions}"
+                          SelectedValue="{Binding PingMode, Mode=TwoWay}" />
+              </Grid>
+            </Border>
+            <StackPanel Visibility="{Binding IsProxyGetPingMode, Converter={StaticResource BoolToVis}}">
+              <Border Style="{StaticResource AppleRowSeparator}" />
+              <Border Style="{StaticResource AppleSettingRow}">
+                <StackPanel>
+                  <TextBlock Text="URL для Proxy GET" Style="{StaticResource Text.Body}" />
+                  <TextBox Margin="0,8,0,0"
+                           AutomationProperties.Name="URL для Proxy GET"
+                           Text="{Binding ProxyPingUrl, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+            <StackPanel Visibility="{Binding IsProxyBasedPingMode, Converter={StaticResource BoolToVis}}">
+              <Border Style="{StaticResource AppleRowSeparator}" />
+              <Border Style="{StaticResource AppleSettingRow}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="250" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                    <TextBlock Text="Потоки" Style="{StaticResource Text.Body}" />
+                    <TextBlock Text="Рекомендуется 10: больше потоков — быстрее проверка и выше нагрузка" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <TextBox Grid.Column="1"
+                           Width="110"
+                           HorizontalAlignment="Right"
+                           TextAlignment="Center"
+                           AutomationProperties.Name="Количество потоков проверки"
+                           Text="{Binding ProxyPingConcurrency, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                </Grid>
+              </Border>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <!-- ================= Updates ================= -->
+        <TextBlock Text="Обновления" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <Border Style="{StaticResource AppleInsetGroup}">
+          <StackPanel>
+            <Border Style="{StaticResource AppleSettingRow}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                  <TextBlock Text="{Binding ApplicationVersion}" Style="{StaticResource Text.Body}" />
+                  <TextBlock Text="{Binding UpdateStatus}" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Content="Проверить"
+                        HorizontalAlignment="Right"
+                        Style="{StaticResource SecondaryButton}"
+                        Command="{Binding CheckForUpdatesCommand}"
+                        AutomationProperties.Name="Проверить обновления" />
+              </Grid>
+            </Border>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                  <TextBlock Text="Автообновления" Style="{StaticResource Text.Body}" />
+                  <TextBlock Text="{Binding AutoUpdateDescription}" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+                <controls:SpringToggleSwitch Grid.Column="1"
+                                             HorizontalAlignment="Right"
+                                             AutomationProperties.Name="Автообновления"
+                                             IsChecked="{Binding AutoUpdate, Mode=TwoWay}" />
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+
+        <!-- ================= ElyTun ================= -->
+        <TextBlock Text="ElyTun" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <Border Style="{StaticResource AppleInsetGroup}">
+          <Border Style="{StaticResource AppleSettingRow}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="250" />
+              </Grid.ColumnDefinitions>
+              <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                <TextBlock Text="Туннелировать IPv6" Style="{StaticResource Text.Body}" />
+                <TextBlock Text="Полный TUN-режим; выключите, если провайдер не поддерживает IPv6" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+              </StackPanel>
+              <controls:SpringToggleSwitch Grid.Column="1"
+                                            HorizontalAlignment="Right"
+                                            AutomationProperties.Name="Туннелировать IPv6"
+                                           IsChecked="{Binding ElyTunIpv6Enabled, Mode=TwoWay}" />
+            </Grid>
+          </Border>
+        </Border>
+
+        <!-- ================= Subscriptions ================= -->
+        <TextBlock Text="Подписки" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <Border Style="{StaticResource AppleInsetGroup}">
+          <Border Style="{StaticResource AppleSettingRow}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="250" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Text="Автообновление" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+              <ComboBox Grid.Column="1"
+                        Width="250"
+                        HorizontalAlignment="Right"
+                        DisplayMemberPath="Value"
+                        SelectedValuePath="Key"
+                        AutomationProperties.Name="Интервал автообновления подписок"
+                        ItemsSource="{Binding SubscriptionUpdateIntervalOptions}"
+                        SelectedValue="{Binding SubscriptionUpdateIntervalMinutes, Mode=TwoWay}" />
+            </Grid>
+          </Border>
+        </Border>
+
+        <!-- ================= Routing ================= -->
+        <TextBlock Text="Разделение трафика" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <Border Style="{StaticResource AppleInsetGroup}">
+          <StackPanel>
+            <Border Style="{StaticResource AppleSettingRow}">
+              <StackPanel>
+                <TextBlock Text="Профиль маршрутизации ElyTun" Style="{StaticResource Text.Body}" />
+                <RadioButton Content="Свои правила"
+                             Margin="0,10,0,0"
+                             GroupName="ElyTunRoutingPreset"
+                             AutomationProperties.Name="Профиль маршрутизации: свои правила"
+                             IsChecked="{Binding UseCustomRouting, Mode=TwoWay}" />
+                <RadioButton Content="RoscomVPN DEFAULT — встроенный готовый набор"
+                             Margin="0,8,0,0"
+                             GroupName="ElyTunRoutingPreset"
+                             AutomationProperties.Name="Профиль маршрутизации: RoscomVPN DEFAULT"
+                             IsChecked="{Binding UseRoscomVpnDefaultRouting, Mode=TwoWay}" />
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}">
+              <StackPanel>
+                <TextBlock Text="Bypass-правила для Proxy Lite, Proxy Pro и ElyTun" Style="{StaticResource Text.Body}" />
+                <TextBlock Text="По одному правилу в строке: домен, *.домен, IP или CIDR. Эти адреса идут напрямую."
+                           Style="{StaticResource Text.Caption}"
+                           Margin="0,4,0,0"
+                           TextWrapping="Wrap" />
+                <TextBox AcceptsReturn="True"
+                         TextWrapping="NoWrap"
+                         VerticalScrollBarVisibility="Auto"
+                         Height="120"
+                         Margin="0,10,0,0"
+                         FontFamily="{StaticResource AppMonoFontFamily}"
+                         FontSize="12"
+                         AutomationProperties.Name="Правила разделения трафика"
+                         Text="{Binding SystemProxyRulesText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                <Grid Margin="0,10,0,0">
+                  <TextBlock Text="Proxy Pro применяет те же правила, что и ElyTun, но через системный прокси без TUN."
+                             Style="{StaticResource Text.Micro}"
+                             TextWrapping="Wrap"
+                             MaxWidth="480"
+                             HorizontalAlignment="Left"
+                             VerticalAlignment="Center" />
+                  <Button Content="Сбросить правила"
+                          Style="{StaticResource GhostButton}"
+                          HorizontalAlignment="Right"
+                          Command="{Binding ResetSystemProxyRulesCommand}"
+                          AutomationProperties.Name="Сбросить правила разделения трафика" />
+                </Grid>
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}">
+              <StackPanel>
+                <TextBlock Text="Обход по приложениям" Style="{StaticResource Text.Body}" />
+                <TextBlock Text="В ElyTun весь трафик выбранного .exe идёт напрямую, независимо от доменных/IP-правил. В Proxy Pro правило действует на трафик, поступающий в системный прокси. Proxy Lite (PAC) не передаёт имя приложения."
+                           Style="{StaticResource Text.Caption}"
+                           Margin="0,4,0,0"
+                           TextWrapping="Wrap" />
+                <ListView Style="{StaticResource AppleListView}"
+                          ScrollViewer.CanContentScroll="False"
+                          ItemsSource="{Binding ApplicationBypassApplications}"
+                          SelectedItem="{Binding SelectedApplicationBypass, Mode=TwoWay}"
+                          Height="130"
+                          Margin="0,10,0,0"
+                          AutomationProperties.Name="Приложения, обходящие VPN">
+                  <ListView.ItemTemplate>
+                    <DataTemplate>
+                      <StackPanel Margin="2,3">
+                        <TextBlock Text="{Binding Name}"
+                                   Style="{StaticResource Text.BodyStrong}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding ExecutablePath}"
+                                   Style="{StaticResource Text.Caption}"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding ExecutablePath}" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ListView.ItemTemplate>
+                </ListView>
+                <Grid Margin="0,8,0,0">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Grid.Column="0"
+                             Text="Изменения сохраняются сразу. При активном VPN отключите и подключите его снова."
+                             Style="{StaticResource Text.Micro}"
+                             TextWrapping="Wrap"
+                             MaxWidth="440"
+                             VerticalAlignment="Center" />
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Удалить"
+                            Style="{StaticResource GhostButton}"
+                            Command="{Binding RemoveApplicationBypassCommand}"
+                            AutomationProperties.Name="Удалить выбранное приложение из обхода" />
+                    <Button Content="Добавить приложение…"
+                            Style="{StaticResource SecondaryButton}"
+                            Margin="6,0,0,0"
+                            Command="{Binding AddApplicationBypassCommand}"
+                            AutomationProperties.Name="Добавить приложение для обхода VPN" />
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Border>
+
+        <TextBlock Text="Настройки сохраняются автоматически."
+                   Style="{StaticResource Text.Micro}"
+                   Margin="2,18,0,0" />
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

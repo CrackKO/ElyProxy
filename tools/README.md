@@ -4,12 +4,12 @@
 2. Запустите из корня проекта:
 
 ```powershell
-.\tools\New-ElyProxyUpdate.ps1 -Version 1.3.6 -ReleaseNotes 'Кратко опишите изменения.'
+.\tools\New-ElyProxyUpdate.ps1 -Version 1.3.8 -ReleaseNotes 'Кратко опишите изменения.'
 ```
 
 Скрипт создаёт новую папку сборки, ZIP и `deployment/elyproxy-update/update.json`.
-Он не перезаписывает существующую версию и проверяет, что в архиве есть основной
-клиент и отдельный updater.
+Он не перезаписывает существующую версию и проверяет, что сборка содержит клиент,
+updater, Xray, sing-box и все 22 rule-set файла RoscomVPN DEFAULT.
 
 На сервер сначала загрузите ZIP в:
 

@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading.Tasks;
 using ElyProxy.Models;
 using ElyProxy.Utils;
 
@@ -5,39 +9,31 @@ namespace ElyProxy.Services;
 
 public class ImportExportService
 {
-    public async Task ExportProfileAsync(ProxyProfile profile, string filePath)
-    {
-        var payload = new ExportPayload
-        {
-            Name = profile.Name,
-            Nodes = profile.Nodes
-        };
-        await JsonHelper.SaveToFileAsync(payload, filePath);
-    }
+	private class ExportPayload
+	{
+		public string? Name { get; set; }
 
-    public async Task<ProxyProfile?> ImportProfileAsync(string filePath)
-    {
-        try
-        {
-            var payload = await JsonHelper.LoadFromFileAsync<ExportPayload>(filePath);
-            if (payload == null) return null;
+		public List<VlessNode>? Nodes { get; set; }
+	}
 
-            return new ProxyProfile
-            {
-                Id = Guid.NewGuid().ToString("N"),
-                Name = payload.Name ?? Path.GetFileNameWithoutExtension(filePath),
-                Nodes = payload.Nodes ?? new()
-            };
-        }
-        catch
-        {
-            return null;
-        }
-    }
+	public async Task ExportProfileAsync(ProxyProfile profile, string filePath)
+	{
+		await JsonHelper.SaveToFileAsync(new ExportPayload
+		{
+			Name = profile.Name,
+			Nodes = profile.Nodes
+		}, filePath);
+	}
 
-    private class ExportPayload
-    {
-        public string? Name { get; set; }
-        public List<VlessNode>? Nodes { get; set; }
-    }
+	public async Task<ProxyProfile> ImportProfileAsync(string filePath)
+	{
+		ExportPayload payload = await JsonHelper.LoadFromFileAsync<ExportPayload>(filePath)
+			?? throw new InvalidDataException("Файл профиля не содержит данных.");
+		return new ProxyProfile
+		{
+			Id = Guid.NewGuid().ToString("N"),
+			Name = payload.Name ?? Path.GetFileNameWithoutExtension(filePath),
+			Nodes = payload.Nodes ?? new List<VlessNode>()
+		};
+	}
 }

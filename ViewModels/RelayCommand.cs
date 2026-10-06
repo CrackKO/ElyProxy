@@ -1,67 +1,47 @@
+using System;
 using System.Windows.Input;
 
 namespace ElyProxy.ViewModels;
 
 public class RelayCommand : ICommand
 {
-    private readonly Action<object?> _execute;
-    private readonly Func<object?, bool>? _canExecute;
+	private readonly Action<object?> _execute;
 
-    public RelayCommand(Action execute, Func<bool>? canExecute = null)
-        : this(_ => execute(), canExecute != null ? _ => canExecute() : null) { }
+	private readonly Func<object?, bool>? _canExecute;
 
-    public RelayCommand(Action<object?> execute, Func<object?, bool>? canExecute = null)
-    {
-        _execute = execute ?? throw new ArgumentNullException(nameof(execute));
-        _canExecute = canExecute;
-    }
+	public event EventHandler? CanExecuteChanged
+	{
+		add
+		{
+			CommandManager.RequerySuggested += value;
+		}
+		remove
+		{
+			CommandManager.RequerySuggested -= value;
+		}
+	}
 
-    public event EventHandler? CanExecuteChanged
-    {
-        add => CommandManager.RequerySuggested += value;
-        remove => CommandManager.RequerySuggested -= value;
-    }
+	public RelayCommand(Action execute, Func<bool>? canExecute = null)
+		: this(delegate
+		{
+			execute();
+		}, (canExecute != null) ? ((Func<object, bool>)((object? _) => canExecute())) : null)
+	{
+	}
 
-    public bool CanExecute(object? parameter) => _canExecute?.Invoke(parameter) ?? true;
-    public void Execute(object? parameter) => _execute(parameter);
-}
+	public RelayCommand(Action<object?> execute, Func<object?, bool>? canExecute = null)
+	{
+		_execute = execute ?? throw new ArgumentNullException("execute");
+		_canExecute = canExecute;
+	}
 
-public class AsyncRelayCommand : ICommand
-{
-    private readonly Func<Task> _execute;
-    private readonly Func<bool>? _canExecute;
-    private bool _isExecuting;
+	public bool CanExecute(object? parameter)
+	{
+		return _canExecute?.Invoke(parameter) ?? true;
+	}
 
-    public AsyncRelayCommand(Func<Task> execute, Func<bool>? canExecute = null)
-    {
-        _execute = execute ?? throw new ArgumentNullException(nameof(execute));
-        _canExecute = canExecute;
-    }
-
-    public event EventHandler? CanExecuteChanged
-    {
-        add => CommandManager.RequerySuggested += value;
-        remove => CommandManager.RequerySuggested -= value;
-    }
-
-    public bool CanExecute(object? parameter) =>
-        !_isExecuting && (_canExecute?.Invoke() ?? true);
-
-    public async void Execute(object? parameter)
-    {
-        if (_isExecuting) return;
-
-        _isExecuting = true;
-        CommandManager.InvalidateRequerySuggested();
-
-        try
-        {
-            await _execute();
-        }
-        finally
-        {
-            _isExecuting = false;
-            CommandManager.InvalidateRequerySuggested();
-        }
-    }
+	public void Execute(object? parameter)
+	{
+		_execute(parameter);
+	}
 }

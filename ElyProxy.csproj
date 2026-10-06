@@ -7,9 +7,9 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>ElyProxy</RootNamespace>
     <AssemblyName>ElyProxy</AssemblyName>
-    <Version>1.3.6</Version>
-    <AssemblyVersion>1.3.6.0</AssemblyVersion>
-    <FileVersion>1.3.6.0</FileVersion>
+    <Version>1.3.8</Version>
+    <AssemblyVersion>1.3.8.0</AssemblyVersion>
+    <FileVersion>1.3.8.0</FileVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -21,10 +21,12 @@
     <Using Remove="System.Windows.Forms" />
     <Compile Remove="tests\**\*.cs" />
     <Compile Remove="ElyProxy.Updater\**\*.cs" />
+    <Compile Remove="SevenLive\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -32,14 +34,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="OmegaRules_auto_switch.sorl" />
-    <None Update="OmegaRules_auto_switch.sorl">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
-  <ItemGroup>
     <None Update="bin\xray\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </None>
+    <!-- Locally placed Xray binaries (untracked): copy next to the app so both
+         dotnet run and publish find xray/xray.exe, geoip.dat, geosite.dat. -->
+    <None Update="xray\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
@@ -57,8 +59,6 @@
   </ItemGroup>
 
   <Target Name="PublishUpdater" AfterTargets="Publish">
-    <MSBuild Projects="ElyProxy.Updater\ElyProxy.Updater.csproj"
-             Targets="Restore;Publish"
-             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishDir=$(PublishDir)updater\" />
+    <MSBuild Projects="ElyProxy.Updater\ElyProxy.Updater.csproj" Targets="Restore;Publish" Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishDir=$(PublishDir)updater\" />
   </Target>
 </Project>

@@ -4,10 +4,8 @@
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-        <!-- ElyTun creates a Windows TUN adapter and changes system routes.
-             Starting elevated avoids a half-started TUN process that cannot
-             configure its interface or routes. -->
-        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
+        <!-- The client runs unelevated. ElyTun relaunches it elevated on demand. -->
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
       </requestedPrivileges>
     </security>
   </trustInfo>

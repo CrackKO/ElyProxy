@@ -1,0 +1,60 @@
+<UserControl x:Class="ElyProxy.Controls.SheetHost"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root"
+             Focusable="True"
+             PreviewKeyDown="Sheet_PreviewKeyDown">
+  <Grid x:Name="Overlay" Visibility="Collapsed">
+    <Border x:Name="Scrim"
+            Background="{DynamicResource ScrimBrush}"
+            Opacity="0"
+            MouseLeftButtonDown="Scrim_MouseLeftButtonDown" />
+
+    <Border x:Name="Card"
+            Style="{StaticResource AppleCard}"
+            Background="{DynamicResource MaterialThickBrush}"
+            BorderBrush="{DynamicResource BorderBr}"
+            CornerRadius="14"
+            Padding="22,20"
+            MinWidth="360"
+            MaxWidth="470"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            RenderTransformOrigin="0.5,0.5"
+            KeyboardNavigation.TabNavigation="Cycle">
+      <Border.Effect>
+        <DropShadowEffect BlurRadius="36" ShadowDepth="10" Direction="270" Opacity="0.42" />
+      </Border.Effect>
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="TitleText"
+                   Style="{StaticResource Text.Headline}"
+                   TextWrapping="Wrap" />
+
+        <ContentPresenter x:Name="BodyHost"
+                          Grid.Row="1"
+                          Margin="0,10,0,0" />
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,20,0,0">
+          <Button x:Name="CloseButton"
+                  Style="{StaticResource SecondaryButton}"
+                  MinWidth="96"
+                  Click="Close_Click" />
+          <Button x:Name="PrimaryButton"
+                  Style="{StaticResource PrimaryButton}"
+                  MinWidth="120"
+                  Margin="8,0,0,0"
+                  Click="Primary_Click" />
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

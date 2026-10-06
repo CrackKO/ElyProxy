@@ -1,256 +1,197 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ElyProxy.Services;
 
 public class PacServerService : IDisposable
 {
-    public static readonly string[] DefaultBypassRules =
-    [
-        "*.ru",
-        "*.рф",
-        "*.xn--p1ai",
-        "*.su",
-        "*.com.ru",
-        "*.edu.ru"
-    ];
+	public static readonly string[] DefaultBypassRules = new string[6] { "*.ru", "*.рф", "*.xn--p1ai", "*.su", "*.com.ru", "*.edu.ru" };
 
-    private TcpListener? _listener;
-    private CancellationTokenSource? _cts;
-    private Task? _serverTask;
-    private string[] _bypassRules = DefaultBypassRules;
-    private int _pacPort;
-    private int _socksPort;
+	private TcpListener? _listener;
 
-    public bool IsRunning => _listener != null;
-    public string PacUrl => $"http://127.0.0.1:{_pacPort}/proxy.pac";
+	private CancellationTokenSource? _cts;
 
-    public Task StartAsync(int pacPort, int socksPort, IEnumerable<string>? bypassRules)
-    {
-        if (IsRunning && _pacPort == pacPort)
-        {
-            _socksPort = socksPort;
-            _bypassRules = NormalizeRules(bypassRules);
-            return Task.CompletedTask;
-        }
+	private Task? _serverTask;
 
-        Stop();
+	private string[] _bypassRules = DefaultBypassRules;
 
-        _pacPort = pacPort;
-        _socksPort = socksPort;
-        _bypassRules = NormalizeRules(bypassRules);
-        _cts = new CancellationTokenSource();
-        _listener = new TcpListener(IPAddress.Loopback, pacPort);
-        _listener.Start();
-        _serverTask = Task.Run(() => AcceptLoopAsync(_cts.Token));
+	private int _pacPort;
 
-        return Task.CompletedTask;
-    }
+	private int _socksPort;
 
-    public void Stop()
-    {
-        _cts?.Cancel();
+	public bool IsRunning => _listener != null;
 
-        try { _listener?.Stop(); }
-        catch { }
+	public string PacUrl => $"http://127.0.0.1:{_pacPort}/proxy.pac";
 
-        _listener = null;
-        _cts?.Dispose();
-        _cts = null;
-        _serverTask = null;
-    }
+	public Task StartAsync(int pacPort, int socksPort, IEnumerable<string>? bypassRules)
+	{
+		if (IsRunning && _pacPort == pacPort)
+		{
+			_socksPort = socksPort;
+			_bypassRules = NormalizeRules(bypassRules);
+			return Task.CompletedTask;
+		}
 
-    private async Task AcceptLoopAsync(CancellationToken cancellationToken)
-    {
-        while (!cancellationToken.IsCancellationRequested && _listener != null)
-        {
-            TcpClient? client = null;
-            try
-            {
-                client = await _listener.AcceptTcpClientAsync(cancellationToken);
-                _ = Task.Run(() => HandleClientAsync(client, cancellationToken), cancellationToken);
-            }
-            catch (OperationCanceledException)
-            {
-                client?.Dispose();
-                break;
-            }
-            catch
-            {
-                client?.Dispose();
-            }
-        }
-    }
+		// Bind the replacement before stopping the current PAC server. If the new port is unavailable,
+		// the old server remains available for the still-registered Windows PAC URL.
+		var replacementListener = new TcpListener(IPAddress.Loopback, pacPort);
+		replacementListener.Start();
+		var replacementCancellation = new CancellationTokenSource();
+		TcpListener? previousListener = _listener;
+		CancellationTokenSource? previousCancellation = _cts;
 
-    private async Task HandleClientAsync(TcpClient client, CancellationToken cancellationToken)
-    {
-        using var _ = client;
+		_pacPort = pacPort;
+		_socksPort = socksPort;
+		_bypassRules = NormalizeRules(bypassRules);
+		_cts = replacementCancellation;
+		_listener = replacementListener;
+		_serverTask = Task.Run(() => AcceptLoopAsync(replacementListener, replacementCancellation.Token));
 
-        try
-        {
-            var stream = client.GetStream();
-            var buffer = new byte[2048];
-            var read = await stream.ReadAsync(buffer, cancellationToken);
-            var request = Encoding.ASCII.GetString(buffer, 0, read);
-            var firstLine = request.Split(["\r\n", "\n"], StringSplitOptions.None).FirstOrDefault() ?? string.Empty;
-            var path = firstLine.Split(' ', StringSplitOptions.RemoveEmptyEntries).Skip(1).FirstOrDefault() ?? "/";
+		previousCancellation?.Cancel();
+		try
+		{
+			previousListener?.Stop();
+		}
+		catch
+		{
+		}
+		previousCancellation?.Dispose();
+		return Task.CompletedTask;
+	}
 
-            if (!path.StartsWith("/proxy.pac", StringComparison.OrdinalIgnoreCase))
-            {
-                await WriteResponseAsync(stream, "404 Not Found", "text/plain; charset=utf-8", "Not found", cancellationToken);
-                return;
-            }
+	public void Stop()
+	{
+		_cts?.Cancel();
+		try
+		{
+			_listener?.Stop();
+		}
+		catch
+		{
+		}
+		_listener = null;
+		_cts?.Dispose();
+		_cts = null;
+		_serverTask = null;
+	}
 
-            await WriteResponseAsync(
-                stream,
-                "200 OK",
-                "application/x-ns-proxy-autoconfig; charset=utf-8",
-                BuildPacScript(_socksPort, _bypassRules),
-                cancellationToken);
-        }
-        catch
-        {
-            // The browser may close PAC probes early. Nothing useful to surface.
-        }
-    }
+	private async Task AcceptLoopAsync(TcpListener listener, CancellationToken cancellationToken)
+	{
+		while (!cancellationToken.IsCancellationRequested)
+		{
+			TcpClient client = null;
+			try
+			{
+				client = await listener.AcceptTcpClientAsync(cancellationToken);
+				Task.Run(() => HandleClientAsync(client, cancellationToken), cancellationToken);
+			}
+			catch (OperationCanceledException)
+			{
+				client?.Dispose();
+				break;
+			}
+			catch
+			{
+				client?.Dispose();
+			}
+		}
+	}
 
-    private static async Task WriteResponseAsync(
-        NetworkStream stream,
-        string status,
-        string contentType,
-        string body,
-        CancellationToken cancellationToken)
-    {
-        var bodyBytes = Encoding.UTF8.GetBytes(body);
-        var header =
-            $"HTTP/1.1 {status}\r\n" +
-            $"Content-Type: {contentType}\r\n" +
-            "Cache-Control: no-cache, no-store, must-revalidate\r\n" +
-            "Pragma: no-cache\r\n" +
-            "Connection: close\r\n" +
-            $"Content-Length: {bodyBytes.Length}\r\n\r\n";
+	private async Task HandleClientAsync(TcpClient client, CancellationToken cancellationToken)
+	{
+		using (client)
+		{
+			int num = 2;
+			try
+			{
+				NetworkStream stream = client.GetStream();
+				byte[] buffer = new byte[2048];
+				int read = await stream.ReadAsync(buffer, cancellationToken);
+				if (!((Encoding.ASCII.GetString(buffer, 0, read).Split(new string[2] { "\r\n", "\n" }, StringSplitOptions.None).FirstOrDefault() ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries).Skip(1).FirstOrDefault() ?? "/").StartsWith("/proxy.pac", StringComparison.OrdinalIgnoreCase))
+				{
+					await WriteResponseAsync(stream, "404 Not Found", "text/plain; charset=utf-8", "Not found", cancellationToken);
+				}
+				else
+				{
+					await WriteResponseAsync(stream, "200 OK", "application/x-ns-proxy-autoconfig; charset=utf-8", BuildPacScript(_socksPort, (IReadOnlyCollection<string>)(object)_bypassRules), cancellationToken);
+				}
+			}
+			catch
+			{
+			}
+		}
+	}
 
-        var headerBytes = Encoding.ASCII.GetBytes(header);
-        await stream.WriteAsync(headerBytes, cancellationToken);
-        await stream.WriteAsync(bodyBytes, cancellationToken);
-    }
+	private static async Task WriteResponseAsync(NetworkStream stream, string status, string contentType, string body, CancellationToken cancellationToken)
+	{
+		byte[] bodyBytes = Encoding.UTF8.GetBytes(body);
+		string header = $"HTTP/1.1 {status}\r\nContent-Type: {contentType}\r\n" + "Cache-Control: no-cache, no-store, must-revalidate\r\nPragma: no-cache\r\nConnection: close\r\n" + $"Content-Length: {bodyBytes.Length}\r\n\r\n";
+		byte[] headerBytes = Encoding.ASCII.GetBytes(header);
+		await stream.WriteAsync(headerBytes, cancellationToken);
+		await stream.WriteAsync(bodyBytes, cancellationToken);
+	}
 
-    private static string BuildPacScript(int socksPort, IReadOnlyCollection<string> bypassRules)
-    {
-        var rulesJson = JsonSerializer.Serialize(bypassRules);
+	private static string BuildPacScript(int socksPort, IReadOnlyCollection<string> bypassRules)
+	{
+		string rulesJson = JsonSerializer.Serialize(bypassRules);
+		return $"function FindProxyForURL(url, host) {{\n    var h = host.toLowerCase();\n    var rules = {rulesJson};\n\n    if (isPlainHostName(h) || isLocalHost(h) || matchesDirectRule(h, rules)) {{\n        return \"DIRECT\";\n    }}\n\n    return \"SOCKS5 127.0.0.1:{socksPort}; SOCKS 127.0.0.1:{socksPort}; DIRECT\";\n}}\n\nfunction matchesDirectRule(host, rules) {{\n    for (var i = 0; i < rules.length; i++) {{\n        var rule = rules[i];\n\n        if (rule.indexOf(\"*\") >= 0) {{\n            if (shExpMatch(host, rule)) {{\n                return true;\n            }}\n            continue;\n        }}\n\n        if (host === rule || dnsDomainIs(host, \".\" + rule)) {{\n            return true;\n        }}\n    }}\n\n    return false;\n}}\n\nfunction isLocalHost(host) {{\n    return host === \"localhost\" ||\n           host === \"::1\" ||\n           host === \"[::1]\" ||\n           shExpMatch(host, \"127.*\") ||\n           shExpMatch(host, \"10.*\") ||\n           shExpMatch(host, \"192.168.*\") ||\n           shExpMatch(host, \"172.16.*\") ||\n           shExpMatch(host, \"172.17.*\") ||\n           shExpMatch(host, \"172.18.*\") ||\n           shExpMatch(host, \"172.19.*\") ||\n           shExpMatch(host, \"172.20.*\") ||\n           shExpMatch(host, \"172.21.*\") ||\n           shExpMatch(host, \"172.22.*\") ||\n           shExpMatch(host, \"172.23.*\") ||\n           shExpMatch(host, \"172.24.*\") ||\n           shExpMatch(host, \"172.25.*\") ||\n           shExpMatch(host, \"172.26.*\") ||\n           shExpMatch(host, \"172.27.*\") ||\n           shExpMatch(host, \"172.28.*\") ||\n           shExpMatch(host, \"172.29.*\") ||\n           shExpMatch(host, \"172.30.*\") ||\n           shExpMatch(host, \"172.31.*\");\n}}";
+	}
 
-        return $$"""
-function FindProxyForURL(url, host) {
-    var h = host.toLowerCase();
-    var rules = {{rulesJson}};
+	private static string[] NormalizeRules(IEnumerable<string>? rules)
+	{
+		string[] source = rules?.ToArray();
+		if (source == null || source.Length <= 0)
+		{
+			source = DefaultBypassRules;
+		}
+		return (from rule in source.SelectMany(SplitRuleLine).SelectMany(NormalizeRuleVariants)
+			where !string.IsNullOrWhiteSpace(rule)
+			select rule).Distinct<string>(StringComparer.OrdinalIgnoreCase).ToArray();
+	}
 
-    if (isPlainHostName(h) || isLocalHost(h) || matchesDirectRule(h, rules)) {
-        return "DIRECT";
-    }
+	private static IEnumerable<string> SplitRuleLine(string line)
+	{
+		return line.Split(new char[5] { '\r', '\n', '|', ';', ',' }, StringSplitOptions.RemoveEmptyEntries);
+	}
 
-    return "SOCKS5 127.0.0.1:{{socksPort}}; SOCKS 127.0.0.1:{{socksPort}}; DIRECT";
-}
+	private static IEnumerable<string> NormalizeRuleVariants(string rule)
+	{
+		string normalized = rule.Trim().TrimStart('.');
+		if (normalized.StartsWith("*."))
+		{
+			string text = normalized;
+			normalized = text.Substring(2, text.Length - 2);
+		}
+		normalized = normalized.ToLowerInvariant();
+		if (!string.IsNullOrWhiteSpace(normalized))
+		{
+			yield return normalized;
+			string ascii = null;
+			try
+			{
+				ascii = new IdnMapping().GetAscii(normalized);
+			}
+			catch
+			{
+			}
+			if (!string.IsNullOrWhiteSpace(ascii) && !string.Equals(ascii, normalized, StringComparison.OrdinalIgnoreCase))
+			{
+				yield return ascii.ToLowerInvariant();
+			}
+		}
+	}
 
-function matchesDirectRule(host, rules) {
-    for (var i = 0; i < rules.length; i++) {
-        var rule = rules[i];
-
-        if (rule.indexOf("*") >= 0) {
-            if (shExpMatch(host, rule)) {
-                return true;
-            }
-            continue;
-        }
-
-        if (host === rule || dnsDomainIs(host, "." + rule)) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-function isLocalHost(host) {
-    return host === "localhost" ||
-           host === "::1" ||
-           host === "[::1]" ||
-           shExpMatch(host, "127.*") ||
-           shExpMatch(host, "10.*") ||
-           shExpMatch(host, "192.168.*") ||
-           shExpMatch(host, "172.16.*") ||
-           shExpMatch(host, "172.17.*") ||
-           shExpMatch(host, "172.18.*") ||
-           shExpMatch(host, "172.19.*") ||
-           shExpMatch(host, "172.20.*") ||
-           shExpMatch(host, "172.21.*") ||
-           shExpMatch(host, "172.22.*") ||
-           shExpMatch(host, "172.23.*") ||
-           shExpMatch(host, "172.24.*") ||
-           shExpMatch(host, "172.25.*") ||
-           shExpMatch(host, "172.26.*") ||
-           shExpMatch(host, "172.27.*") ||
-           shExpMatch(host, "172.28.*") ||
-           shExpMatch(host, "172.29.*") ||
-           shExpMatch(host, "172.30.*") ||
-           shExpMatch(host, "172.31.*");
-}
-""";
-    }
-
-    private static string[] NormalizeRules(IEnumerable<string>? rules)
-    {
-        var source = rules?.ToArray();
-        if (source is not { Length: > 0 })
-            source = DefaultBypassRules;
-
-        return source
-            .SelectMany(SplitRuleLine)
-            .SelectMany(NormalizeRuleVariants)
-            .Where(rule => !string.IsNullOrWhiteSpace(rule))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-    }
-
-    private static IEnumerable<string> SplitRuleLine(string line)
-    {
-        return line.Split(['\r', '\n', '|', ';', ','], StringSplitOptions.RemoveEmptyEntries);
-    }
-
-    private static IEnumerable<string> NormalizeRuleVariants(string rule)
-    {
-        var normalized = rule.Trim().TrimStart('.');
-        if (normalized.StartsWith("*."))
-            normalized = normalized[2..];
-
-        normalized = normalized.ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(normalized))
-            yield break;
-
-        yield return normalized;
-
-        string? ascii = null;
-        try
-        {
-            ascii = new IdnMapping().GetAscii(normalized);
-        }
-        catch
-        {
-            // Keep the user-provided rule even if it is not an IDN domain.
-        }
-
-        if (!string.IsNullOrWhiteSpace(ascii)
-            && !string.Equals(ascii, normalized, StringComparison.OrdinalIgnoreCase))
-        {
-            yield return ascii.ToLowerInvariant();
-        }
-    }
-
-    public void Dispose()
-    {
-        Stop();
-        GC.SuppressFinalize(this);
-    }
+	public void Dispose()
+	{
+		Stop();
+		GC.SuppressFinalize(this);
+	}
 }

@@ -1,0 +1,86 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Apple light palette. Mirrors Theme/Tokens.Dark.xaml key for key. -->
+
+  <Color x:Key="Accent">#007AFF</Color>
+  <Color x:Key="AccentHover">#3395FF</Color>
+  <Color x:Key="AccentPressed">#0062CC</Color>
+  <Color x:Key="AccentMuted">#26007AFF</Color>
+
+  <Color x:Key="Bg1">#FFFFFF</Color>
+  <Color x:Key="Bg2">#F2F2F7</Color>
+  <Color x:Key="Bg3">#FFFFFF</Color>
+  <Color x:Key="Bg4">#E5E5EA</Color>
+  <Color x:Key="CardBg">#FFFFFF</Color>
+  <Color x:Key="CardHoverBg">#F2F2F7</Color>
+
+  <Color x:Key="FgPrimary">#000000</Color>
+  <Color x:Key="FgSecondary">#993C3C43</Color>
+  <Color x:Key="FgDim">#4D3C3C43</Color>
+  <Color x:Key="FgQuaternary">#2E3C3C43</Color>
+
+  <Color x:Key="Border">#D1D1D6</Color>
+  <Color x:Key="Green">#34C759</Color>
+  <Color x:Key="GreenHover">#28A745</Color>
+  <Color x:Key="Red">#FF3B30</Color>
+  <Color x:Key="RedHover">#D70015</Color>
+  <Color x:Key="Orange">#FF9500</Color>
+  <Color x:Key="Yellow">#FFCC00</Color>
+  <Color x:Key="Teal">#5AC8FA</Color>
+
+  <Color x:Key="MaterialThin">#66FFFFFF</Color>
+  <Color x:Key="MaterialRegular">#CCF2F2F7</Color>
+  <Color x:Key="MaterialThick">#F2FFFFFF</Color>
+  <Color x:Key="Scrim">#40000000</Color>
+  <Color x:Key="Skeleton">#14000000</Color>
+
+  <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource Accent}" />
+  <SolidColorBrush x:Key="AccentHoverBrush" Color="{StaticResource AccentHover}" />
+  <SolidColorBrush x:Key="AccentPressedBrush" Color="{StaticResource AccentPressed}" />
+  <SolidColorBrush x:Key="AccentMutedBrush" Color="{StaticResource AccentMuted}" />
+  <SolidColorBrush x:Key="OnAccentBrush" Color="#FFFFFFFF" />
+
+  <SolidColorBrush x:Key="Bg1Brush" Color="{StaticResource Bg1}" />
+  <SolidColorBrush x:Key="Bg2Brush" Color="{StaticResource Bg2}" />
+  <SolidColorBrush x:Key="Bg3Brush" Color="{StaticResource Bg3}" />
+  <SolidColorBrush x:Key="Bg4Brush" Color="{StaticResource Bg4}" />
+  <SolidColorBrush x:Key="CardBrush" Color="{StaticResource CardBg}" />
+  <SolidColorBrush x:Key="CardHoverBrush" Color="{StaticResource CardHoverBg}" />
+
+  <SolidColorBrush x:Key="FgBrush" Color="{StaticResource FgPrimary}" />
+  <SolidColorBrush x:Key="FgSecBrush" Color="{StaticResource FgSecondary}" />
+  <SolidColorBrush x:Key="FgDimBrush" Color="{StaticResource FgDim}" />
+  <SolidColorBrush x:Key="FgQuaternaryBrush" Color="{StaticResource FgQuaternary}" />
+
+  <SolidColorBrush x:Key="BorderBr" Color="{StaticResource Border}" />
+  <SolidColorBrush x:Key="GreenBrush" Color="{StaticResource Green}" />
+  <SolidColorBrush x:Key="GreenHoverBrush" Color="{StaticResource GreenHover}" />
+  <SolidColorBrush x:Key="RedBrush" Color="{StaticResource Red}" />
+  <SolidColorBrush x:Key="RedHoverBrush" Color="{StaticResource RedHover}" />
+  <SolidColorBrush x:Key="OrangeBrush" Color="{StaticResource Orange}" />
+  <SolidColorBrush x:Key="YellowBrush" Color="{StaticResource Yellow}" />
+  <SolidColorBrush x:Key="TealBrush" Color="{StaticResource Teal}" />
+
+  <SolidColorBrush x:Key="MaterialThinBrush" Color="{StaticResource MaterialThin}" />
+  <SolidColorBrush x:Key="ShellSurfaceBrush" Color="{StaticResource MaterialThin}" />
+  <SolidColorBrush x:Key="MaterialRegularBrush" Color="{StaticResource MaterialRegular}" />
+  <SolidColorBrush x:Key="MaterialThickBrush" Color="{StaticResource MaterialThick}" />
+  <SolidColorBrush x:Key="ScrimBrush" Color="{StaticResource Scrim}" />
+  <SolidColorBrush x:Key="SkeletonBrush" Color="{StaticResource Skeleton}" />
+  <SolidColorBrush x:Key="SelectionBrush" Color="{StaticResource AccentMuted}" />
+
+  <LinearGradientBrush x:Key="ContentSurfaceBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+    <GradientStop Color="#FFF3F3F7" Offset="0" />
+    <GradientStop Color="#FFFFFFFF" Offset="0.5" />
+  </LinearGradientBrush>
+
+  <SolidColorBrush x:Key="FillBrush" Color="#33787880" />
+  <SolidColorBrush x:Key="FillSecondaryBrush" Color="#26787880" />
+  <SolidColorBrush x:Key="FillTertiaryBrush" Color="#1F787880" />
+  <SolidColorBrush x:Key="SwitchThumbBrush" Color="#FFFFFFFF" />
+  <SolidColorBrush x:Key="GreenMutedBrush" Color="#2634C759" />
+  <SolidColorBrush x:Key="RedMutedBrush" Color="#26FF3B30" />
+  <SolidColorBrush x:Key="OrangeMutedBrush" Color="#26FF9500" />
+
+</ResourceDictionary>

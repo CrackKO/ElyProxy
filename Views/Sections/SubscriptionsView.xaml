@@ -1,0 +1,160 @@
+<UserControl x:Class="ElyProxy.Views.Sections.SubscriptionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:ElyProxy.Controls">
+  <UserControl.Resources>
+    <ContextMenu x:Key="SubscriptionRowMenu"
+                 x:Shared="False"
+                 DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+      <MenuItem Header="Обновить" Click="RowUpdate_Click" />
+      <Separator />
+      <MenuItem Header="Удалить" Click="RowDelete_Click" />
+    </ContextMenu>
+  </UserControl.Resources>
+
+  <Grid Margin="22,18,22,16">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <Grid Grid.Row="0" Margin="0,0,0,16">
+      <StackPanel VerticalAlignment="Center">
+        <TextBlock Text="Подписки" Style="{StaticResource Text.LargeTitle}" />
+        <TextBlock Style="{StaticResource Text.Caption}" Margin="1,4,0,0">
+          <Run Text="{Binding Subscriptions.Count, Mode=OneWay}" />
+          <Run Text="подписок · автообновление по расписанию" />
+        </TextBlock>
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+        <Button Content="Обновить все"
+                Style="{StaticResource ToolbarButton}"
+                MinHeight="34"
+                Padding="12,7"
+                Command="{Binding UpdateAllSubscriptionsCommand}"
+                AutomationProperties.Name="Обновить все подписки" />
+        <Button Style="{StaticResource PrimaryButton}"
+                Margin="8,0,0,0"
+                Click="AddSubscription_Click"
+                AutomationProperties.Name="Добавить подписку">
+          <StackPanel Orientation="Horizontal">
+            <Path Style="{StaticResource ToolbarIcon}"
+                  Width="14"
+                  Height="14"
+                  Stroke="{DynamicResource OnAccentBrush}"
+                  Data="{StaticResource Icon.Plus}" />
+            <TextBlock Text="Добавить" Margin="6,0,0,0" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+    </Grid>
+
+    <Grid Grid.Row="1">
+      <Border Style="{StaticResource AppleInsetGroup}"
+              Visibility="{Binding Subscriptions.Count, Converter={StaticResource NonZeroToVis}}">
+        <ListView x:Name="SubscriptionList"
+                  Style="{StaticResource AppleListView}"
+                  ItemsSource="{Binding Subscriptions}"
+                  SelectedItem="{Binding SelectedSubscription}"
+                  PreviewMouseRightButtonDown="SubscriptionList_PreviewMouseRightButtonDown">
+          <ListView.ItemTemplate>
+            <DataTemplate>
+              <Grid Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    ContextMenu="{StaticResource SubscriptionRowMenu}">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Name}"
+                             Style="{StaticResource Text.Body}"
+                             FontWeight="Medium"
+                             TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding Url}"
+                             Style="{StaticResource Text.Caption}"
+                             Margin="0,2,0,0"
+                             TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <Border Grid.Column="1" Style="{StaticResource Chip}" Margin="8,0">
+                  <TextBlock Style="{StaticResource ChipText}">
+                    <Run Text="{Binding Nodes.Count, Mode=OneWay}" />
+                    <Run Text="серв." />
+                  </TextBlock>
+                </Border>
+                <TextBlock Grid.Column="2"
+                           Text="{Binding LastUpdateStatus}"
+                           Style="{StaticResource Text.Caption}"
+                           MaxWidth="190"
+                           TextWrapping="Wrap"
+                           ToolTip="{Binding LastUpdateStatus}"
+                           VerticalAlignment="Center" />
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                  <StackPanel.Style>
+                    <Style TargetType="{x:Type StackPanel}">
+                      <Setter Property="Opacity" Value="0" />
+                      <Setter Property="IsHitTestVisible" Value="False" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
+                          <Setter Property="Opacity" Value="1" />
+                          <Setter Property="IsHitTestVisible" Value="True" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </StackPanel.Style>
+                  <Button Style="{StaticResource IconButton}"
+                          Width="28"
+                          Height="28"
+                          Click="RowUpdate_Click"
+                          ToolTip="Обновить подписку"
+                          AutomationProperties.Name="Обновить подписку">
+                    <Path Style="{StaticResource ToolbarIcon}" Width="14" Height="14" Data="{StaticResource Icon.Refresh}" />
+                  </Button>
+                  <Button Style="{StaticResource IconButton}"
+                          Width="28"
+                          Height="28"
+                          Margin="2,0,0,0"
+                          Click="RowDelete_Click"
+                          ToolTip="Удалить подписку"
+                          AutomationProperties.Name="Удалить подписку">
+                    <Path Style="{StaticResource ToolbarIcon}" Width="14" Height="14" Data="{StaticResource Icon.Trash}" />
+                  </Button>
+                </StackPanel>
+              </Grid>
+            </DataTemplate>
+          </ListView.ItemTemplate>
+        </ListView>
+      </Border>
+
+      <controls:SkeletonList Rows="5">
+        <controls:SkeletonList.Visibility>
+          <MultiBinding Converter="{StaticResource BoolAndZeroToVis}">
+            <Binding Path="IsLoading" />
+            <Binding Path="Subscriptions.Count" />
+          </MultiBinding>
+        </controls:SkeletonList.Visibility>
+      </controls:SkeletonList>
+
+      <controls:EmptyState x:Name="EmptySubscriptions"
+                           Glyph="{StaticResource Icon.Subscriptions}"
+                           Title="Подписок пока нет"
+                           Description="Добавьте ссылку на подписку, и ElyProxy сам загрузит серверы."
+                           ActionText="Добавить подписку"
+                           Visibility="{Binding Subscriptions.Count, Converter={StaticResource ZeroToVis}}" />
+    </Grid>
+
+    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,12,0,0">
+      <Button Content="Обновить"
+              Style="{StaticResource SecondaryButton}"
+              Command="{Binding UpdateSubscriptionCommand}"
+              AutomationProperties.Name="Обновить выбранную подписку" />
+      <Button Content="Удалить"
+              Style="{StaticResource DestructiveGhostButton}"
+              Margin="6,0,0,0"
+              Click="DeleteSubscription_Click"
+              AutomationProperties.Name="Удалить выбранную подписку" />
+    </StackPanel>
+  </Grid>
+</UserControl>

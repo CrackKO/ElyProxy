@@ -1,0 +1,94 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Apple-style type scale. WPF has no letter-spacing, so hierarchy is built
+       from size + weight + leading only (see skill section 15). -->
+
+  <FontFamily x:Key="AppFontFamily">Segoe UI Variable Text, Segoe UI</FontFamily>
+  <FontFamily x:Key="AppDisplayFontFamily">Segoe UI Variable Display, Segoe UI</FontFamily>
+  <FontFamily x:Key="AppMonoFontFamily">Cascadia Mono, Consolas, monospace</FontFamily>
+
+  <Style x:Key="Text.Base" TargetType="{x:Type TextBlock}">
+    <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="Normal" />
+    <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+    <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
+    <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+    <Setter Property="Typography.Kerning" Value="True" />
+    <Setter Property="TextWrapping" Value="NoWrap" />
+  </Style>
+
+  <Style x:Key="Text.LargeTitle" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource Text.Base}">
+    <Setter Property="FontFamily" Value="{StaticResource AppDisplayFontFamily}" />
+    <Setter Property="FontSize" Value="28" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="LineHeight" Value="32" />
+    <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+  </Style>
+
+  <Style x:Key="Text.Title" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource Text.Base}">
+    <Setter Property="FontFamily" Value="{StaticResource AppDisplayFontFamily}" />
+    <Setter Property="FontSize" Value="22" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="LineHeight" Value="26" />
+    <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+  </Style>
+
+  <Style x:Key="Text.Headline" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource Text.Base}">
+    <Setter Property="FontSize" Value="17" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="LineHeight" Value="23" />
+    <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+  </Style>
+
+  <Style x:Key="Text.Body" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource Text.Base}">
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="LineHeight" Value="22" />
+    <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+  </Style>
+
+  <Style x:Key="Text.BodyStrong" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource Text.Body}">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style x:Key="Text.Callout" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource Text.Base}">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="LineHeight" Value="18" />
+    <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+  </Style>
+
+  <Style x:Key="Text.CalloutStrong" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource Text.Callout}">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style x:Key="Text.Caption" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource Text.Base}">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource FgSecBrush}" />
+    <Setter Property="LineHeight" Value="16" />
+    <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+  </Style>
+
+  <Style x:Key="Text.CaptionStrong" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource Text.Caption}">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style x:Key="Text.Micro" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource Text.Base}">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}" />
+  </Style>
+
+  <Style x:Key="Text.SectionHeader" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource Text.Base}">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource FgSecBrush}" />
+    <Setter Property="Margin" Value="2,0,0,8" />
+  </Style>
+
+  <Style x:Key="Text.Mono" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource Text.Base}">
+    <Setter Property="FontFamily" Value="{StaticResource AppMonoFontFamily}" />
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="Foreground" Value="{DynamicResource FgSecBrush}" />
+  </Style>
+
+</ResourceDictionary>

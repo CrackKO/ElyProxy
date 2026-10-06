@@ -101,6 +101,68 @@ public class SingBoxConfigBuilderTests
     }
 
     [Fact]
+    public async Task BuildTun_RoutesSelectedApplicationsDirectBeforeDomainRules()
+    {
+        const string browserPath = @"C:\Program Files\Example Browser\browser.exe";
+        var options = CreateOptions() with
+        {
+            BypassRules = ["*.example.org"],
+            BypassProcessPaths = [browserPath]
+        };
+
+        var config = JObject.Parse(new SingBoxConfigBuilder().BuildTun(CreateNode(), 1080, options));
+        var routeRules = GetArray(GetRoute(config), "rules").Children<JObject>().ToArray();
+        var applicationRuleIndex = Array.FindIndex(routeRules, rule => rule["process_path"] != null);
+        var domainRuleIndex = Array.FindIndex(routeRules, rule => rule["domain_suffix"] != null);
+        Assert.True(applicationRuleIndex >= 0);
+        Assert.True(domainRuleIndex >= 0);
+        var applicationRule = routeRules[applicationRuleIndex];
+        var processDnsRule = GetArray(Assert.IsType<JObject>(config["dns"]), "rules")
+            .Children<JObject>()
+            .Single(rule => rule["process_path"] != null);
+
+        Assert.True(applicationRuleIndex < domainRuleIndex);
+        Assert.Equal("direct", applicationRule.Value<string>("outbound"));
+        Assert.Contains(browserPath, GetArray(applicationRule, "process_path").Values<string>());
+        Assert.Equal("dns-direct", processDnsRule.Value<string>("server"));
+        Assert.Contains(browserPath, GetArray(processDnsRule, "process_path").Values<string>());
+
+        await AssertConfigAcceptedAsync(CreateNode(), options);
+    }
+
+    [Fact]
+    public void BuildSystemProxy_RoutesSelectedApplicationsDirectBeforeDomainRules()
+    {
+        const string browserPath = @"C:\Program Files\Example Browser\browser.exe";
+        var options = CreateOptions() with
+        {
+            BypassRules = ["*.example.org"],
+            BypassProcessPaths = [browserPath]
+        };
+
+        var config = JObject.Parse(new SingBoxConfigBuilder().BuildSystemProxy(CreateNode(), 1080, options));
+        var routeRules = GetArray(GetRoute(config), "rules").Children<JObject>().ToArray();
+        var applicationRuleIndex = Array.FindIndex(routeRules, rule => rule["process_path"] != null);
+        var domainRuleIndex = Array.FindIndex(routeRules, rule => rule["domain_suffix"] != null);
+
+        Assert.True(applicationRuleIndex >= 0);
+        Assert.True(applicationRuleIndex < domainRuleIndex);
+        Assert.Equal("direct", routeRules[applicationRuleIndex].Value<string>("outbound"));
+        Assert.Contains(browserPath, GetArray(routeRules[applicationRuleIndex], "process_path").Values<string>());
+    }
+
+    [Fact]
+    public async Task BuildSystemProxy_SelectedApplicationRuleIsAcceptedByBundledSingBox()
+    {
+        var options = CreateOptions() with
+        {
+            BypassProcessPaths = [@"C:\Program Files\Example Browser\browser.exe"]
+        };
+
+        await AssertConfigAcceptedAsync(new SingBoxConfigBuilder().BuildSystemProxy(CreateNode(), 1080, options));
+    }
+
+    [Fact]
     public async Task BuildTun_IsAcceptedByBundledSingBox()
     {
         await AssertConfigAcceptedAsync(CreateNode());
@@ -120,7 +182,12 @@ public class SingBoxConfigBuilderTests
     [Fact]
     public async Task BuildTun_RoscomVpnDefault_UsesBundledRuleSetsAndIsAccepted()
     {
-        var options = CreateOptions() with { RoutingPreset = RoutingPreset.RoscomVpnDefault };
+        const string browserPath = @"C:\Program Files\Example Browser\browser.exe";
+        var options = CreateOptions() with
+        {
+            RoutingPreset = RoutingPreset.RoscomVpnDefault,
+            BypassProcessPaths = [browserPath]
+        };
         var config = JObject.Parse(new SingBoxConfigBuilder().BuildTun(CreateNode(), 1080, options));
         var route = GetRoute(config);
         var dns = Assert.IsType<JObject>(config["dns"]);
@@ -136,9 +203,16 @@ public class SingBoxConfigBuilderTests
         });
         var blockIndex = Array.FindIndex(routeRules, rule => rule.Value<string>("outbound") == "block");
         var proxyIndex = Array.FindIndex(routeRules, rule => rule.Value<string>("outbound") == "proxy");
-        var directIndex = Array.FindIndex(routeRules, rule => rule.Value<string>("outbound") == "direct");
+        var directIndex = Array.FindIndex(routeRules, rule => rule.Value<string>("outbound") == "direct" && rule["process_path"] == null);
+        var applicationIndex = Array.FindIndex(routeRules, rule => rule["process_path"] != null);
         Assert.True(blockIndex >= 0 && proxyIndex >= 0 && directIndex >= 0);
         Assert.True(blockIndex < proxyIndex && proxyIndex < directIndex, "Expected block → proxy → direct order.");
+        Assert.True(applicationIndex >= 0 && applicationIndex < blockIndex, "Application bypass must take precedence over preset rules.");
+        Assert.Equal("direct", routeRules[applicationIndex].Value<string>("outbound"));
+        Assert.Contains(browserPath, GetArray(routeRules[applicationIndex], "process_path").Values<string>());
+        var processDnsRule = GetArray(dns, "rules").Children<JObject>().Single(rule => rule["process_path"] != null);
+        Assert.Equal("dns-domestic", processDnsRule.Value<string>("server"));
+        Assert.Contains(browserPath, GetArray(processDnsRule, "process_path").Values<string>());
         Assert.Equal("8.8.8.8", GetArray(dns, "servers").Children<JObject>()
             .Single(server => server.Value<string>("tag") == "dns-remote").Value<string>("server"));
         var domesticDns = GetArray(dns, "servers").Children<JObject>()
@@ -152,14 +226,17 @@ public class SingBoxConfigBuilderTests
         await AssertConfigAcceptedAsync(CreateNode(), options);
     }
 
-    private static async Task AssertConfigAcceptedAsync(VlessNode node, XrayTunOptions? options = null)
+    private static Task AssertConfigAcceptedAsync(VlessNode node, XrayTunOptions? options = null) =>
+        AssertConfigAcceptedAsync(new SingBoxConfigBuilder().BuildTun(node, 1080, options ?? CreateOptions()));
+
+    private static async Task AssertConfigAcceptedAsync(string configJson)
     {
         var root = FindWorkspaceRoot();
         var executable = Path.Combine(root, "sing-box", "sing-box.exe");
         Assert.True(File.Exists(executable), "Bundled sing-box.exe was not found.");
 
         var configPath = Path.Combine(Path.GetTempPath(), $"elyproxy-singbox-{Guid.NewGuid():N}.json");
-        await File.WriteAllTextAsync(configPath, new SingBoxConfigBuilder().BuildTun(node, 1080, options ?? CreateOptions()));
+        await File.WriteAllTextAsync(configPath, configJson);
 
         try
         {

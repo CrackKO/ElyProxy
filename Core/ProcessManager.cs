@@ -1,114 +1,186 @@
+using System;
 using System.Diagnostics;
+using System.IO;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ElyProxy.Core;
 
-public class ProcessManager : IDisposable
+public class ProcessManager : IProcessManager
 {
-    private Process? _process;
-    private readonly SemaphoreSlim _lock = new(1, 1);
+	private Process? _process;
 
-    public bool IsRunning
-    {
-        get
-        {
-            try { return _process is { HasExited: false }; }
-            catch { return false; }
-        }
-    }
+	private readonly SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
 
-    public event Action<string>? OutputReceived;
-    public event Action<string>? ErrorReceived;
-    public event Action<int>? ProcessExited;
+	public bool IsRunning
+	{
+		get
+		{
+			try
+			{
+				Process process = _process;
+				return process != null && !process.HasExited;
+			}
+			catch
+			{
+				return false;
+			}
+		}
+	}
 
-    public async Task StartAsync(string executablePath, string arguments, string? workingDirectory = null, bool stopExisting = true)
-    {
-        if (stopExisting)
-            await StopAsync();
+	public event Action<string>? OutputReceived;
 
-        var psi = new ProcessStartInfo
-        {
-            FileName = executablePath,
-            Arguments = arguments,
-            WorkingDirectory = workingDirectory ?? Path.GetDirectoryName(executablePath) ?? "",
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-        };
+	public event Action<string>? ErrorReceived;
 
-        await _lock.WaitAsync();
-        try
-        {
-            _process = new Process { StartInfo = psi, EnableRaisingEvents = true };
-            _process.OutputDataReceived += OnOutput;
-            _process.ErrorDataReceived += OnError;
-            _process.Exited += OnExited;
-            _process.Start();
-            _process.BeginOutputReadLine();
-            _process.BeginErrorReadLine();
-        }
-        finally
-        {
-            _lock.Release();
-        }
-    }
+	public event Action<int>? ProcessExited;
 
-    public async Task StopAsync()
-    {
-        await _lock.WaitAsync();
-        try
-        {
-            if (_process == null) return;
+	public event Action<int>? ProcessStartedForProcess;
 
-            try
-            {
-                if (!_process.HasExited)
-                {
-                    _process.Kill(entireProcessTree: true);
-                    await _process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
-                }
-            }
-            catch (TimeoutException) { }
-            catch { }
-            finally
-            {
-                _process.OutputDataReceived -= OnOutput;
-                _process.ErrorDataReceived -= OnError;
-                _process.Exited -= OnExited;
-                _process.Dispose();
-                _process = null;
-            }
-        }
-        finally
-        {
-            _lock.Release();
-        }
-    }
+	public event Action<int, string>? OutputReceivedForProcess;
 
-    private void OnOutput(object sender, DataReceivedEventArgs e)
-    {
-        if (e.Data != null) OutputReceived?.Invoke(e.Data);
-    }
+	public event Action<int, string>? ErrorReceivedForProcess;
 
-    private void OnError(object sender, DataReceivedEventArgs e)
-    {
-        if (e.Data != null) ErrorReceived?.Invoke(e.Data);
-    }
+	public event Action<int, int>? ProcessExitedForProcess;
 
-    private void OnExited(object? sender, EventArgs e)
-    {
-        int exitCode = -1;
-        try { exitCode = _process?.ExitCode ?? -1; } catch { }
-        ProcessExited?.Invoke(exitCode);
-    }
+	public async Task StartAsync(string executablePath, string arguments, string? workingDirectory = null, bool stopExisting = true)
+	{
+		if (stopExisting)
+		{
+			await StopAsync();
+		}
+		ProcessStartInfo psi = new ProcessStartInfo
+		{
+			FileName = executablePath,
+			Arguments = arguments,
+			WorkingDirectory = (workingDirectory ?? Path.GetDirectoryName(executablePath) ?? ""),
+			UseShellExecute = false,
+			CreateNoWindow = true,
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			StandardOutputEncoding = Encoding.UTF8,
+			StandardErrorEncoding = Encoding.UTF8
+		};
+		await _lock.WaitAsync();
+		try
+		{
+			_process = new Process
+			{
+				StartInfo = psi,
+				EnableRaisingEvents = true
+			};
+			_process.OutputDataReceived += OnOutput;
+			_process.ErrorDataReceived += OnError;
+			_process.Exited += OnExited;
+			_process.Start();
+			ProcessStartedForProcess?.Invoke(_process.Id);
+			_process.BeginOutputReadLine();
+			_process.BeginErrorReadLine();
+		}
+		finally
+		{
+			_lock.Release();
+		}
+	}
 
-    public void Dispose()
-    {
-        StopAsync().GetAwaiter().GetResult();
-        _lock.Dispose();
-        GC.SuppressFinalize(this);
-    }
+	public async Task StopAsync()
+	{
+		await _lock.WaitAsync();
+		try
+		{
+			if (_process == null)
+			{
+				return;
+			}
+			try
+			{
+				if (!_process.HasExited)
+				{
+					_process.Kill(entireProcessTree: true);
+					await _process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5.0));
+				}
+			}
+			catch (TimeoutException)
+			{
+			}
+			catch
+			{
+			}
+			finally
+			{
+				_process.OutputDataReceived -= OnOutput;
+				_process.ErrorDataReceived -= OnError;
+				_process.Exited -= OnExited;
+				_process.Dispose();
+				_process = null;
+			}
+		}
+		finally
+		{
+			_lock.Release();
+		}
+	}
+
+	private void OnOutput(object sender, DataReceivedEventArgs e)
+	{
+		if (e.Data != null)
+		{
+			this.OutputReceived?.Invoke(e.Data);
+			int processId = GetProcessId(sender);
+			if (processId != 0)
+			{
+				OutputReceivedForProcess?.Invoke(processId, e.Data);
+			}
+		}
+	}
+
+	private void OnError(object sender, DataReceivedEventArgs e)
+	{
+		if (e.Data != null)
+		{
+			this.ErrorReceived?.Invoke(e.Data);
+			int processId = GetProcessId(sender);
+			if (processId != 0)
+			{
+				ErrorReceivedForProcess?.Invoke(processId, e.Data);
+			}
+		}
+	}
+
+	private void OnExited(object? sender, EventArgs e)
+	{
+		int exitCode = -1;
+		int processId = GetProcessId(sender);
+		try
+		{
+			exitCode = (sender as Process)?.ExitCode ?? (-1);
+		}
+		catch
+		{
+		}
+		this.ProcessExited?.Invoke(exitCode);
+		if (processId != 0)
+		{
+			ProcessExitedForProcess?.Invoke(processId, exitCode);
+		}
+	}
+
+	private static int GetProcessId(object? sender)
+	{
+		try
+		{
+			return (sender as Process)?.Id ?? 0;
+		}
+		catch
+		{
+			return 0;
+		}
+	}
+
+	public void Dispose()
+	{
+		StopAsync().GetAwaiter().GetResult();
+		_lock.Dispose();
+		GC.SuppressFinalize(this);
+	}
 }

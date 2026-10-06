@@ -41,6 +41,24 @@ public class PacServerServiceTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task StartAsync_KeepsCurrentServerWhenReplacementPortIsBusy()
+    {
+        using var occupiedListener = new TcpListener(IPAddress.Loopback, 0);
+        occupiedListener.Start();
+        int replacementPort = ((IPEndPoint)occupiedListener.LocalEndpoint).Port;
+        var currentPort = ReservePort();
+        using var server = new PacServerService();
+        using var http = new HttpClient();
+
+        await server.StartAsync(currentPort, 1080, null);
+
+        await Assert.ThrowsAsync<SocketException>(async () => await server.StartAsync(replacementPort, 2080, null));
+        string pac = await http.GetStringAsync(server.PacUrl);
+
+        Assert.Contains("SOCKS5 127.0.0.1:1080", pac);
+    }
+
     private static int ReservePort()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);

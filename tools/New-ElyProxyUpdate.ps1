@@ -44,9 +44,26 @@ finally {
     Pop-Location
 }
 
-if (-not (Test-Path -LiteralPath (Join-Path $publishDirectory 'ElyProxy.exe')) -or
-    -not (Test-Path -LiteralPath (Join-Path $publishDirectory 'updater\ElyProxy.Updater.exe'))) {
-    throw 'The release is incomplete: ElyProxy.exe or ElyProxy.Updater.exe is missing.'
+$requiredFiles = @(
+    'ElyProxy.exe',
+    'updater\ElyProxy.Updater.exe',
+    'xray\xray.exe',
+    'xray\geoip.dat',
+    'xray\geosite.dat',
+    'xray\wintun.dll',
+    'sing-box\sing-box.exe',
+    'Assets\RoscomVPN\LICENSE-RoscomVPN-Geosite.txt',
+    'Assets\RoscomVPN\ROSComVPN-DEFAULT.json'
+)
+$missingFiles = @($requiredFiles | Where-Object { -not (Test-Path -LiteralPath (Join-Path $publishDirectory $_)) })
+if ($missingFiles.Count -gt 0) {
+    throw "The release is incomplete. Missing: $($missingFiles -join ', ')"
+}
+
+$ruleSetDirectory = Join-Path $publishDirectory 'Assets\RoscomVPN'
+$ruleSetCount = @(Get-ChildItem -LiteralPath $ruleSetDirectory -Filter '*.srs' -File).Count
+if ($ruleSetCount -ne 22) {
+    throw "The release must include all 22 RoscomVPN rule sets; found $ruleSetCount."
 }
 
 Compress-Archive -Path (Join-Path $publishDirectory '*') -DestinationPath $zipPath -CompressionLevel Optimal

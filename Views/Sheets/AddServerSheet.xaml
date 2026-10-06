@@ -1,0 +1,22 @@
+<UserControl x:Class="ElyProxy.Views.Sheets.AddServerSheet"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:ElyProxy.Controls"
+             x:Name="Root"
+             Width="400">
+  <StackPanel>
+    <TextBlock Text="Вставьте ссылку vless:// — сервер добавится в список вручную."
+               Style="{StaticResource Text.Callout}"
+               TextWrapping="Wrap"
+               Margin="0,0,0,10" />
+    <TextBox x:Name="UriBox"
+             controls:Placeholder.Text="vless://uuid@host:443?...#name"
+             Text="{Binding Uri, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" />
+    <TextBlock Text="{Binding UriError, ElementName=Root}"
+               Foreground="{DynamicResource RedBrush}"
+               FontSize="12"
+               TextWrapping="Wrap"
+               Margin="2,8,0,0"
+               Visibility="{Binding UriError, ElementName=Root, Converter={StaticResource StringToVis}}" />
+  </StackPanel>
+</UserControl>

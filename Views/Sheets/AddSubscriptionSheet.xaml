@@ -1,0 +1,26 @@
+<UserControl x:Class="ElyProxy.Views.Sheets.AddSubscriptionSheet"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:ElyProxy.Controls"
+             x:Name="Root"
+             Width="420">
+  <StackPanel>
+    <TextBlock Text="Название" Style="{StaticResource Text.CaptionStrong}" Margin="2,0,0,6" />
+    <TextBox x:Name="NameBox"
+             controls:Placeholder.Text="Например, Основная"
+             Text="{Binding SubscriptionName, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" />
+    <TextBlock Text="Ссылка на подписку" Style="{StaticResource Text.CaptionStrong}" Margin="2,14,0,6" />
+    <TextBox controls:Placeholder.Text="https://..."
+             Text="{Binding SubscriptionUrl, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" />
+    <TextBlock Text="{Binding UrlError, ElementName=Root}"
+               Foreground="{DynamicResource RedBrush}"
+               FontSize="12"
+               TextWrapping="Wrap"
+               Margin="2,8,0,0"
+               Visibility="{Binding UrlError, ElementName=Root, Converter={StaticResource StringToVis}}" />
+    <TextBlock Text="Ссылка должна отдавать список vless:// или base64 со списком."
+               Style="{StaticResource Text.Micro}"
+               TextWrapping="Wrap"
+               Margin="2,8,0,0" />
+  </StackPanel>
+</UserControl>
