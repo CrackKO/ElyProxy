@@ -17,8 +17,8 @@
   <Color x:Key="CardHoverBg">#2C2C2E</Color>
 
   <Color x:Key="FgPrimary">#FFFFFF</Color>
-  <Color x:Key="FgSecondary">#99EBEBF5</Color>
-  <Color x:Key="FgDim">#4DEBEBF5</Color>
+  <Color x:Key="FgSecondary">#FFB8B8BE</Color>
+  <Color x:Key="FgDim">#FF8E8E93</Color>
   <Color x:Key="FgQuaternary">#2EEBEBF5</Color>
 
   <Color x:Key="Border">#3D3D41</Color>
@@ -76,14 +76,11 @@
   <!-- Control fills: translucent greys used by inputs and secondary buttons -->
   <!-- Soft top-to-bottom wash for the content area: a barely visible lift that
        gives the flat black some depth without looking like a gradient. -->
-  <LinearGradientBrush x:Key="ContentSurfaceBrush" StartPoint="0.5,0" EndPoint="0.5,1">
-    <GradientStop Color="#FF0E1117" Offset="0" />
-    <GradientStop Color="#FF000000" Offset="0.45" />
-  </LinearGradientBrush>
+  <SolidColorBrush x:Key="ContentSurfaceBrush" Color="#FF171719" />
 
-  <SolidColorBrush x:Key="FillBrush" Color="#5C767680" />
-  <SolidColorBrush x:Key="FillSecondaryBrush" Color="#3D767680" />
-  <SolidColorBrush x:Key="FillTertiaryBrush" Color="#2E767680" />
+  <SolidColorBrush x:Key="FillBrush" Color="#FF404044" />
+  <SolidColorBrush x:Key="FillSecondaryBrush" Color="#FF353538" />
+  <SolidColorBrush x:Key="FillTertiaryBrush" Color="#FF29292C" />
   <SolidColorBrush x:Key="SwitchThumbBrush" Color="#FFFFFFFF" />
   <SolidColorBrush x:Key="GreenMutedBrush" Color="#3330D158" />
   <SolidColorBrush x:Key="RedMutedBrush" Color="#33FF453A" />

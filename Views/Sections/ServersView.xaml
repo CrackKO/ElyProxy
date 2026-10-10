@@ -27,7 +27,8 @@
     </Grid.RowDefinitions>
 
     <!-- Header -->
-    <Grid Grid.Row="0" Margin="0,0,0,16">
+    <Grid Grid.Row="0" Margin="0,0,0,20">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
       <StackPanel VerticalAlignment="Center">
         <TextBlock Text="Серверы" Style="{StaticResource Text.LargeTitle}" />
         <TextBlock Style="{StaticResource Text.Caption}" Margin="1,4,0,0">
@@ -35,6 +36,8 @@
           <Run Text="серверов доступно" />
         </TextBlock>
       </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+      <Button Content="Подписка" Style="{StaticResource SecondaryButton}" Click="AddSubscription_Click" Margin="0,0,8,0" AutomationProperties.Name="Добавить подписку" />
       <Button Style="{StaticResource PrimaryButton}"
               HorizontalAlignment="Right"
               VerticalAlignment="Center"
@@ -49,74 +52,49 @@
           <TextBlock Text="Добавить" Margin="6,0,0,0" />
         </StackPanel>
       </Button>
+      </StackPanel>
     </Grid>
 
-    <!-- Connection mode: the same control also lives in the sidebar -->
-    <Border Grid.Row="1" Style="{StaticResource AppleInsetGroup}" Padding="14,12" Margin="0,0,0,12">
-      <WrapPanel>
-        <StackPanel Width="360" VerticalAlignment="Center" Margin="0,0,16,6">
+    <Border Grid.Row="1" Style="{StaticResource AppleCard}" Padding="18,16" Margin="0,0,0,16">
+      <StackPanel>
+        <Grid Margin="0,0,0,12">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
           <StackPanel Orientation="Horizontal">
-            <TextBlock Text="Режим подключения" Style="{StaticResource Text.BodyStrong}" VerticalAlignment="Center" />
-            <controls:InfoHint Text="Выкл — трафик идёт напрямую. Proxy Lite — PAC + системный прокси Windows: через сервер идёт только выбранный трафик. Proxy Pro — локальный HTTP/SOCKS-прокси для приложений, использующих настройки прокси Windows. ElyTun — полный TUN-туннель всего трафика; требует прав администратора или установленной службы-помощника (Настройки → ElyTun)." />
+            <TextBlock Text="Как направлять трафик" Style="{StaticResource Text.BodyStrong}" VerticalAlignment="Center" />
+            <controls:InfoHint Text="Proxy Lite — только выбранные сайты через PAC. Proxy Pro — приложения с системным прокси Windows. ElyTun — весь трафик через TUN; нужны права администратора или служба-помощник." />
           </StackPanel>
-          <TextBlock Margin="0,4,0,0" TextWrapping="Wrap">
-            <TextBlock.Style>
-              <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource Text.Caption}">
-                <Setter Property="Text" Value="Выключено — трафик идёт напрямую." />
-                <Style.Triggers>
-                  <DataTrigger Binding="{Binding SystemProxyEnabled}" Value="True">
-                    <Setter Property="Text" Value="Proxy Lite — системный PAC-прокси: через сервер идёт только выбранный трафик." />
-                  </DataTrigger>
-                  <DataTrigger Binding="{Binding ProxyProEnabled}" Value="True">
-                    <Setter Property="Text" Value="Proxy Pro — системный HTTP/HTTPS/SOCKS-прокси через sing-box для приложений, которые используют настройки прокси Windows." />
-                  </DataTrigger>
-                  <DataTrigger Binding="{Binding ElyTunEnabled}" Value="True">
-                    <Setter Property="Text" Value="ElyTun — полный TUN-туннель (ядро sing-box, Xray или tun2proxy выбирается в настройках). Нужны права администратора." />
-                  </DataTrigger>
-                </Style.Triggers>
-              </Style>
-            </TextBlock.Style>
-          </TextBlock>
-        </StackPanel>
-        <StackPanel VerticalAlignment="Center" Margin="0,0,0,6">
-          <controls:ModeSelector Width="352"
-                                 HorizontalAlignment="Left"
-                                 AutomationProperties.Name="Режим подключения"
-                                 ElyTunRequestCommand="{Binding RequestElyTunCommand}"
-                                 ProxyLiteEnabled="{Binding SystemProxyEnabled, Mode=TwoWay}"
-                                ProxyProEnabled="{Binding ProxyProEnabled, Mode=TwoWay}"
-                                ElyTunEnabled="{Binding ElyTunEnabled, Mode=TwoWay}" />
-          <ComboBox Width="352"
-                    Margin="0,8,0,0"
-                    HorizontalAlignment="Left"
-                    AutomationProperties.Name="Ядро TUN"
-                    SelectedIndex="{Binding TunCoreIndex, Mode=TwoWay}"
-                    Visibility="{Binding ElyTunEnabled, Converter={StaticResource BoolToVis}}">
-            <ComboBoxItem Content="Ядро TUN: sing-box" />
-            <ComboBoxItem Content="Ядро TUN: Xray" />
-            <ComboBoxItem Content="Ядро TUN: tun2proxy" />
-            <ComboBoxItem Content="Ядро TUN: Hysteria 2" />
-          </ComboBox>
-          <TextBlock Text="sing-box — все протоколы · Xray — VLESS/VMess/Trojan/SS · tun2proxy — TUN поверх SOCKS · Hysteria 2 — только hysteria2"
-                     Style="{StaticResource Text.Micro}"
-                     Margin="0,4,0,0"
-                     TextWrapping="Wrap"
-                     MaxWidth="352"
-                     Visibility="{Binding ElyTunEnabled, Converter={StaticResource BoolToVis}}" />
-        </StackPanel>
-      </WrapPanel>
+        <ComboBox Grid.Column="1" MinHeight="30" Width="200" HorizontalAlignment="Right"
+                  AutomationProperties.Name="Ядро TUN"
+                  SelectedIndex="{Binding TunCoreIndex, Mode=TwoWay}"
+                  Visibility="{Binding ElyTunEnabled, Converter={StaticResource BoolToVis}}">
+          <ComboBoxItem Content="Ядро TUN: sing-box" />
+          <ComboBoxItem Content="Ядро TUN: Xray" />
+          <ComboBoxItem Content="Ядро TUN: tun2proxy" />
+          <ComboBoxItem Content="Ядро TUN: Hysteria 2" />
+        </ComboBox>
+        </Grid>
+        <controls:ModeSelector HorizontalAlignment="Stretch"
+                               AutomationProperties.Name="Режим подключения"
+                               ElyTunRequestCommand="{Binding RequestElyTunCommand}"
+                               ProxyLiteEnabled="{Binding SystemProxyEnabled, Mode=TwoWay}"
+                               ProxyProEnabled="{Binding ProxyProEnabled, Mode=TwoWay}"
+                               ElyTunEnabled="{Binding ElyTunEnabled, Mode=TwoWay}" />
+
+      </StackPanel>
     </Border>
 
     <!-- Filter bar -->
-    <WrapPanel Grid.Row="2" Margin="0,0,0,10" Orientation="Horizontal">
+    <Grid Grid.Row="2" Margin="0,0,0,12">
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="170" /><ColumnDefinition Width="150" /></Grid.ColumnDefinitions>
       <TextBox x:Name="SearchBox"
-               Width="180"
+               MinWidth="100"
                Margin="0,0,6,8"
-               controls:Placeholder.Text="Поиск"
+               controls:Placeholder.Text="Название, адрес, протокол…"
                AutomationProperties.Name="Поиск по серверам"
                TextChanged="SearchBox_TextChanged" />
       <ComboBox x:Name="SortBox"
-                MinWidth="170"
+                Grid.Column="1" MinWidth="0"
                 Margin="0,0,6,8"
                 AutomationProperties.Name="Сортировка серверов"
                 SelectionChanged="SortBox_SelectionChanged">
@@ -125,7 +103,7 @@
         <ComboBoxItem Content="По задержке" />
       </ComboBox>
       <ComboBox x:Name="ProtocolBox"
-                MinWidth="150"
+                Grid.Column="2" MinWidth="0"
                 Margin="0,0,6,8"
                 AutomationProperties.Name="Фильтр по протоколу"
                 SelectionChanged="ProtocolBox_SelectionChanged">
@@ -136,22 +114,31 @@
         <ComboBoxItem Content="Shadowsocks" />
         <ComboBoxItem Content="Hysteria2" />
         <ComboBoxItem Content="TUIC" />
+        <ComboBoxItem Content="AnyTLS" /><ComboBoxItem Content="SSH" />
+        <ComboBoxItem Content="WireGuard" /><ComboBoxItem Content="Naive" />
+        <ComboBoxItem Content="ShadowTLS" /><ComboBoxItem Content="SOCKS" /><ComboBoxItem Content="HTTP" />
       </ComboBox>
-      <Button Content="Пинг"
+      <DockPanel Grid.Row="1" Grid.ColumnSpan="3" Margin="0,4,0,0">
+        <TextBlock Text="2. Выберите сервер" Style="{StaticResource Text.Micro}" VerticalAlignment="Center" DockPanel.Dock="Left" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+      <Button Content="Проверить задержку"
               Style="{StaticResource SecondaryButton}"
-              Margin="0,0,6,8"
+              Margin="0,0,6,0"
               Command="{Binding PingAllCommand}"
               AutomationProperties.Name="Пинг всех серверов" />
-      <Button Content="Проверить соединение"
+      <Button Content="Диагностика"
               Style="{StaticResource SecondaryButton}"
-              Margin="0,0,0,8"
+              Margin="0"
               Command="{Binding RunConnectionDiagnosticsCommand}"
               AutomationProperties.Name="Проверить соединение и скопировать безопасный отчёт" />
-    </WrapPanel>
+      </StackPanel></DockPanel>
+    </Grid>
 
     <!-- Server list -->
     <Grid Grid.Row="3">
-      <ListView Style="{StaticResource AppleListView}"
+      <Border Style="{StaticResource AppleInsetGroup}" IsHitTestVisible="False" />
+      <ListView x:Name="ServerList" Style="{StaticResource AppleListView}"
+                MouseDoubleClick="ServerList_MouseDoubleClick" KeyDown="ServerList_KeyDown"
                 ItemsSource="{Binding AllNodes}"
                 SelectedItem="{Binding SelectedNode}"
                 PreviewMouseRightButtonDown="ServerList_PreviewMouseRightButtonDown"
@@ -166,6 +153,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
               </Grid.ColumnDefinitions>
               <Border Grid.Column="0"
                       Width="30"
@@ -176,7 +164,7 @@
                       VerticalAlignment="Center"
                       Visibility="{Binding DataContext.ServerBadgeMode, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BadgeVis}}">
                 <Grid>
-                  <Image Stretch="UniformToFill"
+                  <Image Panel.ZIndex="1" Stretch="UniformToFill"
                          RenderOptions.BitmapScalingMode="HighQuality"
                          SnapsToDevicePixels="True">
                     <Image.Source>
@@ -245,11 +233,28 @@
                          MinWidth="72"
                          TextAlignment="Right"
                          VerticalAlignment="Center" />
+              <Button Grid.Column="5" Content="Подключить"
+                      Margin="12,0,0,0" Click="RowConnect_Click" AutomationProperties.Name="Подключить этот сервер">
+                <Button.Style><Style TargetType="{x:Type Button}" BasedOn="{StaticResource GhostButton}">
+                  <Style.Triggers><DataTrigger Binding="{Binding DataContext.IsLoading, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True"><Setter Property="IsEnabled" Value="False" /></DataTrigger></Style.Triggers>
+                </Style></Button.Style>
+              </Button>
             </Grid>
           </DataTemplate>
         </ListView.ItemTemplate>
       </ListView>
 
+      <controls:EmptyState Title="Ничего не найдено" Description="Попробуйте другое название или сбросьте фильтры." ActionText="Сбросить фильтры" x:Name="NoSearchResults">
+        <controls:EmptyState.Style>
+          <Style TargetType="{x:Type controls:EmptyState}">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions>
+              <Condition Binding="{Binding AllNodes.Count, Converter={StaticResource NonZeroToVis}}" Value="Visible" />
+              <Condition Binding="{Binding HasItems, ElementName=ServerList}" Value="False" />
+            </MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger></Style.Triggers>
+          </Style>
+        </controls:EmptyState.Style>
+      </controls:EmptyState>
       <controls:SkeletonList Rows="6">
         <controls:SkeletonList.Visibility>
           <MultiBinding Converter="{StaticResource BoolAndZeroToVis}">
@@ -269,7 +274,8 @@
 
     <!-- Row actions -->
     <Grid Grid.Row="4" Margin="0,12,0,0">
-      <StackPanel Orientation="Horizontal">
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+      <WrapPanel>
         <Button Content="Проверить компоненты"
                 Style="{StaticResource GhostButton}"
                 Command="{Binding CheckRuntimeComponentsCommand}"
@@ -290,13 +296,14 @@
                 Command="{Binding CopyDiagnosticsCommand}"
                 Visibility="{Binding HasDiagnosticsReport, Converter={StaticResource BoolToVis}}"
                 AutomationProperties.Name="Копировать безопасный отчёт диагностики" />
-      </StackPanel>
-      <TextBlock Text="{Binding PingSummary}"
+      </WrapPanel>
+      <TextBlock Grid.Row="1" Margin="0,6,0,0" Text="{Binding PingSummary}"
                  Style="{StaticResource Text.Caption}"
-                 VerticalAlignment="Center"
-                 HorizontalAlignment="Right"
+                 VerticalAlignment="Bottom"
+                 HorizontalAlignment="Left"
                  MaxWidth="420"
                  TextTrimming="CharacterEllipsis"
+                 ToolTip="{Binding PingSummary}"
                  Visibility="{Binding HasPingSummary, Converter={StaticResource BoolToVis}}" />
     </Grid>
   </Grid>

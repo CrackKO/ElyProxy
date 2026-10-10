@@ -8,8 +8,8 @@
     <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
     <Setter Property="FontSize" Value="14" />
     <Setter Property="FontWeight" Value="SemiBold" />
-    <Setter Property="Padding" Value="14,7" />
-    <Setter Property="MinHeight" Value="34" />
+    <Setter Property="Padding" Value="16,9" />
+    <Setter Property="MinHeight" Value="38" />
     <Setter Property="MinWidth" Value="0" />
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -78,16 +78,6 @@
     <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}" />
     <Setter Property="BorderThickness" Value="0" />
-    <!-- Soft accent glow instead of a hard edge. -->
-    <Setter Property="Effect">
-      <Setter.Value>
-        <DropShadowEffect Color="#0A84FF"
-                          BlurRadius="16"
-                          ShadowDepth="3"
-                          Direction="270"
-                          Opacity="0.32" />
-      </Setter.Value>
-    </Setter>
     <Style.Triggers>
       <Trigger Property="IsMouseOver" Value="True">
         <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />

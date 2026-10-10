@@ -9,10 +9,10 @@
   <Style TargetType="{x:Type TextBox}">
     <Setter Property="Background" Value="{DynamicResource FillTertiaryBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
-    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBr}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="10,7" />
-    <Setter Property="MinHeight" Value="34" />
+    <Setter Property="MinHeight" Value="38" />
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
     <Setter Property="FontSize" Value="14" />
@@ -32,9 +32,9 @@
                     SnapsToDevicePixels="True">
               <ScrollViewer x:Name="PART_ContentHost"
                             Focusable="False"
-                            VerticalAlignment="Center"
-                            HorizontalScrollBarVisibility="Hidden"
-                            VerticalScrollBarVisibility="Hidden" />
+                            VerticalAlignment="Stretch"
+                            HorizontalScrollBarVisibility="{TemplateBinding HorizontalScrollBarVisibility}"
+                            VerticalScrollBarVisibility="{TemplateBinding VerticalScrollBarVisibility}" />
             </Border>
             <Border x:Name="FocusRing"
                     Margin="-3"
@@ -67,7 +67,7 @@
             <Trigger Property="IsKeyboardFocused" Value="True">
               <Setter TargetName="Bd" Property="Background" Value="{DynamicResource FillTertiaryBrush}" />
               <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-              <Setter TargetName="FocusRing" Property="Opacity" Value="0.35" />
+              <Setter TargetName="FocusRing" Property="Opacity" Value="0.18" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter TargetName="Bd" Property="Opacity" Value="0.4" />
@@ -82,11 +82,11 @@
   <Style TargetType="{x:Type ComboBox}">
     <Setter Property="Background" Value="{DynamicResource FillTertiaryBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
-    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBr}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
     <Setter Property="FontSize" Value="14" />
-    <Setter Property="MinHeight" Value="34" />
+    <Setter Property="MinHeight" Value="38" />
     <Setter Property="MinWidth" Value="180" />
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="MaxDropDownHeight" Value="260" />
@@ -193,9 +193,6 @@
                       CornerRadius="10"
                       Margin="0,0,8,8"
                       MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
-                <Border.Effect>
-                  <DropShadowEffect BlurRadius="24" ShadowDepth="4" Direction="270" Opacity="0.28" />
-                </Border.Effect>
                 <ScrollViewer MaxHeight="{TemplateBinding MaxDropDownHeight}" Padding="0,4">
                   <ItemsPresenter />
                 </ScrollViewer>
@@ -376,10 +373,6 @@
                     Margin="3,0,0,0"
                     RenderTransformOrigin="0.5,0.5">
               <!-- The transform is installed and animated from code. -->
-
-              <Border.Effect>
-                <DropShadowEffect BlurRadius="5" ShadowDepth="1" Direction="270" Opacity="0.3" />
-              </Border.Effect>
             </Border>
           </Border>
           <ControlTemplate.Triggers>
@@ -459,9 +452,6 @@
                       HorizontalAlignment="Left"
                       VerticalAlignment="Stretch">
                 <!-- The transform is installed and animated from code. -->
-                <Border.Effect>
-                  <DropShadowEffect BlurRadius="6" ShadowDepth="1" Direction="270" Opacity="0.22" />
-                </Border.Effect>
               </Border>
               <ItemsPresenter />
             </Grid>

@@ -16,8 +16,8 @@
   <Color x:Key="CardHoverBg">#F2F2F7</Color>
 
   <Color x:Key="FgPrimary">#000000</Color>
-  <Color x:Key="FgSecondary">#993C3C43</Color>
-  <Color x:Key="FgDim">#4D3C3C43</Color>
+  <Color x:Key="FgSecondary">#FF636368</Color>
+  <Color x:Key="FgDim">#FF76767C</Color>
   <Color x:Key="FgQuaternary">#2E3C3C43</Color>
 
   <Color x:Key="Border">#D1D1D6</Color>
@@ -71,14 +71,11 @@
   <SolidColorBrush x:Key="SkeletonBrush" Color="{StaticResource Skeleton}" />
   <SolidColorBrush x:Key="SelectionBrush" Color="{StaticResource AccentMuted}" />
 
-  <LinearGradientBrush x:Key="ContentSurfaceBrush" StartPoint="0.5,0" EndPoint="0.5,1">
-    <GradientStop Color="#FFF3F3F7" Offset="0" />
-    <GradientStop Color="#FFFFFFFF" Offset="0.5" />
-  </LinearGradientBrush>
+  <SolidColorBrush x:Key="ContentSurfaceBrush" Color="#FFF5F5F7" />
 
-  <SolidColorBrush x:Key="FillBrush" Color="#33787880" />
-  <SolidColorBrush x:Key="FillSecondaryBrush" Color="#26787880" />
-  <SolidColorBrush x:Key="FillTertiaryBrush" Color="#1F787880" />
+  <SolidColorBrush x:Key="FillBrush" Color="#FFDDDEE3" />
+  <SolidColorBrush x:Key="FillSecondaryBrush" Color="#FFE8E8ED" />
+  <SolidColorBrush x:Key="FillTertiaryBrush" Color="#FFF0F0F3" />
   <SolidColorBrush x:Key="SwitchThumbBrush" Color="#FFFFFFFF" />
   <SolidColorBrush x:Key="GreenMutedBrush" Color="#2634C759" />
   <SolidColorBrush x:Key="RedMutedBrush" Color="#26FF3B30" />

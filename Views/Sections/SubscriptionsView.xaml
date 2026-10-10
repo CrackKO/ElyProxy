@@ -20,7 +20,8 @@
       <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
 
-    <Grid Grid.Row="0" Margin="0,0,0,16">
+    <Grid Grid.Row="0" Margin="0,0,0,20">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
       <StackPanel VerticalAlignment="Center">
         <TextBlock Text="Подписки" Style="{StaticResource Text.LargeTitle}" />
         <TextBlock Style="{StaticResource Text.Caption}" Margin="1,4,0,0">
@@ -28,7 +29,7 @@
           <Run Text="подписок · автообновление по расписанию" />
         </TextBlock>
       </StackPanel>
-      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+      <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
         <Button Content="Обновить все"
                 Style="{StaticResource ToolbarButton}"
                 MinHeight="34"
@@ -99,18 +100,10 @@
                              Visibility="{Binding TrafficSummary, Converter={StaticResource StringToVis}}" />
                 </StackPanel>
                 <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
-                  <StackPanel.Style>
-                    <Style TargetType="{x:Type StackPanel}">
-                      <Setter Property="Opacity" Value="0" />
-                      <Setter Property="IsHitTestVisible" Value="False" />
-                      <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
-                          <Setter Property="Opacity" Value="1" />
-                          <Setter Property="IsHitTestVisible" Value="True" />
-                        </DataTrigger>
-                      </Style.Triggers>
-                    </Style>
-                  </StackPanel.Style>
+                  <Button Style="{StaticResource IconButton}" Width="28" Height="28" Click="RowSettings_Click"
+                          ToolTip="Настройки подписки" AutomationProperties.Name="Настройки подписки">
+                    <Path Style="{StaticResource ToolbarIcon}" Width="14" Height="14" Data="{StaticResource Icon.Settings}" />
+                  </Button>
                   <Button Style="{StaticResource IconButton}"
                           Width="28"
                           Height="28"

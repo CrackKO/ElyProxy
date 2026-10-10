@@ -26,7 +26,7 @@ public class AsyncRelayCommand : ICommand
 
 	public async void Execute(object? parameter)
 	{
-		if (_isExecuting)
+		if (!CanExecute(parameter))
 			return;
 
 		_isExecuting = true;

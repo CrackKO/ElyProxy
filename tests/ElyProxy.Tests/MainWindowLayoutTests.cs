@@ -53,6 +53,15 @@ public sealed class MainWindowLayoutTests
         });
     }
 
+    [Fact]
+    public void TorrentSwitch_IsAvailableOnlyInSettings()
+    {
+        var shell = XDocument.Load(Path.Combine(FindWorkspaceRoot(), "Views", "MainWindow.xaml"));
+        var settings = XDocument.Load(Path.Combine(FindWorkspaceRoot(), "Views", "Sections", "SettingsView.xaml"));
+        Assert.DoesNotContain(shell.Descendants().Attributes(), attribute => attribute.Value.Contains("{Binding BlockTorrent"));
+        Assert.Single(settings.Descendants().Attributes().Where(attribute => attribute.Value.Contains("{Binding BlockTorrent")));
+    }
+
     private static string FindWorkspaceRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

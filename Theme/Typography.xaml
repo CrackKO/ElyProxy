@@ -23,7 +23,7 @@
   <Style x:Key="Text.LargeTitle" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource Text.Base}">
     <Setter Property="FontFamily" Value="{StaticResource AppDisplayFontFamily}" />
     <Setter Property="FontSize" Value="28" />
-    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="LineHeight" Value="32" />
     <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
   </Style>

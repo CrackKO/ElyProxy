@@ -14,15 +14,27 @@
       <TextBlock Text="Оформление, сеть, обновления и маршрутизация"
                  Style="{StaticResource Text.Caption}"
                  Margin="1,4,0,0" />
+      <WrapPanel Margin="0,14,0,0">
+        <Button Content="Оформление" Tag="AppearanceAnchor" Style="{StaticResource GhostButton}" Padding="10,6" MinHeight="30" Margin="0,0,4,4" Click="JumpToSection_Click" />
+        <Button Content="Защита" Tag="ProtectionAnchor" Style="{StaticResource GhostButton}" Padding="10,6" MinHeight="30" Margin="0,0,4,4" Click="JumpToSection_Click" />
+        <Button Content="Запуск" Tag="StartupAnchor" Style="{StaticResource GhostButton}" Padding="10,6" MinHeight="30" Margin="0,0,4,4" Click="JumpToSection_Click" />
+        <Button Content="Сеть" Tag="NetworkAnchor" Style="{StaticResource GhostButton}" Padding="10,6" MinHeight="30" Margin="0,0,4,4" Click="JumpToSection_Click" />
+        <Button Content="Обновления" Tag="UpdatesAnchor" Style="{StaticResource GhostButton}" Padding="10,6" MinHeight="30" Margin="0,0,4,4" Click="JumpToSection_Click" />
+        <Button Content="ElyTun" Tag="TunAnchor" Style="{StaticResource GhostButton}" Padding="10,6" MinHeight="30" Margin="0,0,4,4" Click="JumpToSection_Click" />
+        <Button Content="Обход DPI" Tag="DpiAnchor" Style="{StaticResource GhostButton}" Padding="10,6" MinHeight="30" Margin="0,0,4,4" Click="JumpToSection_Click" />
+        <Button Content="Ядра" Tag="CoresAnchor" Style="{StaticResource GhostButton}" Padding="10,6" MinHeight="30" Margin="0,0,4,4" Click="JumpToSection_Click" />
+        <Button Content="Подписки" Tag="SubscriptionsAnchor" Style="{StaticResource GhostButton}" Padding="10,6" MinHeight="30" Margin="0,0,4,4" Click="JumpToSection_Click" />
+        <Button Content="Разделение трафика" Tag="RoutingAnchor" Style="{StaticResource GhostButton}" Padding="10,6" MinHeight="30" Margin="0,0,4,4" Click="JumpToSection_Click" />
+      </WrapPanel>
     </StackPanel>
 
     <ScrollViewer Grid.Row="1"
                   VerticalScrollBarVisibility="Auto"
                   behaviors:SmoothScroll.IsEnabled="True">
-      <StackPanel MaxWidth="760" HorizontalAlignment="Left" Margin="0,0,20,0">
+      <StackPanel MaxWidth="860" HorizontalAlignment="Stretch" Margin="0,0,20,0">
 
         <!-- ================= Appearance ================= -->
-        <TextBlock Text="Оформление" Style="{StaticResource Text.SectionHeader}" />
+        <TextBlock x:Name="AppearanceAnchor" Text="Оформление" Style="{StaticResource Text.SectionHeader}" />
         <Border Style="{StaticResource AppleInsetGroup}">
           <StackPanel>
             <Border Style="{StaticResource AppleSettingRow}">
@@ -111,8 +123,25 @@
           </StackPanel>
         </Border>
 
+        <TextBlock x:Name="ProtectionAnchor" Text="Защита подписки" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <Border Style="{StaticResource AppleCard}">
+          <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <StackPanel Margin="0,0,20,0">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Блокировать Torrent" Style="{StaticResource Text.BodyStrong}" />
+                <controls:InfoHint Text="Проверяет имена запущенных процессов раз в секунду и принудительно завершает известные торрент-клиенты: qBittorrent, µTorrent, BitTorrent, Transmission, Deluge, Tixati, BitComet и другие. Переименованные клиенты и торренты внутри браузера не определяются. Это не сетевой фильтр и не гарантия от блокировки сервисом." />
+              </StackPanel>
+              <TextBlock Text="Закрывает торрент-клиенты сразу и при повторном запуске, даже без подключения к VPN. Загрузки прерываются. Работает, пока ElyProxy открыт."
+                         Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,0" />
+              <TextBlock Text="{Binding TorrentProtectionStatus}" Style="{StaticResource Text.CaptionStrong}" Margin="0,8,0,0" />
+            </StackPanel>
+            <controls:SpringToggleSwitch Grid.Column="1" IsChecked="{Binding BlockTorrent, Mode=TwoWay}" AutomationProperties.Name="Блокировать Torrent" />
+          </Grid>
+        </Border>
+
         <!-- ================= Startup ================= -->
-        <TextBlock Text="Запуск" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <TextBlock x:Name="StartupAnchor" Text="Запуск" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
         <Border Style="{StaticResource AppleInsetGroup}">
           <StackPanel>
             <Border Style="{StaticResource AppleSettingRow}">
@@ -163,7 +192,7 @@
         </Border>
 
         <!-- ================= Network ================= -->
-        <TextBlock Text="Сеть" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <TextBlock x:Name="NetworkAnchor" Text="Сеть" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
         <Border Style="{StaticResource AppleInsetGroup}">
           <StackPanel>
             <Border Style="{StaticResource AppleSettingRow}">
@@ -241,7 +270,7 @@
         </Border>
 
         <!-- ================= Updates ================= -->
-        <TextBlock Text="Обновления" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <TextBlock x:Name="UpdatesAnchor" Text="Обновления" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
         <Border Style="{StaticResource AppleInsetGroup}">
           <StackPanel>
             <Border Style="{StaticResource AppleSettingRow}">
@@ -283,7 +312,7 @@
         </Border>
 
         <!-- ================= ElyTun ================= -->
-        <TextBlock Text="ElyTun" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <TextBlock x:Name="TunAnchor" Text="ElyTun" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
         <Border Style="{StaticResource AppleInsetGroup}">
           <StackPanel>
           <Border Style="{StaticResource AppleSettingRow}">
@@ -375,7 +404,7 @@
         </Border>
 
         <!-- ================= DPI ================= -->
-        <TextBlock Text="Обход DPI" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <TextBlock x:Name="DpiAnchor" Text="Обход DPI" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
         <Border Style="{StaticResource AppleInsetGroup}">
           <StackPanel>
             <Border Style="{StaticResource AppleSettingRow}">
@@ -559,7 +588,7 @@
         </Border>
 
         <!-- ================= Cores ================= -->
-        <TextBlock Text="Ядра" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <TextBlock x:Name="CoresAnchor" Text="Ядра" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
         <Border Style="{StaticResource AppleInsetGroup}">
           <StackPanel>
             <Border Style="{StaticResource AppleSettingRow}">
@@ -630,7 +659,7 @@
         </Border>
 
         <!-- ================= Subscriptions ================= -->
-        <TextBlock Text="Подписки" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <TextBlock x:Name="SubscriptionsAnchor" Text="Подписки" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
         <Border Style="{StaticResource AppleInsetGroup}">
           <Border Style="{StaticResource AppleSettingRow}">
             <Grid>
@@ -655,7 +684,7 @@
         </Border>
 
         <!-- ================= Routing ================= -->
-        <TextBlock Text="Разделение трафика" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <TextBlock x:Name="RoutingAnchor" Text="Разделение трафика" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
         <Border Style="{StaticResource AppleInsetGroup}">
           <StackPanel>
             <Border Style="{StaticResource AppleSettingRow}">

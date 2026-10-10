@@ -14,7 +14,9 @@ public class AppSettings
 
 	public bool AutoReconnect { get; set; }
 
-	public bool ShowLogs { get; set; } = true;
+	public bool BlockTorrent { get; set; }
+
+	public bool ShowLogs { get; set; }
 
 	public bool AutoUpdate { get; set; }
 

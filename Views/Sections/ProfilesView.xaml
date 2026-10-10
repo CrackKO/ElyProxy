@@ -28,14 +28,15 @@
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <Grid Grid.Row="0" Margin="0,0,0,16">
+    <Grid Grid.Row="0" Margin="0,0,0,20">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
       <StackPanel VerticalAlignment="Center">
         <TextBlock Text="Профили" Style="{StaticResource Text.LargeTitle}" />
         <TextBlock Text="Наборы серверов для быстрого переключения"
                    Style="{StaticResource Text.Caption}"
                    Margin="1,4,0,0" />
       </StackPanel>
-      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+      <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
         <Button Content="Импорт"
                 Style="{StaticResource ToolbarButton}"
                 MinHeight="34"
@@ -97,7 +98,7 @@
               <DataTemplate>
                 <StackPanel Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             ContextMenu="{StaticResource ProfileRowMenu}">
-                  <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Body}" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Body}" FontWeight="Medium" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
                   <TextBlock Style="{StaticResource Text.Caption}" Margin="0,2,0,0">
                     <Run Text="{Binding Nodes.Count, Mode=OneWay}" />
                     <Run Text="серверов" />
@@ -150,7 +151,7 @@
                             VerticalAlignment="Center"
                             Visibility="{Binding DataContext.ServerBadgeMode, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BadgeVis}}">
                       <Grid>
-                        <Image Stretch="UniformToFill"
+                        <Image Panel.ZIndex="1" Stretch="UniformToFill"
                                RenderOptions.BitmapScalingMode="HighQuality"
                                SnapsToDevicePixels="True">
                           <Image.Source>

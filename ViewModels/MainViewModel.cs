@@ -309,7 +309,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private bool _autoReconnect;
 
-	private bool _showLogs = true;
+	private bool _showLogs;
 
 	private bool _autoUpdate;
 
@@ -744,7 +744,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 	}
 
-	public string ApplicationVersion => "Версия " + UpdateService.CurrentVersion.ToString(3);
+	public string ApplicationVersion => "Версия " + UpdateService.CurrentVersion.ToString(3)
+        + ((typeof(MainViewModel).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Contains("-dev", StringComparison.OrdinalIgnoreCase) ?? false) ? " · DEV" : string.Empty);
 
 	public string UpdateStatus
 	{
@@ -1710,7 +1711,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	public ICommand RemoveApplicationBypassCommand { get; }
 
-	public MainViewModel(bool launchElyTunOnStartup = false, int? handoffParentProcessId = null)
+	public MainViewModel(bool launchElyTunOnStartup = false, int? handoffParentProcessId = null, bool previewMode = false)
 	{
 		//IL_02f1: Unknown result type (might be due to invalid IL or missing references)
 		//IL_02fb: Expected O, but got Unknown
@@ -1767,7 +1768,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		// ports like 1080 busy and block new connections until killed.
 		try
 		{
-			int staleCores = CoreProcessCleanup.KillStaleCores();
+			int staleCores = previewMode ? 0 : CoreProcessCleanup.KillStaleCores();
 			if (staleCores > 0)
 			{
 				OnLogReceived($"[warn] Закрыты зависшие ядра предыдущего запуска: {staleCores}");
@@ -1821,7 +1822,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		RequestElyTunCommand = new AsyncRelayCommand(RequestElyTunAsync, () => !IsLoading && !_isRelaunchingForElevation);
 		AddApplicationBypassCommand = new AsyncRelayCommand(AddApplicationBypassAsync, () => !IsLoading);
 		RemoveApplicationBypassCommand = new RelayCommand(RemoveSelectedApplicationBypass, () => SelectedApplicationBypass != null && !IsLoading);
-		LoadAllDataAsync();
+		if (previewMode)
+		{
+			// Isolated UI previews must never read/write user settings or start cores.
+			_canSaveSettings = false;
+			_canSaveSubscriptions = false;
+			_canSaveProfiles = false;
+			_dataReady = true;
+		}
+		else
+		{
+			LoadAllDataAsync();
+		}
 	}
 
 	private async Task AddSubscriptionAsync()
@@ -2263,6 +2275,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 	{
 		if (node == null)
 		{
+			return;
+		}
+		if (BlockTorrent && _torrentBlocker != null && !await _torrentBlocker.ScanAsync())
+		{
+			await DialogService.Current.AlertAsync("Торрент-клиент остаётся запущен", "Подключение остановлено: не удалось закрыть торрент-клиент. Закройте его вручную; подробности — в журнале.");
 			return;
 		}
 		Interlocked.Increment(ref _coreLifecycleTransition);
@@ -4959,58 +4976,61 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 	}
 
+	private int _elyTunConnectivityGeneration;
+
+	private CancellationTokenSource? _elyTunConnectivityCancellation;
+
 	private async Task VerifyElyTunConnectivityAsync()
 	{
-		await Task.Delay(TimeSpan.FromSeconds(3.0));
+		if (_isDisposed || !IsConnected || !ElyTunEnabled) return;
+		int checkGeneration = Interlocked.Increment(ref _elyTunConnectivityGeneration);
+		int connectionGeneration = Volatile.Read(ref _connectionGeneration);
+		VlessNode? checkedNode = _connectedNode;
+		using var cancellation = new CancellationTokenSource();
+		var previous = Interlocked.Exchange(ref _elyTunConnectivityCancellation, cancellation);
+		try { previous?.Cancel(); } catch (ObjectDisposedException) { }
+		bool IsCurrent() => !_isDisposed && IsConnected && ElyTunEnabled && IsActiveCoreRunning()
+			&& checkGeneration == Volatile.Read(ref _elyTunConnectivityGeneration)
+			&& connectionGeneration == Volatile.Read(ref _connectionGeneration)
+			&& ReferenceEquals(checkedNode, _connectedNode);
 		try
 		{
-			using HttpClientHandler handler = new HttpClientHandler
+			await Task.Delay(TimeSpan.FromSeconds(3), cancellation.Token);
+			if (!IsCurrent()) return;
+			using var handler = new SocketsHttpHandler
 			{
 				UseProxy = false,
-				AllowAutoRedirect = false
+				AllowAutoRedirect = false,
+				ConnectTimeout = TimeSpan.FromSeconds(3)
 			};
-			using HttpClient http = new HttpClient(handler)
+			using var http = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+			var service = new ElyTunConnectivityService(http);
+			var result = await service.CheckAsync(cancellation.Token);
+			if (!result.Reachable && IsCurrent())
 			{
-				Timeout = TimeSpan.FromSeconds(8.0)
-			};
-			http.DefaultRequestHeaders.UserAgent.ParseAdd("ElyProxy/ElyTun");
-			Stopwatch sw = Stopwatch.StartNew();
-			HttpResponseMessage response = await http.GetAsync("https://www.gstatic.com/generate_204", HttpCompletionOption.ResponseHeadersRead);
-			try
-			{
-				sw.Stop();
-				int statusCode = (int)response.StatusCode;
-				if (statusCode >= 200 && statusCode < 400)
-				{
-					await _dispatcher.InvokeAsync((Action)delegate
-					{
-						StatusText = $"ElyTun работает: {sw.ElapsedMilliseconds} ms";
-						AppendLog($"[sys] ElyTun self-test OK: HTTP {response.StatusCode}, {sw.ElapsedMilliseconds} ms");
-					});
-					return;
-				}
-				await _dispatcher.InvokeAsync((Action)delegate
-				{
-					StatusText = "ElyTun: HTTP-тест не прошёл";
-					AppendLog($"[err] ElyTun self-test failed: HTTP {response.StatusCode}");
-				});
+				// DNS/routes can still settle immediately after the core starts.
+				await Task.Delay(TimeSpan.FromSeconds(2), cancellation.Token);
+				if (!IsCurrent()) return;
+				result = await service.CheckAsync(cancellation.Token);
 			}
-			finally
-			{
-				if (response != null)
-				{
-					((IDisposable)response).Dispose();
-				}
-			}
+			if (!IsCurrent()) return;
+			StatusText = result.Reachable
+				? $"ElyTun: HTTPS доступен, {result.ElapsedMilliseconds} мс"
+				: "ElyTun подключён · HTTPS не подтверждён";
+			AppendLog(result.Reachable
+				? $"[sys] ElyTun self-test OK: {result.Details}, {result.ElapsedMilliseconds} ms"
+				: $"[warn] ElyTun: ядро работает, но HTTPS-проверка не прошла: {result.Details}. Проверьте сайты или нажмите «Диагностика». Это не подтверждает отсутствие интернета.");
 		}
+		catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
 		catch (Exception ex)
 		{
-			Exception ex2 = ex;
-			await _dispatcher.InvokeAsync((Action)delegate
-			{
-				StatusText = "ElyTun: сеть не отвечает";
-				AppendLog("[err] ElyTun self-test failed: " + ex2.GetType().Name + ": " + ex2.Message);
-			});
+			if (!IsCurrent()) return;
+			StatusText = "ElyTun подключён · HTTPS не подтверждён";
+			AppendLog("[warn] ElyTun self-test: проверка не завершена: " + ex.GetType().Name + ": " + ex.Message);
+		}
+		finally
+		{
+			Interlocked.CompareExchange(ref _elyTunConnectivityCancellation, null, cancellation);
 		}
 	}
 
@@ -5601,6 +5621,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			SocksPort = ((settings.SocksPort > 0) ? settings.SocksPort : 1080);
 			AutoConnect = settings.AutoConnect;
 			AutoReconnect = settings.AutoReconnect;
+			BlockTorrent = settings.BlockTorrent;
 			ShowLogs = settings.ShowLogs;
 			PingMode = settings.PingMode;
 			ProxyPingUrl = settings.ProxyPingUrl;
@@ -5843,6 +5864,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				AutoStartWithWindows = AutoStartWithWindows,
 				AutoConnect = AutoConnect,
 				AutoReconnect = AutoReconnect,
+				BlockTorrent = BlockTorrent,
 				ShowLogs = ShowLogs,
 				AutoUpdate = AutoUpdate,
 				ThemeMode = ThemeMode,
@@ -5898,6 +5920,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 	public void Dispose()
 	{
 		_isDisposed = true;
+		try { _elyTunConnectivityCancellation?.Cancel(); } catch (ObjectDisposedException) { }
+		_torrentBlocker?.Dispose();
 		_subscriptionUpdateTimer.Stop();
 		_logFlushTimer.Stop();
 		_subscriptionUpdateTimer.Tick -= OnSubscriptionUpdateTimerTick;

@@ -24,15 +24,17 @@ public partial class MainWindow : Window
     private bool _navigationReady;
     private string _rawLog = string.Empty;
 
-    public MainWindow()
+    public MainWindow() : this(null) { }
+
+    public MainWindow(MainViewModel? previewViewModel)
     {
         InitializeComponent();
 
-        _viewModel = new MainViewModel(App.LaunchElyTunOnStartup, App.ElyTunHandoffParentProcessId);
+        _viewModel = previewViewModel ?? new MainViewModel(App.LaunchElyTunOnStartup, App.ElyTunHandoffParentProcessId);
         DataContext = _viewModel;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
-        InitTrayIcon();
+        if (previewViewModel == null) InitTrayIcon();
         InitShortcuts();
 
         DialogService.Current.Attach(SheetHost, ToastHost);
@@ -70,6 +72,11 @@ public partial class MainWindow : Window
 
     private void InitShortcuts()
     {
+        InputBindings.Add(new KeyBinding(new RelayCommand(() =>
+        {
+            NavList.SelectedIndex = 0;
+            (_sections[0] as ServersView)?.FocusSearch();
+        }), Key.F, ModifierKeys.Control));
         for (var index = 0; index < 4; index++)
         {
             var target = index;
@@ -211,7 +218,7 @@ public partial class MainWindow : Window
     private void ApplyLogDrawerState(bool animate)
     {
         var open = _viewModel.ShowLogs;
-        var height = open ? LogDrawerHeight : 0;
+        var height = open ? Math.Min(LogDrawerHeight, Math.Max(80, (ActualHeight - 650) * 0.4 + 80)) : 0;
         var opacity = open ? 1.0 : 0.0;
 
         LogDrawerContent.IsHitTestVisible = open;

@@ -23,12 +23,22 @@ public partial class ServersView : UserControl
     {
         InitializeComponent();
         EmptyServers.ActionCommand = new RelayCommand(() => _ = AddSubscriptionAsync());
+        NoSearchResults.ActionCommand = new RelayCommand(() =>
+        {
+            SearchBox.Clear();
+            ProtocolBox.SelectedIndex = 0;
+        });
+        InputBindings.Add(new KeyBinding(new RelayCommand(() => SearchBox.Focus()), Key.F, ModifierKeys.Control));
         Loaded += (_, _) => _sortReady = true;
     }
 
     private MainViewModel? ViewModel => DataContext as MainViewModel;
 
+    public void FocusSearch() => SearchBox.Focus();
+
     private async void AddServer_Click(object sender, RoutedEventArgs e) => await AddServerAsync();
+
+    private async void AddSubscription_Click(object sender, RoutedEventArgs e) => await AddSubscriptionAsync();
 
     private async void RowShare_Click(object sender, RoutedEventArgs e)
     {
@@ -78,6 +88,12 @@ public partial class ServersView : UserControl
 
         viewModel.NewSubName = sheet.SubscriptionName.Trim();
         viewModel.NewSubUrl = sheet.SubscriptionUrl.Trim();
+        viewModel.NewSubUserAgent = sheet.UserAgent;
+        viewModel.NewSubUpdateIntervalMinutes = sheet.UpdateIntervalMinutes;
+        viewModel.NewSubServerFilter = sheet.ServerFilter;
+        viewModel.NewSubSortMode = sheet.SortMode;
+        viewModel.NewSubHwid = sheet.Hwid;
+        viewModel.NewSubCustomHeadersText = sheet.CustomHeadersText;
         viewModel.AddSubscriptionCommand.Execute(null);
     }
 
@@ -93,6 +109,13 @@ public partial class ServersView : UserControl
             4 => "shadowsocks",
             5 => "hysteria2",
             6 => "tuic",
+            7 => "anytls",
+            8 => "ssh",
+            9 => "wireguard",
+            10 => "naive",
+            11 => "shadowtls",
+            12 => "socks",
+            13 => "http",
             _ => string.Empty
         };
         ApplyFilter();
@@ -162,8 +185,38 @@ public partial class ServersView : UserControl
         }
     }
 
+    private void RowConnect_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } vm || (sender as FrameworkElement)?.DataContext is not VlessNode node) return;
+        vm.SelectedNode = node;
+        if (vm.ConnectCommand.CanExecute(null)) vm.ConnectCommand.Execute(null);
+    }
+
+    private void ServerList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        // Ignore the scrollbar, empty space and the inline action button.
+        if (ItemsControl.ContainerFromElement(ServerList, (DependencyObject)e.OriginalSource) is not ListViewItem) return;
+        for (DependencyObject? current = e.OriginalSource as DependencyObject; current != null && current is not ListViewItem;
+             current = current is FrameworkContentElement content ? content.Parent : System.Windows.Media.VisualTreeHelper.GetParent(current))
+            if (current is System.Windows.Controls.Primitives.ButtonBase) return;
+        ConnectSelected();
+    }
+
+    private void ServerList_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || e.OriginalSource is Button) return;
+        ConnectSelected();
+        e.Handled = true;
+    }
+
+    private void ConnectSelected()
+    {
+        if (ViewModel is { } vm && vm.ConnectCommand.CanExecute(null)) vm.ConnectCommand.Execute(null);
+    }
+
     private static bool Matches(VlessNode node, string query) =>
         node.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase)
+        || node.ProtocolDisplay.Contains(query, StringComparison.OrdinalIgnoreCase)
         || node.Address.Contains(query, StringComparison.OrdinalIgnoreCase)
         || node.TransportDisplay.Contains(query, StringComparison.OrdinalIgnoreCase);
 
