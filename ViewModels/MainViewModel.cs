@@ -412,6 +412,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		{
 			if (SetProperty(ref _selectedNode, value, "SelectedNode"))
 			{
+				NotifyConnectionPanel();
 				CommandManager.InvalidateRequerySuggested();
 			}
 		}
@@ -580,6 +581,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		set
 		{
 			SetProperty(ref _connectedNodeName, value, "ConnectedNodeName");
+			NotifyConnectionPanel();
 		}
 	}
 
@@ -636,6 +638,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		{
 			if (SetProperty(ref _isConnected, value, "IsConnected"))
 			{
+				SessionStartedAt = value ? DateTime.UtcNow : null;
+				NotifyConnectionPanel();
 				CommandManager.InvalidateRequerySuggested();
 			}
 		}
@@ -3419,6 +3423,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 	private void RememberConnectedNode(VlessNode node)
 	{
 		_lastConnectedNodeId = GetNodeKey(node);
+		RememberRecentServer(node);
 		SaveSettingsAsync();
 	}
 
@@ -5691,6 +5696,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			MotionMode = settings.MotionMode;
 			ServerBadgeMode = settings.ServerBadgeMode;
 			_lastConnectedNodeId = settings.LastConnectedNodeId;
+			_favoriteServers = new(settings.FavoriteServerIds ?? new(), StringComparer.Ordinal);
+			_recentServers = (settings.RecentServerIds ?? new()).Distinct().Take(30).ToList();
+			OnPropertyChanged("ServerLibrary");
 			_manualNodes.Clear();
 			List<VlessNode> manualNodes = settings.ManualNodes;
 			if (manualNodes != null && manualNodes.Count > 0)
@@ -5900,6 +5908,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				PreviousAutoConfigUrl = _previousAutoConfigUrl,
 				SubscriptionUpdateIntervalMinutes = SubscriptionUpdateIntervalMinutes,
 				LastConnectedNodeId = _lastConnectedNodeId,
+				FavoriteServerIds = _favoriteServers.ToList(),
+				RecentServerIds = _recentServers.ToList(),
 				ManualNodes = _manualNodes.ToList()
 			};
 			await _storageService.SaveSettingsAsync(settings);

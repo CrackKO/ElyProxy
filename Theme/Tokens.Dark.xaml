@@ -9,11 +9,11 @@
   <Color x:Key="AccentPressed">#0060DF</Color>
   <Color x:Key="AccentMuted">#330A84FF</Color>
 
-  <Color x:Key="Bg1">#000000</Color>
-  <Color x:Key="Bg2">#1C1C1E</Color>
+  <Color x:Key="Bg1">#18191C</Color>
+  <Color x:Key="Bg2">#24262A</Color>
   <Color x:Key="Bg3">#2C2C2E</Color>
   <Color x:Key="Bg4">#3A3A3C</Color>
-  <Color x:Key="CardBg">#1C1C1E</Color>
+  <Color x:Key="CardBg">#24262A</Color>
   <Color x:Key="CardHoverBg">#2C2C2E</Color>
 
   <Color x:Key="FgPrimary">#FFFFFF</Color>
@@ -21,7 +21,7 @@
   <Color x:Key="FgDim">#FF8E8E93</Color>
   <Color x:Key="FgQuaternary">#2EEBEBF5</Color>
 
-  <Color x:Key="Border">#3D3D41</Color>
+  <Color x:Key="Border">#36383F</Color>
   <Color x:Key="Green">#30D158</Color>
   <Color x:Key="GreenHover">#4CD964</Color>
   <Color x:Key="Red">#FF453A</Color>
@@ -31,8 +31,8 @@
   <Color x:Key="Teal">#64D2FF</Color>
 
   <!-- Opaque surface tints (no window backdrop/blur) -->
-  <Color x:Key="MaterialThin">#FF1C1C1E</Color>
-  <Color x:Key="MaterialRegular">#FF1C1C1E</Color>
+  <Color x:Key="MaterialThin">#FF202124</Color>
+  <Color x:Key="MaterialRegular">#FF202124</Color>
   <Color x:Key="MaterialThick">#FF2C2C2E</Color>
   <Color x:Key="Scrim">#80000000</Color>
   <Color x:Key="Skeleton">#1FFFFFFF</Color>
@@ -76,7 +76,7 @@
   <!-- Control fills: translucent greys used by inputs and secondary buttons -->
   <!-- Soft top-to-bottom wash for the content area: a barely visible lift that
        gives the flat black some depth without looking like a gradient. -->
-  <SolidColorBrush x:Key="ContentSurfaceBrush" Color="#FF171719" />
+  <SolidColorBrush x:Key="ContentSurfaceBrush" Color="#FF18191C" />
 
   <SolidColorBrush x:Key="FillBrush" Color="#FF404044" />
   <SolidColorBrush x:Key="FillSecondaryBrush" Color="#FF353538" />

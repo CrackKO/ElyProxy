@@ -2,11 +2,12 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:ElyProxy.Controls"
+        xmlns:sections="clr-namespace:ElyProxy.Views.Sections"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="ElyProxy"
         Icon="pack://application:,,,/ElyProxy;component/icon.ico"
-        Width="1180"
-        Height="780"
+        Width="1280"
+        Height="840"
         MinWidth="900"
         MinHeight="620"
         WindowStartupLocation="CenterScreen"
@@ -189,7 +190,7 @@
     <!-- ============================= Body ============================= -->
     <Grid Grid.Row="1">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="240" />
+        <ColumnDefinition Width="210" />
         <ColumnDefinition Width="*" />
       </Grid.ColumnDefinitions>
 
@@ -202,61 +203,8 @@
             <RowDefinition Height="Auto" />
           </Grid.RowDefinitions>
 
-          <Border Grid.Row="0" Style="{StaticResource AppleCard}" Padding="14,13" Margin="0,4,0,12">
-            <StackPanel>
-              <TextBlock Text="Подключение" Style="{StaticResource Text.Micro}" Margin="0,0,0,10" />
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="Auto" />
-                  <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Ellipse Grid.Column="0" Width="10" Height="10" Margin="1,4,9,0" VerticalAlignment="Top">
-                  <Ellipse.Style>
-                    <Style TargetType="{x:Type Ellipse}">
-                      <Setter Property="Fill" Value="{DynamicResource FgDimBrush}" />
-                      <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsConnected}" Value="True">
-                          <Setter Property="Fill" Value="{DynamicResource GreenBrush}" />
-                        </DataTrigger>
-                      </Style.Triggers>
-                    </Style>
-                  </Ellipse.Style>
-                </Ellipse>
-                <TextBlock Grid.Column="1"
-                           Text="{Binding StatusText}"
-                           Style="{StaticResource Text.BodyStrong}"
-                           FontSize="14"
-                           TextWrapping="Wrap"
-                           ToolTip="{Binding StatusText}" />
-              </Grid>
-              <!-- Two lines with an ellipsis on the last one: server names are long. -->
-              <TextBlock Text="{Binding ConnectedNodeName}"
-                         Style="{StaticResource Text.Caption}"
-                         Margin="20,4,0,0"
-                         TextWrapping="Wrap"
-                         TextTrimming="CharacterEllipsis"
-                         MaxHeight="36"
-                         ToolTip="{Binding ConnectedNodeName}" />
-
-              <TextBlock Text="{Binding SelectedNode.DisplayName, TargetNullValue=Выберите сервер справа}"
-                         Style="{StaticResource Text.Caption}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
-                         MaxHeight="38" ToolTip="{Binding SelectedNode.DisplayName}" Margin="0,10,0,0"
-                         Visibility="{Binding IsConnected, Converter={StaticResource InverseBoolToVis}}" />
-              <Button Content="Подключиться"
-                      Style="{StaticResource PrimaryButton}"
-                      Margin="0,10,0,0"
-                      Command="{Binding ConnectCommand}"
-                      Visibility="{Binding IsConnected, Converter={StaticResource InverseBoolToVis}}" />
-              <Button Content="Отключить"
-                      Style="{StaticResource SecondaryButton}"
-                      Margin="0,10,0,0"
-                      Command="{Binding DisconnectCommand}"
-                      Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}" />
-            </StackPanel>
-          </Border>
-
           <ListBox x:Name="NavList"
-                   Grid.Row="1"
+                   Grid.Row="0" Grid.RowSpan="2"
                    Style="{StaticResource SidebarNavList}"
                    SelectionChanged="NavList_SelectionChanged">
             <ListBoxItem AutomationProperties.Name="Серверы">
@@ -315,7 +263,10 @@
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0" Style="{StaticResource ContentSurface}">
-          <ContentControl x:Name="SectionHost" />
+          <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+            <sections:ConnectionPanel Margin="20,10,20,0"/>
+            <ContentControl Grid.Row="1" x:Name="SectionHost" />
+          </Grid>
         </Border>
 
         <!-- Log drawer -->

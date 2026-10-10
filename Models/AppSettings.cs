@@ -80,9 +80,13 @@ public class AppSettings
 
 	public string? LastConnectedNodeId { get; set; }
 
+    public List<string> FavoriteServerIds { get; set; } = new();
+
+    public List<string> RecentServerIds { get; set; } = new();
+
 	public List<VlessNode> ManualNodes { get; set; } = new List<VlessNode>();
 
-	public string ThemeMode { get; set; } = "System";
+	public string ThemeMode { get; set; } = "Dark";
 
 	public string MotionMode { get; set; } = "System";
 

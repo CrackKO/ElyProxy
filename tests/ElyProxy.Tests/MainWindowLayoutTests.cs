@@ -13,26 +13,15 @@ public sealed class MainWindowLayoutTests
     private static readonly XNamespace Presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
 
     [Fact]
-    public void SidebarStatusText_WrapsAndIsWidthConstrained()
+    public void ConnectionPanel_IsAboveSectionsAndSidebarHasOnlyNavigation()
     {
-        var document = XDocument.Load(Path.Combine(FindWorkspaceRoot(), "Views", "MainWindow.xaml"));
-
-        var card = document.Descendants(Presentation + "Border")
-            .FirstOrDefault(element => (string?)element.Attribute("Style") == "{StaticResource AppleCard}");
-        Assert.NotNull(card);
-
-        var status = card.Descendants(Presentation + "TextBlock")
-            .FirstOrDefault(element => (string?)element.Attribute("Text") == "{Binding StatusText}");
-        Assert.NotNull(status);
-
-        Assert.Equal("Wrap", (string?)status.Attribute("TextWrapping"));
-
-        var parent = status.Parent;
-        Assert.NotNull(parent);
-        Assert.Equal(Presentation + "Grid", parent.Name);
-        Assert.Contains(
-            parent.Elements(Presentation + "Grid.ColumnDefinitions").Descendants(Presentation + "ColumnDefinition"),
-            column => (string?)column.Attribute("Width") == "*");
+        var root = FindWorkspaceRoot();
+        var document = XDocument.Load(Path.Combine(root, "Views", "MainWindow.xaml"));
+        var panel = document.Descendants().Single(element => element.Name.LocalName == "ConnectionPanel");
+        Assert.Equal(Presentation + "Grid", panel.Parent!.Name);
+        Assert.Contains(panel.Parent.Elements(), element => element.Name.LocalName == "ContentControl");
+        var sidebar = document.Descendants(Presentation + "Border").Single(element => (string?)element.Attribute("Style") == "{StaticResource SidebarSurface}");
+        Assert.DoesNotContain(sidebar.Descendants(Presentation + "Button"), element => (string?)element.Attribute("Command") == "{Binding ConnectCommand}");
     }
 
     [Fact]

@@ -1,310 +1,277 @@
-<UserControl x:Class="ElyProxy.Views.Sections.ServersView"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:controls="clr-namespace:ElyProxy.Controls"
-             xmlns:converters="clr-namespace:ElyProxy.Controls.Converters">
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="clr-namespace:ElyProxy.Controls" xmlns:converters="clr-namespace:ElyProxy.Controls.Converters" xmlns:behaviors="clr-namespace:ElyProxy.Controls.Behaviors" x:Class="ElyProxy.Views.Sections.ServersView">
   <UserControl.Resources>
-    <converters:EqualsToVisibilityConverter x:Key="EqualsToVis" />
-
-    <ContextMenu x:Key="ServerRowMenu"
-                 x:Shared="False"
-                 DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
-      <MenuItem Header="Подключить" Command="{Binding ConnectCommand}" />
-      <MenuItem Header="В профиль" Command="{Binding AddToProfileCommand}" />
-      <Separator />
-      <MenuItem Header="Копировать прокси" Command="{Binding CopyProxyCommand}" />
-      <MenuItem Header="Поделиться…" Click="RowShare_Click" />
+    <converters:EqualsToVisibilityConverter x:Key="EqualsToVis"/>
+    <ContextMenu x:Key="ServerRowMenu" x:Shared="False" DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+      <MenuItem Header="Подключить" Command="{Binding ConnectCommand}"/>
+      <MenuItem Header="Избранное" Click="FavoriteMenu_Click"/>
+      <MenuItem Header="В профиль" Command="{Binding AddToProfileCommand}"/>
+      <Separator/>
+      <MenuItem Header="Копировать прокси" Command="{Binding CopyProxyCommand}"/>
+      <MenuItem Header="Поделиться…" Click="RowShare_Click"/>
     </ContextMenu>
   </UserControl.Resources>
-
-  <Grid Margin="22,18,22,16">
+  <Grid Margin="20,14,20,12">
     <Grid.RowDefinitions>
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="*" />
-      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
-
-    <!-- Header -->
-    <Grid Grid.Row="0" Margin="0,0,0,20">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-      <StackPanel VerticalAlignment="Center">
-        <TextBlock Text="Серверы" Style="{StaticResource Text.LargeTitle}" />
-        <TextBlock Style="{StaticResource Text.Caption}" Margin="1,4,0,0">
-          <Run Text="{Binding AllNodes.Count, Mode=OneWay}" />
-          <Run Text="серверов доступно" />
-        </TextBlock>
+    <Grid Margin="0,0,0,10">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <StackPanel>
+        <TextBlock Text="Серверы" Style="{StaticResource Text.LargeTitle}"/>
+        <TextBlock x:Name="LibrarySummary" Style="{StaticResource Text.Caption}" Margin="0,3,0,0"/>
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-      <Button Content="Подписка" Style="{StaticResource SecondaryButton}" Click="AddSubscription_Click" Margin="0,0,8,0" AutomationProperties.Name="Добавить подписку" />
-      <Button Style="{StaticResource PrimaryButton}"
-              HorizontalAlignment="Right"
-              VerticalAlignment="Center"
-              Click="AddServer_Click"
-              AutomationProperties.Name="Добавить сервер вручную">
-        <StackPanel Orientation="Horizontal">
-          <Path Style="{StaticResource ToolbarIcon}"
-                Width="14"
-                Height="14"
-                Stroke="{DynamicResource OnAccentBrush}"
-                Data="{StaticResource Icon.Plus}" />
-          <TextBlock Text="Добавить" Margin="6,0,0,0" />
-        </StackPanel>
-      </Button>
+        <Button Content="Обновить все" Style="{StaticResource SecondaryButton}" Command="{Binding UpdateAllSubscriptionsCommand}" Margin="0,0,8,0"/>
+        <Button Content="＋ Добавить" Style="{StaticResource PrimaryButton}" Click="AddMenu_Click">
+          <Button.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="Добавить подписку" Click="AddSubscription_Click"/>
+              <MenuItem Header="Добавить сервер вручную" Click="AddServer_Click"/>
+            </ContextMenu>
+          </Button.ContextMenu>
+        </Button>
       </StackPanel>
     </Grid>
-
-    <Border Grid.Row="1" Style="{StaticResource AppleCard}" Padding="18,16" Margin="0,0,0,16">
-      <StackPanel>
-        <Grid Margin="0,0,0,12">
-          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-          <StackPanel Orientation="Horizontal">
-            <TextBlock Text="Как направлять трафик" Style="{StaticResource Text.BodyStrong}" VerticalAlignment="Center" />
-            <controls:InfoHint Text="Proxy Lite — только выбранные сайты через PAC. Proxy Pro — приложения с системным прокси Windows. ElyTun — весь трафик через TUN; нужны права администратора или служба-помощник." />
-          </StackPanel>
-        <ComboBox Grid.Column="1" MinHeight="30" Width="200" HorizontalAlignment="Right"
-                  AutomationProperties.Name="Ядро TUN"
-                  SelectedIndex="{Binding TunCoreIndex, Mode=TwoWay}"
-                  Visibility="{Binding ElyTunEnabled, Converter={StaticResource BoolToVis}}">
-          <ComboBoxItem Content="Ядро TUN: sing-box" />
-          <ComboBoxItem Content="Ядро TUN: Xray" />
-          <ComboBoxItem Content="Ядро TUN: tun2proxy" />
-          <ComboBoxItem Content="Ядро TUN: Hysteria 2" />
-        </ComboBox>
-        </Grid>
-        <controls:ModeSelector HorizontalAlignment="Stretch"
-                               AutomationProperties.Name="Режим подключения"
-                               ElyTunRequestCommand="{Binding RequestElyTunCommand}"
-                               ProxyLiteEnabled="{Binding SystemProxyEnabled, Mode=TwoWay}"
-                               ProxyProEnabled="{Binding ProxyProEnabled, Mode=TwoWay}"
-                               ElyTunEnabled="{Binding ElyTunEnabled, Mode=TwoWay}" />
-
-      </StackPanel>
-    </Border>
-
-    <!-- Filter bar -->
-    <Grid Grid.Row="2" Margin="0,0,0,12">
-      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="170" /><ColumnDefinition Width="150" /></Grid.ColumnDefinitions>
-      <TextBox x:Name="SearchBox"
-               MinWidth="100"
-               Margin="0,0,6,8"
-               controls:Placeholder.Text="Название, адрес, протокол…"
-               AutomationProperties.Name="Поиск по серверам"
-               TextChanged="SearchBox_TextChanged" />
-      <ComboBox x:Name="SortBox"
-                Grid.Column="1" MinWidth="0"
-                Margin="0,0,6,8"
-                AutomationProperties.Name="Сортировка серверов"
-                SelectionChanged="SortBox_SelectionChanged">
-        <ComboBoxItem Content="Как в подписке" IsSelected="True" />
-        <ComboBoxItem Content="По имени" />
-        <ComboBoxItem Content="По задержке" />
-      </ComboBox>
-      <ComboBox x:Name="ProtocolBox"
-                Grid.Column="2" MinWidth="0"
-                Margin="0,0,6,8"
-                AutomationProperties.Name="Фильтр по протоколу"
-                SelectionChanged="ProtocolBox_SelectionChanged">
-        <ComboBoxItem Content="Все протоколы" IsSelected="True" />
-        <ComboBoxItem Content="VLESS" />
-        <ComboBoxItem Content="VMess" />
-        <ComboBoxItem Content="Trojan" />
-        <ComboBoxItem Content="Shadowsocks" />
-        <ComboBoxItem Content="Hysteria2" />
-        <ComboBoxItem Content="TUIC" />
-        <ComboBoxItem Content="AnyTLS" /><ComboBoxItem Content="SSH" />
-        <ComboBoxItem Content="WireGuard" /><ComboBoxItem Content="Naive" />
-        <ComboBoxItem Content="ShadowTLS" /><ComboBoxItem Content="SOCKS" /><ComboBoxItem Content="HTTP" />
-      </ComboBox>
-      <DockPanel Grid.Row="1" Grid.ColumnSpan="3" Margin="0,4,0,0">
-        <TextBlock Text="2. Выберите сервер" Style="{StaticResource Text.Micro}" VerticalAlignment="Center" DockPanel.Dock="Left" />
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-      <Button Content="Проверить задержку"
-              Style="{StaticResource SecondaryButton}"
-              Margin="0,0,6,0"
-              Command="{Binding PingAllCommand}"
-              AutomationProperties.Name="Пинг всех серверов" />
-      <Button Content="Диагностика"
-              Style="{StaticResource SecondaryButton}"
-              Margin="0"
-              Command="{Binding RunConnectionDiagnosticsCommand}"
-              AutomationProperties.Name="Проверить соединение и скопировать безопасный отчёт" />
-      </StackPanel></DockPanel>
-    </Grid>
-
-    <!-- Server list -->
-    <Grid Grid.Row="3">
-      <Border Style="{StaticResource AppleInsetGroup}" IsHitTestVisible="False" />
-      <ListView x:Name="ServerList" Style="{StaticResource AppleListView}"
-                MouseDoubleClick="ServerList_MouseDoubleClick" KeyDown="ServerList_KeyDown"
-                ItemsSource="{Binding AllNodes}"
-                SelectedItem="{Binding SelectedNode}"
-                PreviewMouseRightButtonDown="ServerList_PreviewMouseRightButtonDown"
-                Visibility="{Binding AllNodes.Count, Converter={StaticResource NonZeroToVis}}">
-        <ListView.ItemTemplate>
-          <DataTemplate>
-            <Grid Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                  ContextMenu="{StaticResource ServerRowMenu}">
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-              </Grid.ColumnDefinitions>
-              <Border Grid.Column="0"
-                      Width="30"
-                      Height="30"
-                      CornerRadius="15"
-                      Background="{DynamicResource FillTertiaryBrush}"
-                      Margin="0,0,11,0"
-                      VerticalAlignment="Center"
-                      Visibility="{Binding DataContext.ServerBadgeMode, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BadgeVis}}">
-                <Grid>
-                  <Image Panel.ZIndex="1" Stretch="UniformToFill"
-                         RenderOptions.BitmapScalingMode="HighQuality"
-                         SnapsToDevicePixels="True">
-                    <Image.Source>
-                      <MultiBinding Converter="{StaticResource FlagImage}">
-                        <Binding Path="DisplayName" />
-                        <Binding Path="DataContext.ServerBadgeMode" RelativeSource="{RelativeSource AncestorType=UserControl}" />
-                      </MultiBinding>
-                    </Image.Source>
-                    <Image.Clip>
-                      <EllipseGeometry Center="15,15" RadiusX="15" RadiusY="15" />
-                    </Image.Clip>
-                  </Image>
-                  <TextBlock Style="{StaticResource Text.CaptionStrong}"
-                             HorizontalAlignment="Center"
-                             VerticalAlignment="Center">
-                    <TextBlock.Text>
-                      <MultiBinding Converter="{StaticResource BadgeText}">
-                        <Binding Path="DisplayName" />
-                        <Binding Path="DataContext.ServerBadgeMode" RelativeSource="{RelativeSource AncestorType=UserControl}" />
-                      </MultiBinding>
-                    </TextBlock.Text>
-                  </TextBlock>
-                </Grid>
-              </Border>
-              <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                <TextBlock Text="{Binding DisplayName}"
-                           Style="{StaticResource Text.Body}"
-                           FontWeight="Medium"
-                           TextTrimming="CharacterEllipsis"
-                           ToolTip="{Binding DisplayName}" />
-                <TextBlock Style="{StaticResource Text.Caption}" Margin="0,2,0,0">
-                  <Run Text="{Binding Address, Mode=OneWay}" />
-                  <Run Text=":" />
-                  <Run Text="{Binding Port, Mode=OneWay}" />
-                </TextBlock>
-              </StackPanel>
-              <!-- Connected marker: a plain green check (the Wi-Fi list pattern)
-                   instead of a filled pill. -->
-              <Path Grid.Column="2"
-                    Data="{StaticResource Icon.Check}"
-                    Stroke="{DynamicResource GreenBrush}"
-                    StrokeThickness="2.2"
-                    StrokeStartLineCap="Round"
-                    StrokeEndLineCap="Round"
-                    StrokeLineJoin="Round"
-                    Width="15"
-                    Height="15"
-                    Stretch="Uniform"
-                    Margin="10,0,4,0"
-                    VerticalAlignment="Center"
-                    ToolTip="Подключено"
-                    AutomationProperties.Name="Подключено">
-                <Path.Visibility>
-                  <MultiBinding Converter="{StaticResource EqualsToVis}">
-                    <Binding Path="DisplayName" />
-                    <Binding Path="DataContext.ConnectedNodeName" RelativeSource="{RelativeSource AncestorType=UserControl}" />
-                  </MultiBinding>
-                </Path.Visibility>
-              </Path>
-              <Border Grid.Column="3" Style="{StaticResource Chip}" Margin="8,0">
-                <TextBlock Text="{Binding TransportDisplay}" Style="{StaticResource ChipText}" />
-              </Border>
-              <TextBlock Grid.Column="4"
-                         Text="{Binding LatencyDisplay}"
-                         Style="{StaticResource Text.Caption}"
-                         MinWidth="72"
-                         TextAlignment="Right"
-                         VerticalAlignment="Center" />
-              <Button Grid.Column="5" Content="Подключить"
-                      Margin="12,0,0,0" Click="RowConnect_Click" AutomationProperties.Name="Подключить этот сервер">
-                <Button.Style><Style TargetType="{x:Type Button}" BasedOn="{StaticResource GhostButton}">
-                  <Style.Triggers><DataTrigger Binding="{Binding DataContext.IsLoading, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True"><Setter Property="IsEnabled" Value="False" /></DataTrigger></Style.Triggers>
-                </Style></Button.Style>
-              </Button>
-            </Grid>
-          </DataTemplate>
-        </ListView.ItemTemplate>
-      </ListView>
-
-      <controls:EmptyState Title="Ничего не найдено" Description="Попробуйте другое название или сбросьте фильтры." ActionText="Сбросить фильтры" x:Name="NoSearchResults">
-        <controls:EmptyState.Style>
-          <Style TargetType="{x:Type controls:EmptyState}">
-            <Setter Property="Visibility" Value="Collapsed" />
-            <Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions>
-              <Condition Binding="{Binding AllNodes.Count, Converter={StaticResource NonZeroToVis}}" Value="Visible" />
-              <Condition Binding="{Binding HasItems, ElementName=ServerList}" Value="False" />
-            </MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger></Style.Triggers>
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <ListBox x:Name="SubscriptionTabs" Background="Transparent" BorderThickness="0" SelectionChanged="SubscriptionTabs_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled" Margin="0,0,0,10">
+        <ListBox.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal"/>
+          </ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
+        <ListBox.ItemContainerStyle>
+          <Style TargetType="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="Foreground" Value="{DynamicResource FgSecBrush}"/>
+            <Setter Property="Template">
+              <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                  <Border x:Name="Pill" Padding="{TemplateBinding Padding}" CornerRadius="8" Background="{DynamicResource FillTertiaryBrush}" BorderBrush="{DynamicResource BorderBr}" BorderThickness="1">
+                    <ContentPresenter/>
+                  </Border>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                      <Setter TargetName="Pill" Property="Background" Value="{DynamicResource SelectionBrush}"/>
+                      <Setter TargetName="Pill" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                    </Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate>
+              </Setter.Value>
+            </Setter>
           </Style>
-        </controls:EmptyState.Style>
-      </controls:EmptyState>
-      <controls:SkeletonList Rows="6">
-        <controls:SkeletonList.Visibility>
-          <MultiBinding Converter="{StaticResource BoolAndZeroToVis}">
-            <Binding Path="IsLoading" />
-            <Binding Path="AllNodes.Count" />
-          </MultiBinding>
-        </controls:SkeletonList.Visibility>
-      </controls:SkeletonList>
-
-      <controls:EmptyState x:Name="EmptyServers"
-                           Glyph="{StaticResource Icon.Servers}"
-                           Title="Серверов пока нет"
-                           Description="Добавьте подписку, выберите сервер и подключитесь. Поддерживаются VLESS, VMess, Trojan, Shadowsocks, Hysteria2 и TUIC; ядро TUN выбирается в настройках."
-                           ActionText="Добавить подписку"
-                           Visibility="{Binding AllNodes.Count, Converter={StaticResource ZeroToVis}}" />
+        </ListBox.ItemContainerStyle>
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+              <Border Background="{DynamicResource FillSecondaryBrush}" CornerRadius="8" Padding="6,1" Margin="8,0,0,0">
+                <TextBlock Text="{Binding Count}" FontSize="11"/>
+              </Border>
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <ComboBox Grid.Column="1" x:Name="SourcePicker" Width="205" MinWidth="0" Margin="8,0,0,10" Visibility="Collapsed" DisplayMemberPath="Name" SelectedItem="{Binding SelectedItem, ElementName=SubscriptionTabs, Mode=TwoWay}" ToolTip="Быстрый выбор из всех подписок" AutomationProperties.Name="Выбрать подписку"/>
     </Grid>
-
-    <!-- Row actions -->
-    <Grid Grid.Row="4" Margin="0,12,0,0">
-      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-      <WrapPanel>
-        <Button Content="Проверить компоненты"
-                Style="{StaticResource GhostButton}"
-                Command="{Binding CheckRuntimeComponentsCommand}"
-                Visibility="{Binding AllNodes.Count, Converter={StaticResource ZeroToVis}}"
-                AutomationProperties.Name="Проверить наличие Xray, sing-box и rule-set файлов" />
-        <Button Content="В профиль"
-                Style="{StaticResource SecondaryButton}"
-                Command="{Binding AddToProfileCommand}"
-                AutomationProperties.Name="Добавить выбранный сервер в профиль" />
-        <Button Content="Копировать прокси"
-                Style="{StaticResource GhostButton}"
-                Margin="6,0,0,0"
-                Command="{Binding CopyProxyCommand}"
-                AutomationProperties.Name="Копировать адрес прокси" />
-        <Button Content="Копировать отчёт"
-                Style="{StaticResource GhostButton}"
-                Margin="6,0,0,0"
-                Command="{Binding CopyDiagnosticsCommand}"
-                Visibility="{Binding HasDiagnosticsReport, Converter={StaticResource BoolToVis}}"
-                AutomationProperties.Name="Копировать безопасный отчёт диагностики" />
-      </WrapPanel>
-      <TextBlock Grid.Row="1" Margin="0,6,0,0" Text="{Binding PingSummary}"
-                 Style="{StaticResource Text.Caption}"
-                 VerticalAlignment="Bottom"
-                 HorizontalAlignment="Left"
-                 MaxWidth="420"
-                 TextTrimming="CharacterEllipsis"
-                 ToolTip="{Binding PingSummary}"
-                 Visibility="{Binding HasPingSummary, Converter={StaticResource BoolToVis}}" />
+    <Grid Grid.Row="2" Margin="0,0,0,8">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="140"/>
+        <ColumnDefinition Width="145"/>
+        <ColumnDefinition Width="140"/>
+      </Grid.ColumnDefinitions>
+      <TextBox x:Name="SearchBox" controls:Placeholder.Text="Сервер, страна или адрес…" AutomationProperties.Name="Поиск по серверам" TextChanged="SearchBox_TextChanged" Margin="0,0,8,0"/>
+      <ComboBox MinWidth="0" x:Name="CountryBox" Grid.Column="1" Margin="0,0,8,0" DisplayMemberPath="Name" SelectionChanged="CountryBox_SelectionChanged" AutomationProperties.Name="Страна"/>
+      <ComboBox MinWidth="0" x:Name="SortBox" Grid.Column="2" Margin="0,0,8,0" SelectionChanged="SortBox_SelectionChanged" AutomationProperties.Name="Сортировка серверов">
+        <ComboBoxItem Content="Как в подписке" IsSelected="True"/>
+        <ComboBoxItem Content="По имени"/>
+        <ComboBoxItem Content="По задержке"/>
+      </ComboBox>
+      <ComboBox MinWidth="0" x:Name="ProtocolBox" Grid.Column="3" SelectionChanged="ProtocolBox_SelectionChanged" AutomationProperties.Name="Протокол">
+        <ComboBoxItem Content="Все протоколы" IsSelected="True"/>
+        <ComboBoxItem Content="VLESS"/>
+        <ComboBoxItem Content="VMess"/>
+        <ComboBoxItem Content="Trojan"/>
+        <ComboBoxItem Content="Shadowsocks"/>
+        <ComboBoxItem Content="Hysteria2"/>
+        <ComboBoxItem Content="TUIC"/>
+        <ComboBoxItem Content="AnyTLS"/>
+        <ComboBoxItem Content="SSH"/>
+        <ComboBoxItem Content="WireGuard"/>
+        <ComboBoxItem Content="Naive"/>
+        <ComboBoxItem Content="ShadowTLS"/>
+        <ComboBoxItem Content="SOCKS"/>
+        <ComboBoxItem Content="HTTP"/>
+      </ComboBox>
+    </Grid>
+    <Grid Grid.Row="3" Margin="0,0,0,8">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <StackPanel Orientation="Horizontal">
+        <Button x:Name="AllTab" Content="Все" Tag="all" Click="Scope_Click" Style="{StaticResource GhostButton}"/>
+        <Button x:Name="FavoritesTab" Content="Избранное" Tag="favorites" Click="Scope_Click" Style="{StaticResource GhostButton}"/>
+        <Button x:Name="RecentTab" Content="Недавние" Tag="recent" Click="Scope_Click" Style="{StaticResource GhostButton}"/>
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal">
+        <Button Content="Проверить задержку" ToolTip="Проверить все серверы, включая скрытые фильтрами" Style="{StaticResource SecondaryButton}" Command="{Binding PingAllCommand}" Margin="0,0,6,0"/>
+        <Button Content="Диагностика" Style="{StaticResource SecondaryButton}" Command="{Binding RunConnectionDiagnosticsCommand}"/>
+      </StackPanel>
+    </Grid>
+    <Border Grid.Row="4" Style="{StaticResource AppleInsetGroup}" ClipToBounds="True">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="32"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Grid Margin="12,0,26,0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="36"/>
+            <ColumnDefinition Width="41"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="125"/>
+            <ColumnDefinition Width="105"/>
+            <ColumnDefinition Width="70"/>
+            <ColumnDefinition Width="32"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock Text="☆" VerticalAlignment="Center" Foreground="{DynamicResource FgDimBrush}"/>
+          <TextBlock Grid.Column="2" Text="Сервер" Style="{StaticResource Text.Caption}" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="3" Text="Подписка" Style="{StaticResource Text.Caption}" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="4" Text="Протокол" Style="{StaticResource Text.Caption}" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="5" Text="Задержка" Style="{StaticResource Text.Caption}" VerticalAlignment="Center"/>
+        </Grid>
+        <ListView Grid.Row="1" x:Name="ServerList" Style="{StaticResource AppleListView}" SelectionChanged="ServerList_SelectionChanged" MouseDoubleClick="ServerList_MouseDoubleClick" KeyDown="ServerList_KeyDown" PreviewMouseRightButtonDown="ServerList_PreviewMouseRightButtonDown" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True" VirtualizingPanel.ScrollUnit="Pixel">
+          <ListView.Template>
+            <ControlTemplate TargetType="ListView">
+              <ScrollViewer Focusable="False" CanContentScroll="True" behaviors:SmoothScroll.IsEnabled="True" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <ItemsPresenter/>
+              </ScrollViewer>
+            </ControlTemplate>
+          </ListView.Template>
+          <ListView.ItemsPanel>
+            <ItemsPanelTemplate>
+              <VirtualizingStackPanel/>
+            </ItemsPanelTemplate>
+          </ListView.ItemsPanel>
+          <ListView.ItemContainerStyle>
+            <Style TargetType="ListViewItem">
+              <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+              <Setter Property="Padding" Value="12,5"/>
+              <Setter Property="Foreground" Value="{DynamicResource FgBrush}"/>
+              <Setter Property="Template">
+                <Setter.Value>
+                  <ControlTemplate TargetType="ListViewItem">
+                    <Border x:Name="Row" Padding="{TemplateBinding Padding}" Background="Transparent" BorderBrush="{DynamicResource BorderBr}" BorderThickness="0,0,0,1">
+                      <ContentPresenter/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                      <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource FillTertiaryBrush}"/>
+                      </Trigger>
+                      <Trigger Property="IsSelected" Value="True">
+                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource SelectionBrush}"/>
+                      </Trigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </Setter.Value>
+              </Setter>
+            </Style>
+          </ListView.ItemContainerStyle>
+          <ListView.ItemTemplate>
+            <DataTemplate>
+              <Grid Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}" ContextMenu="{StaticResource ServerRowMenu}">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="36"/>
+                  <ColumnDefinition Width="41"/>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="125"/>
+                  <ColumnDefinition Width="105"/>
+                  <ColumnDefinition Width="70"/>
+                  <ColumnDefinition Width="32"/>
+                </Grid.ColumnDefinitions>
+                <Button Content="{Binding FavoriteGlyph}" Padding="0" MinHeight="30" FontSize="21" Click="Favorite_Click" ToolTip="Добавить или убрать из избранного" AutomationProperties.Name="Избранное">
+                  <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource GhostButton}">
+                      <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsFavorite}" Value="True">
+                          <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Button.Style>
+                </Button>
+                <Border Grid.Column="1" Width="30" Height="30" CornerRadius="15" Background="{DynamicResource FillTertiaryBrush}" Margin="0,0,11,0" VerticalAlignment="Center" Visibility="{Binding DataContext.ServerBadgeMode, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BadgeVis}}">
+                  <Grid>
+                    <Image Panel.ZIndex="1" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True">
+                      <Image.Source>
+                        <MultiBinding Converter="{StaticResource FlagImage}">
+                          <Binding Path="Node.DisplayName"/>
+                          <Binding Path="DataContext.ServerBadgeMode" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
+                        </MultiBinding>
+                      </Image.Source>
+                      <Image.Clip>
+                        <EllipseGeometry Center="15,15" RadiusX="15" RadiusY="15"/>
+                      </Image.Clip>
+                    </Image>
+                    <TextBlock Style="{StaticResource Text.CaptionStrong}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                      <TextBlock.Text>
+                        <MultiBinding Converter="{StaticResource BadgeText}">
+                          <Binding Path="Node.DisplayName"/>
+                          <Binding Path="DataContext.ServerBadgeMode" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
+                        </MultiBinding>
+                      </TextBlock.Text>
+                    </TextBlock>
+                  </Grid>
+                </Border>
+                <Grid Grid.Column="2" VerticalAlignment="Center" Margin="0,0,10,0">
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                  </Grid.RowDefinitions>
+                  <TextBlock Text="{Binding Name}" Padding="0,0,12,0" Style="{StaticResource Text.BodyStrong}" FontSize="13" LineHeight="18" TextTrimming="CharacterEllipsis" ToolTip="{Binding Node.DisplayName}"/>
+                  <Ellipse Width="6" Height="6" Fill="{DynamicResource GreenBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" Visibility="{Binding IsActive, Converter={StaticResource BoolToVis}}" ToolTip="Подключено"/>
+                  <TextBlock Grid.Row="1" Text="{Binding Address}" Style="{StaticResource Text.Caption}" FontSize="11" LineHeight="14" TextTrimming="CharacterEllipsis" ToolTip="{Binding Address}"/>
+                </Grid>
+                <TextBlock Grid.Column="3" Text="{Binding SubscriptionName}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,8,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding SubscriptionName}"/>
+                <Border Grid.Column="4" Style="{StaticResource Chip}" HorizontalAlignment="Left" MaxWidth="99">
+                  <TextBlock Text="{Binding Node.ProtocolDisplay}" Style="{StaticResource ChipText}"/>
+                </Border>
+                <TextBlock Grid.Column="5" Text="{Binding Node.LatencyDisplay}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" ToolTip="{Binding Node.PingDetails}"/>
+                <Button Grid.Column="6" Content="⋯" Style="{StaticResource GhostButton}" Padding="0" MinHeight="30" Click="RowMenu_Click" ToolTip="Действия с сервером" AutomationProperties.Name="Действия с сервером"/>
+              </Grid>
+            </DataTemplate>
+          </ListView.ItemTemplate>
+        </ListView>
+        <controls:EmptyState Grid.Row="1" x:Name="NoSearchResults" Title="Ничего не найдено" Description="Измените поиск, подписку или фильтры." ActionText="Сбросить фильтры" Visibility="Collapsed"/>
+        <controls:EmptyState Grid.Row="1" x:Name="EmptyServers" Title="Серверов пока нет" Description="Добавьте подписку или сервер вручную." ActionText="Добавить подписку" Visibility="Collapsed"/>
+      </Grid>
+    </Border>
+    <Grid Grid.Row="5" Margin="0,8,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <TextBlock x:Name="ResultSummary" Style="{StaticResource Text.Caption}"/>
+      <TextBlock Grid.Column="1" Text="{Binding PingSummary}" Style="{StaticResource Text.Caption}" HorizontalAlignment="Right" MaxWidth="240" TextTrimming="CharacterEllipsis" ToolTip="{Binding PingSummary}" Margin="16,0,0,0"/>
+      <Button Grid.Column="2" Content="Копировать отчёт" Style="{StaticResource LinkButton}" Margin="12,0,0,0" Command="{Binding CopyDiagnosticsCommand}" Visibility="{Binding HasDiagnosticsReport, Converter={StaticResource BoolToVis}}"/>
+      <Button Grid.Column="3" Content="Проверить компоненты" Style="{StaticResource LinkButton}" Margin="12,0,0,0" Command="{Binding CheckRuntimeComponentsCommand}" Visibility="{Binding AllNodes.Count, Converter={StaticResource ZeroToVis}}"/>
     </Grid>
   </Grid>
 </UserControl>
