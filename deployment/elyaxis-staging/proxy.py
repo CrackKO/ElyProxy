@@ -61,8 +61,8 @@ ATLAS_SOFT_LINKS = {
 }
 ATLAS_ELYPROXY_LINKS = {
     "internal": "https://elysiumhub.org/safestorage/elyproxywindows",
-    "release": "https://github.com/CrackKO/ElyProxy/releases/tag/v1.4.0",
-    "old": "https://github.com/CrackKO/ElyProxy/releases/tag/v1.3.6",
+    "release": "https://github.com/CrackKO/ElyProxy/releases/tag/v1.4.3",
+    "old": "https://github.com/CrackKO/ElyProxy/releases/tag/v1.4.0",
     "repo": "https://github.com/CrackKO/ElyProxy",
 }
 ATLAS_SHADOWSOCKS_BROWSER_LINKS = {
@@ -170,8 +170,8 @@ TRANSLATIONS = {
         "button_atlas_soft_elyproxy_windows": "🪟 ElyProxy Windows",
         "atlas_soft_elyproxy_title": "🪟 ElyProxy Windows",
         "button_atlas_soft_elyproxy_internal": "📥 Скачать с сервера",
-        "button_atlas_soft_elyproxy_release": "Свежая (GIT 1.4.0)",
-        "button_atlas_soft_elyproxy_old": "Прошлая (GIT 1.3.6)",
+        "button_atlas_soft_elyproxy_release": "Свежая (GIT 1.4.3)",
+        "button_atlas_soft_elyproxy_old": "Прошлая (GIT 1.4.0)",
         "button_atlas_soft_elyproxy_repo": "🧩 GitHub Репозиторий",
         "button_atlas_vless_normal": "Получить Normal Ключ",
         "button_atlas_vless_whitelist": "Получить Whitelist Ключ",
@@ -314,8 +314,8 @@ TRANSLATIONS = {
         "button_atlas_soft_elyproxy_windows": "🪟 ElyProxy Windows",
         "atlas_soft_elyproxy_title": "🪟 ElyProxy Windows",
         "button_atlas_soft_elyproxy_internal": "📥 Download from internal server",
-        "button_atlas_soft_elyproxy_release": "Latest (GIT 1.4.0)",
-        "button_atlas_soft_elyproxy_old": "Previous (GIT 1.3.6)",
+        "button_atlas_soft_elyproxy_release": "Latest (GIT 1.4.3)",
+        "button_atlas_soft_elyproxy_old": "Previous (GIT 1.4.0)",
         "button_atlas_soft_elyproxy_repo": "🧩 GitHub Repository",
         "button_atlas_vless_normal": "Get Normal Key",
         "button_atlas_vless_whitelist": "Get Whitelist Key",
@@ -458,8 +458,8 @@ TRANSLATIONS = {
         "button_atlas_soft_elyproxy_windows": "🪟 ElyProxy Windows",
         "atlas_soft_elyproxy_title": "🪟 ElyProxy Windows",
         "button_atlas_soft_elyproxy_internal": "📥 تنزيل من الخادم الداخلي",
-        "button_atlas_soft_elyproxy_release": "Latest (GIT 1.4.0)",
-        "button_atlas_soft_elyproxy_old": "Previous (GIT 1.3.6)",
+        "button_atlas_soft_elyproxy_release": "Latest (GIT 1.4.3)",
+        "button_atlas_soft_elyproxy_old": "Previous (GIT 1.4.0)",
         "button_atlas_soft_elyproxy_repo": "🧩 مستودع GitHub",
         "button_atlas_vless_normal": "الحصول على المفتاح العادي",
         "button_atlas_vless_whitelist": "الحصول على مفتاح القائمة البيضاء",

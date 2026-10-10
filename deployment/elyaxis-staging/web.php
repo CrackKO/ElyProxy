@@ -32,11 +32,11 @@ Route::get('/safestorage/happiosru', function () {
 });
 
 Route::get('/safestorage/elyproxywindows', function () {
-    $path = storage_path('app/public/downloads/ElyProxy-v1.4.0-win-x64.zip');
+    $path = storage_path('app/public/downloads/ElyProxy-1.4.3-win-x64.zip');
     if (!file_exists($path)) {
         abort(404);
     }
-    return response()->download($path, 'ElyProxy-v1.4.0-win-x64.zip');
+    return response()->download($path, 'ElyProxy-1.4.3-win-x64.zip');
 });
 
 Route::get('/safestorage/happandroidapk', function () {
