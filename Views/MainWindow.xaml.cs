@@ -35,7 +35,6 @@ public partial class MainWindow : Window
         InitTrayIcon();
         InitShortcuts();
 
-        ThemeService.Current.Attach(this);
         DialogService.Current.Attach(SheetHost, ToastHost);
 
         SourceInitialized += (_, _) => WindowChromeHelper.Configure(this, MaximizeButton);
@@ -139,6 +138,15 @@ public partial class MainWindow : Window
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // Some view-model properties can change on background threads (for
+        // example LogText while a core prints to its log). WPF controls must
+        // only be touched from the dispatcher, so hop over when needed.
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.InvokeAsync(() => OnViewModelPropertyChanged(sender, e));
+            return;
+        }
+
         if (e.PropertyName == nameof(MainViewModel.ShowLogs))
         {
             ApplyLogDrawerState(animate: true);

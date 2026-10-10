@@ -82,8 +82,6 @@ public class AppSettings
 
 	public string ThemeMode { get; set; } = "System";
 
-	public string BackdropMode { get; set; } = "Auto";
-
 	public string MotionMode { get; set; } = "System";
 
 	public string ServerBadgeMode { get; set; } = "Flag";

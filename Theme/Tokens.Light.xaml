@@ -29,9 +29,10 @@
   <Color x:Key="Yellow">#FFCC00</Color>
   <Color x:Key="Teal">#5AC8FA</Color>
 
-  <Color x:Key="MaterialThin">#66FFFFFF</Color>
-  <Color x:Key="MaterialRegular">#CCF2F2F7</Color>
-  <Color x:Key="MaterialThick">#F2FFFFFF</Color>
+  <!-- Opaque surface tints (no window backdrop/blur) -->
+  <Color x:Key="MaterialThin">#FFF2F2F7</Color>
+  <Color x:Key="MaterialRegular">#FFFFFFFF</Color>
+  <Color x:Key="MaterialThick">#FFFFFFFF</Color>
   <Color x:Key="Scrim">#40000000</Color>
   <Color x:Key="Skeleton">#14000000</Color>
 

@@ -11,7 +11,6 @@ namespace ElyProxy.ViewModels;
 public partial class MainViewModel
 {
     private string _themeMode = "System";
-    private string _backdropMode = "Auto";
     private string _motionMode = "System";
     private string _serverBadgeMode = "Flag";
 
@@ -42,14 +41,6 @@ public partial class MainViewModel
         new KeyValuePair<string, string>("Dark", "Тёмная")
     };
 
-    public IReadOnlyList<KeyValuePair<string, string>> BackdropModeOptions { get; } = new[]
-    {
-        new KeyValuePair<string, string>("Auto", "Авто"),
-        new KeyValuePair<string, string>("Mica", "Mica — лёгкое размытие"),
-        new KeyValuePair<string, string>("Acrylic", "Acrylic — сильное размытие"),
-        new KeyValuePair<string, string>("None", "Выключено")
-    };
-
     public IReadOnlyList<KeyValuePair<string, string>> MotionModeOptions { get; } = new[]
     {
         new KeyValuePair<string, string>("System", "Как в системе"),
@@ -64,19 +55,6 @@ public partial class MainViewModel
         {
             var normalized = Normalize(value, "System", "Light", "Dark");
             if (SetProperty(ref _themeMode, normalized, nameof(ThemeMode)))
-            {
-                ApplyAppearanceSettings();
-            }
-        }
-    }
-
-    public string BackdropMode
-    {
-        get => _backdropMode;
-        set
-        {
-            var normalized = Normalize(value, "Auto", "Mica", "Acrylic", "None");
-            if (SetProperty(ref _backdropMode, normalized, nameof(BackdropMode)))
             {
                 ApplyAppearanceSettings();
             }
@@ -99,7 +77,6 @@ public partial class MainViewModel
     private void ApplyAppearanceSettings()
     {
         ThemeService.Current.SetThemeMode(ParseMode(_themeMode, AppThemeMode.System));
-        ThemeService.Current.SetBackdropMode(ParseMode(_backdropMode, AppBackdropMode.Auto));
         ThemeService.Current.SetMotionMode(ParseMode(_motionMode, Controls.Motion.MotionMode.System));
 
         if (!_isLoadingSettings)

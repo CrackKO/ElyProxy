@@ -35,7 +35,9 @@ internal static class Program
 		switch (command)
 		{
 		case "install":
-			Environment.ExitCode = Install();
+			Environment.ExitCode = Install(
+				args.Length > 1 ? args[1] : null,
+				args.Length > 2 ? args[2] : null);
 			return;
 		case "uninstall":
 			Environment.ExitCode = Uninstall();
@@ -69,11 +71,24 @@ internal static class Program
 		server.Stop();
 	}
 
-	private static int Install()
+	private static int Install(string? sourceDirectory, string? targetDirectory)
 	{
-		string executable = Environment.ProcessPath ?? throw new InvalidOperationException("Не удалось определить путь ElyProxy.Helper.exe.");
+		string ownExecutable = Environment.ProcessPath ?? throw new InvalidOperationException("Не удалось определить путь ElyProxy.Helper.exe.");
+		string executable = ownExecutable;
 		RunSc($"stop {ServiceName}");
 		RunSc($"delete {ServiceName}");
+		// The service must not run from the ElyProxy installation folder: while
+		// it runs, its files are locked and the updater cannot replace them.
+		// After the old instance stopped, refresh the payload from the source
+		// directory into the target (usually %LocalAppData%\ElyProxy\service).
+		if (!string.IsNullOrWhiteSpace(sourceDirectory)
+			&& !string.IsNullOrWhiteSpace(targetDirectory)
+			&& Directory.Exists(sourceDirectory))
+		{
+			Directory.CreateDirectory(targetDirectory);
+			CopyDirectory(sourceDirectory, targetDirectory);
+			executable = Path.Combine(targetDirectory, Path.GetFileName(ownExecutable));
+		}
 		if (!RunSc($"create {ServiceName} binPath= \"\\\"{executable}\\\" run\" start= auto DisplayName= \"ElyProxy Helper Service\""))
 		{
 			Console.Error.WriteLine("Не удалось создать службу " + ServiceName + ".");
@@ -87,6 +102,31 @@ internal static class Program
 		}
 		Console.WriteLine("Служба ElyProxyHelper установлена.");
 		return 0;
+	}
+
+	private static void CopyDirectory(string source, string destination)
+	{
+		Directory.CreateDirectory(destination);
+		foreach (string file in Directory.EnumerateFiles(source))
+		{
+			string target = Path.Combine(destination, Path.GetFileName(file));
+			try
+			{
+				File.Copy(file, target, overwrite: true);
+			}
+			catch (IOException)
+			{
+				// A file can still be locked for a moment; the service keeps
+				// working with the previous copy.
+			}
+			catch (UnauthorizedAccessException)
+			{
+			}
+		}
+		foreach (string directory in Directory.EnumerateDirectories(source))
+		{
+			CopyDirectory(directory, Path.Combine(destination, Path.GetFileName(directory)));
+		}
 	}
 
 	private static int Uninstall()

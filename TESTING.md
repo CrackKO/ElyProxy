@@ -5,7 +5,7 @@
 релизные критерии. Правило проекта: **новый функционал без теста или кейса
 в этом документе считается незавершённым.**
 
-- Актуальный прогон: **236 тестов** в `tests/ElyProxy.Tests` (30 файлов), 0 пропусков.
+- Актуальный прогон: **246 тестов** в `tests/ElyProxy.Tests` (33 файла), 0 пропусков.
 - Pester (валидация релизного скрипта): `Invoke-Pester -Path tools` — 11 тестов.
 - CI дополнительно публикует пакет и проверяет его состав (updater/helper/sing-box/22 rule-set).
 - Запуск: `dotnet test` из корня репозитория.
@@ -65,6 +65,8 @@
 | `ConnectionDiagnosticsServiceTests` | 4 проверки диагностики + маскирование UUID в отчёте | 1 |
 | `CoreUpdateServiceTests` | парсинг версий релизов, список ядер, display names | 7 |
 | `CoreUpdateServiceInstallTests` | релиз GitHub (digest/URL), установка архива, откат (версия/архив/SHA) | 12 |
+| `CoreProcessCleanupTests` | очистка зависших ядер: только свои каталоги, регистр, префиксы | 6 |
+| `DirectoryReplacerTests` | апдейтер: залоченные файлы пропускаются, а не ломают установку | 3 |
 | `ElyTunAvailabilityPolicyTests` | гейт «админ ИЛИ (helper включён + запущен)» | 6 |
 | `FlagCatalogTests` | код страны из имени, алиасы UK/EL, 250+ файлов флагов | 21 |
 | `GeoDataUpdateServiceTests` | geoip/geosite: установка, откат, битый digest, URL | 5 |
@@ -74,6 +76,7 @@
 | `MainWindowLayoutTests` | XAML-регрессии: перенос статуса в сайдбаре, тултипы у обрезаемых текстов | 2 |
 | `PackageExtractorTests` | zip-slip: traversal/абсолютные пути, нормальная распаковка | 12 |
 | `PacServerServiceTests` | реальный loopback-сервер: PAC, 404, занятый порт | 3 |
+| `ProcessJobTests` | ядра назначаются в kill-on-close job object | 1 |
 | `ParserServiceTests` | все протоколы, IPv6, base64, невалидные порты | 12 |
 | `RuntimePreflightServiceTests` | ядра, rule-set, права ElyTun (admin/helper/UAC) | 3 |
 | `ShareExportTests` | share-link round-trip, Clash YAML, v2rayN JSON | 9 |
@@ -95,7 +98,7 @@
 
 | Harness | Что делает | Проверка |
 |---|---|---|
-| `elyproxy-smoke` | рендерит окно и все секции off-screen; ассерты: токены Light↔Dark, ComboBox foreground, ModeSelector height/синк, alpha оболочки, шиты/тосты; собирает binding warnings | `RENDERED OK`, `TRACE_COUNT=0`, `CHECKS_FAILED=0` + скриншоты |
+| `elyproxy-smoke` | рендерит окно и все секции off-screen; ассерты: токены Light↔Dark, ComboBox foreground, ModeSelector height/синк, непрозрачные поверхности (без размытия), шиты/тосты, фоновое обновление журнала; собирает binding warnings | `RENDERED OK`, `TRACE_COUNT=0`, `CHECKS_FAILED=0` + скриншоты |
 | `helper-check` | полный цикл через pipe: start/stop xray как служба | `HELPER OK` |
 | `probe-check` | пробы пинга: старт, отказ битого конфига, отсутствие утечек процессов | `PROBE OK` |
 | `sub-parse-check` | парсинг реальной подписки из файла | число нод/строки |
@@ -209,6 +212,7 @@ mtu, autoRoute, исключения). Пробел: валидация конф
 | HTTP 503 при скачивании | ошибка, `.partial` удалён | чистота каталога |
 | Потоковый лимит 750 МиБ | закодирован, но не юнит-тестируется (объём) | защита от отсутствия Content-Length |
 | Updater: zip-slip | `InvalidDataException`, ничего вне staging | запись в системные папки |
+| Updater: залоченные файлы | пропускаются (`DirectoryReplacer`), установка не ломается; пропуски в `updater.log` | служба-помощник из папки программы держала `ElyProxy.Helper.dll` |
 | Updater: откат бэкапа | старая версия восстановлена (E2E вручную) | «кирпич» установки |
 | Updater: wait-pid timeout | сообщение, отказ | обновление поверх работающего клиента |
 
@@ -221,6 +225,9 @@ CLI-контракт updater (`UpdaterArguments`, `InstallPreflight`) и zip-sli
 `HelperProtocolTests`: allowlist (ровно 4 ядра, регистронезависимо, файл
 обязан существовать), десериализация запроса, фабрики событий.
 `helper-check`: start/stop xray через pipe, события, отсутствие утечек.
+Payload службы ставится из temp-копии в `%LocalAppData%\ElyProxy\service`
+(не из папки программы), поэтому работающая служба не блокирует обновления;
+`RefreshHelperStatus` предупреждает, если служба ещё работает из папки программы.
 Осталось вручную: exit-коды install (0/1/2)/uninstall, ACL канала
 (SYSTEM/Administrators Full, AuthenticatedUsers RW), kill-all при обрыве
 сессии (проверено вручную — 7 процессов убиты службой).
@@ -231,6 +238,9 @@ CLI-контракт updater (`UpdaterArguments`, `InstallPreflight`) и zip-sli
 |---|---|---|
 | `probe-check`: валидная/битая нода | старт ~300 мс / отказ ~100 мс, без утечек | регрессия deadlock (ConfigureAwait) |
 | Dispose менеджеров с UI-потока | не блокируется дольше bounded-ожиданий | зависание приложения (был реальный баг) |
+| Краш приложения | ядра умирают вместе с ним (job object, kill-on-close) | осиротевшие ядра держали порт 1080 |
+| Запуск после краха | `KillStaleCores` убивает зависшие ядра прошлого запуска | порт 1080 остаётся занят |
+| Фоновое обновление журнала | без исключений на фоновых потоках (network/power события) | молчаливый краш VerifyAccess (был реальный баг) |
 | TUN 4 ядра × (connect/DNS/per-app/reconnect/crash/stop) | E2E вручную | полный туннель |
 | Гейт ElyTun | admin ИЛИ (helper включён + служба запущена) — политика покрыта тестом | лишние UAC / отказ без прав |
 | Восстановление режима при старте | сохранённый ElyTun включается через helper без UAC | UX после перезапуска |
@@ -251,9 +261,10 @@ Recovery: журнал при старте, сохранение пользов�
 ### 5.12 UI, темы, флаги
 
 Smoke harness: рендер окна/секций, `TRACE_COUNT=0`, скриншоты. Флаги: парсинг
-кода + наличие 250+ PNG. Вручную: 3 темы, HC, reduced motion, transparency,
+кода + наличие 250+ PNG. Вручную: 3 темы, HC, reduced motion,
 DPI 100/125/150, 900×620 и 1080×740, длинные имена, пустые состояния,
-скелетоны, шиты/тосты, трей, Snap Layouts. Структурные регрессии вёрстки:
+скелетоны, шиты/тосты, трей, Snap Layouts. Размытие (Mica/Acrylic) удалено:
+окно и все поверхности непрозрачные. Структурные регрессии вёрстки:
 `MainWindowLayoutTests` — статус в сайдбар-карточке обязан переноситься
 (Grid с `*`-колонкой, не горизонтальный StackPanel), у всех обрезаемых
 (`TextTrimming`) текстов оболочки есть тултип с полным текстом.
@@ -276,13 +287,13 @@ smoke-прогон 1000 нод, замер памяти (P3).
 
 | Ось | Значения | Что проверяем |
 |---|---|---|
-| ОС | Windows 10 22H2, Windows 11 | Mica/Acrylic fallback, Snap Layouts |
+| ОС | Windows 10 22H2, Windows 11 | непрозрачное окно (без Mica/Acrylic), Snap Layouts |
 | Права | без админа, админ | ElyTun гейты, UAC-handoff |
 | Helper | не установлен / установлен+запущен / остановлен | отсутствие лишних UAC |
 | Ядра | все на месте / отсутствуют / битые | preflight, понятные ошибки |
 | Сеть | online / offline / CDN-домены / DNS-fail | подписки, reconnect, пробы |
 | Темы | Light / Dark / High Contrast | токены, контраст |
-| Motion | обычная / reduced / transparency off | отключение анимаций |
+| Motion | обычная / reduced | отключение анимаций |
 | DPI | 100% / 125% / 150% | обрезка текста, иконки |
 | Культура | ru-RU, en-US | форматы дат/чисел |
 | Нагрузка | 1 нода / 1000 нод | виртуализация, скролл, память |
@@ -316,8 +327,8 @@ smoke-прогон 1000 нод, замер памяти (P3).
 ### P3 — внедрено (третий шаг)
 
 - Smoke harness расширен до контракта: токены Light↔Dark, ComboBox foreground
-  в обеих темах, ModeSelector height/синк, alpha оболочки, шиты/тосты;
-  печатает `RENDERED OK` / `CHECKS_FAILED=0`.
+  в обеих темах, ModeSelector height/синк, непрозрачные поверхности, шиты/тосты,
+  фоновое обновление журнала; печатает `RENDERED OK` / `CHECKS_FAILED=0`.
 - Pester-тесты релизного скрипта (11): версия csproj, запрет перезаписи,
   обязательные файлы, ровно 22 rule-set. Валидация вынесена в
   `tools/ElyProxyUpdateValidation.ps1`, запуск — `Invoke-Pester -Path tools`.
@@ -379,7 +390,7 @@ smoke-прогон 1000 нод, замер памяти (P3).
 - [ ] Пустой/битый ответ не стирает серверы; фильтр/сорт; 80%/3 дня.
 
 **UI**
-- [ ] Light/Dark/HC; reduced motion; transparency; DPI 125/150.
+- [ ] Light/Dark/HC; reduced motion; непрозрачные поверхности; DPI 125/150.
 - [ ] 900×620 и 1080×740; длинные имена; пустые состояния; скелетоны.
 - [ ] Шиты/тосты, журнал (поиск/уровни), трей-меню, single-instance, Snap Layouts.
 - [ ] Флаги стран у всех нод; режим бейджа Flag/Monogram/None.
@@ -401,8 +412,8 @@ smoke-прогон 1000 нод, замер памяти (P3).
 3. **Потоковый лимит 750 МиБ** в `DownloadVerifiedPackageAsync` не
    юнит-тестируется (нужен поток >750 МиБ); покрыт Content-Length-кейс.
 4. **Smoke harness** собирает binding warnings и ассерты контракта (токены,
-   ComboBox, ModeSelector, alpha, шиты/тосты); запускать при закрытом
-   приложении (см. пункт 8).
+   ComboBox, ModeSelector, alpha, шиты/тосты) плюс регрессию «обновление
+   журнала из фонового потока»; запускать при закрытом приложении (см. пункт 8).
 5. **Культуры**: даты в `Subscription` форматируются `InvariantCulture` (тест
    на тайском календаре); сортировка по имени — `CurrentCultureIgnoreCase`
    (по дизайну).
@@ -415,3 +426,16 @@ smoke-прогон 1000 нод, замер памяти (P3).
    захватывает single-instance mutex и выключает тестовый экземпляр
    («Application is shutting down» при создании MainWindow). Прогоняйте его
    при закрытом приложении.
+9. **История краша 1.4.0 (исправлено):** `AppendLog` вызывался с системных
+   потоков (смена сети/пробуждение), `LogText` поднимал `PropertyChanged` вне
+   UI-потока, и обработчик окна читал `TextBox` — необработанный `VerifyAccess`
+   убивал процесс без сообщений. Исправлено: фоновая запись журнала идёт через
+   очередь, обработчик окна маршалится в диспетчер; необработанные исключения
+   пишутся в `%LocalAppData%\ElyProxy\crash.log` и показывают диалог.
+10. **История апдейтера 1.4.0 → 1.4.1 (исправлено в 1.4.2):** служба-помощник
+    работала из папки установки и держала `helper\ElyProxy.Helper.dll`;
+    апдейтер со строгой очисткой падал на залоченном файле и оставлял установку
+    без файлов. Теперь апдейтер пропускает залоченные файлы
+    (`DirectoryReplacer`, лог в `updater.log`), а служба ставится из temp-копии
+    в `%LocalAppData%\ElyProxy\service` (кнопка «Установить» переносит legacy-
+    службу; статус в настройках подсказывает).

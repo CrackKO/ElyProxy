@@ -13,7 +13,7 @@
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         ResizeMode="CanResize"
-        Background="Transparent"
+        Background="{DynamicResource Bg1Brush}"
         Foreground="{DynamicResource FgBrush}"
         FontFamily="{StaticResource AppFontFamily}"
         TextOptions.TextFormattingMode="Ideal"
@@ -66,7 +66,7 @@
       </StackPanel>
 
       <!-- No pill background here: a translucent capsule reads as an odd outline
-           over the Mica title bar. Just the status dot and text. -->
+           over the shell surface. Just the status dot and text. -->
       <StackPanel Grid.Column="1"
                   Orientation="Horizontal"
                   HorizontalAlignment="Center"

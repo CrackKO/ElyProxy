@@ -73,6 +73,7 @@ public class ProcessManager : IProcessManager
 			_process.ErrorDataReceived += OnError;
 			_process.Exited += OnExited;
 			_process.Start();
+			ProcessJob.Assign(_process);
 			ProcessStartedForProcess?.Invoke(_process.Id);
 			_process.BeginOutputReadLine();
 			_process.BeginErrorReadLine();

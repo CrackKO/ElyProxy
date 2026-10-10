@@ -20,7 +20,7 @@ internal static class Program
         catch (Exception ex)
         {
             MessageBox.Show(
-                $"Не удалось установить обновление. Текущая версия не была удалена.\n\n{ex.Message}",
+                $"Не удалось установить обновление. Резервная копия сохранена рядом с папкой установки.\n\n{ex.Message}",
                 "ElyProxy — обновление",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
@@ -53,8 +53,17 @@ internal static class Program
             // fragile operation and leaves a full rollback copy outside the app folder.
             CopyDirectoryContents(installDirectory, backup);
             backupCreated = true;
-            ClearDirectoryContents(installDirectory);
-            MoveDirectoryContents(staging, installDirectory);
+
+            // Copy the new files over the old ones, then drop leftovers. Files
+            // locked by a running helper service (installed from the app folder
+            // by older versions) are skipped instead of aborting the update.
+            var skipped = new List<string>();
+            skipped.AddRange(DirectoryReplacer.CopyOver(staging, installDirectory));
+            skipped.AddRange(DirectoryReplacer.RemoveStale(installDirectory, staging));
+            if (!File.Exists(Path.Combine(installDirectory, "ElyProxy.exe")))
+            {
+                throw new InvalidDataException("ElyProxy.exe не удалось установить: файл заблокирован другим процессом.");
+            }
 
             try
             {
@@ -75,6 +84,7 @@ internal static class Program
             }
 
             TryDelete(packagePath);
+            WriteUpdateLog(skipped);
         }
         catch
         {
@@ -116,34 +126,30 @@ internal static class Program
             CopyDirectory(directory, Path.Combine(destination, Path.GetFileName(directory)));
     }
 
-    private static void MoveDirectoryContents(string source, string destination)
-    {
-        Directory.CreateDirectory(destination);
-        foreach (var entry in Directory.EnumerateFileSystemEntries(source))
-        {
-            var target = Path.Combine(destination, Path.GetFileName(entry));
-            if (Directory.Exists(entry))
-                Directory.Move(entry, target);
-            else
-                File.Move(entry, target);
-        }
-    }
-
-    private static void ClearDirectoryContents(string directory)
-    {
-        foreach (var entry in Directory.EnumerateFileSystemEntries(directory))
-        {
-            if (Directory.Exists(entry))
-                Directory.Delete(entry, recursive: true);
-            else
-                File.Delete(entry);
-        }
-    }
-
     private static void RestoreBackup(string installDirectory, string backup)
     {
-        ClearDirectoryContents(installDirectory);
-        CopyDirectoryContents(backup, installDirectory);
+        DirectoryReplacer.Clear(installDirectory);
+        DirectoryReplacer.CopyOver(backup, installDirectory);
+    }
+
+    private static void WriteUpdateLog(IReadOnlyList<string> skipped)
+    {
+        try
+        {
+            var directory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ElyProxy");
+            Directory.CreateDirectory(directory);
+            var lines = new List<string>
+            {
+                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Обновление установлено. Пропущено заблокированных файлов: {skipped.Count}"
+            };
+            lines.AddRange(skipped.Select(path => "  " + path));
+            File.AppendAllLines(Path.Combine(directory, "updater.log"), lines);
+        }
+        catch
+        {
+        }
     }
 
     private static void WaitForClientToExit(int processId)

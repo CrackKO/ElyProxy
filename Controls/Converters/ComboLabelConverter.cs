@@ -7,7 +7,7 @@ namespace ElyProxy.Controls.Converters;
 /// <summary>
 /// Renders the closed ComboBox selection as its display label. The built-in
 /// <c>SelectionBoxItem</c>/<c>SelectionBoxItemTemplate</c> pair shows the raw
-/// item (for example "[Acrylic, Acrylic]"), so the label is resolved here:
+/// item (for example "[Dark, Тёмная]"), so the label is resolved here:
 /// KeyValuePair → Value, ComboBoxItem → Content, otherwise ToString().
 /// </summary>
 public sealed class ComboLabelConverter : IValueConverter

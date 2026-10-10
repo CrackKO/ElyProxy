@@ -1763,6 +1763,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		};
 		_logFlushTimer.Tick += OnLogFlushTimerTick;
 		_logFlushTimer.Start();
+		// A previous crashed run can leave core processes behind; they keep
+		// ports like 1080 busy and block new connections until killed.
+		try
+		{
+			int staleCores = CoreProcessCleanup.KillStaleCores();
+			if (staleCores > 0)
+			{
+				OnLogReceived($"[warn] Закрыты зависшие ядра предыдущего запуска: {staleCores}");
+			}
+		}
+		catch
+		{
+		}
 		AllNodes = new ObservableCollection<VlessNode>();
 		Subscriptions = new ObservableCollection<Subscription>();
 		Profiles = new ObservableCollection<ProxyProfile>();
@@ -5114,6 +5127,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private void AppendLog(string message)
 	{
+		// AppendLog is also called from system/background threads (network
+		// change and power events). Touching LogText there raises
+		// PropertyChanged off the UI thread, and the window's log filter then
+		// reads its TextBox from that thread — an unhandled VerifyAccess
+		// exception that silently killed the process. Route background
+		// messages through the thread-safe queue instead.
+		if (!_dispatcher.CheckAccess())
+		{
+			OnLogReceived(message);
+			return;
+		}
+
 		string timestamp = DateTime.Now.ToString("HH:mm:ss");
 		LogText += $"[{timestamp}] {message}\n";
 		if (LogText.Length > 50000)
@@ -5268,7 +5293,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		bool installed = _helperServiceRunning || HelperServiceInstaller.IsServiceInstalled();
 		if (_helperServiceRunning)
 		{
-			HelperServiceStatus = "Служба запущена.";
+			HelperServiceStatus = IsHelperServiceInAppDirectory()
+				? "Служба запущена из папки программы. Нажмите «Установить», чтобы перенести её: иначе обновления будут пропускать файлы службы."
+				: "Служба запущена.";
 		}
 		else if (installed)
 		{
@@ -5279,6 +5306,32 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			HelperServiceStatus = HelperServiceInstaller.IsHelperAvailable()
 				? "Служба не установлена."
 				: "ElyProxy.Helper.exe не найден в сборке.";
+		}
+	}
+
+	private static bool IsHelperServiceInAppDirectory()
+	{
+		try
+		{
+			using RegistryKey? key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\ElyProxyHelper");
+			if (key?.GetValue("ImagePath") is not string imagePath || imagePath.Length == 0)
+			{
+				return false;
+			}
+
+			string executable = imagePath.StartsWith('"')
+				? imagePath.Substring(1, Math.Max(0, imagePath.IndexOf('"', 1) - 1))
+				: imagePath.Split(' ')[0];
+			if (executable.Length == 0)
+			{
+				return false;
+			}
+
+			return executable.StartsWith(AppDomain.CurrentDomain.BaseDirectory, StringComparison.OrdinalIgnoreCase);
+		}
+		catch
+		{
+			return false;
 		}
 	}
 
@@ -5614,7 +5667,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			SubscriptionUpdateIntervalMinutes = settings.SubscriptionUpdateIntervalMinutes;
 			AutoUpdate = settings.AutoUpdate;
 			ThemeMode = settings.ThemeMode;
-			BackdropMode = settings.BackdropMode;
 			MotionMode = settings.MotionMode;
 			ServerBadgeMode = settings.ServerBadgeMode;
 			_lastConnectedNodeId = settings.LastConnectedNodeId;
@@ -5794,7 +5846,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				ShowLogs = ShowLogs,
 				AutoUpdate = AutoUpdate,
 				ThemeMode = ThemeMode,
-				BackdropMode = BackdropMode,
 				MotionMode = MotionMode,
 				ServerBadgeMode = ServerBadgeMode,
 				PingMode = PingMode,

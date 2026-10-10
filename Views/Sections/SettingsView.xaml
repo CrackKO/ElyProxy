@@ -53,26 +53,6 @@
                   <ColumnDefinition Width="250" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                  <TextBlock Text="Прозрачность окна" Style="{StaticResource Text.Body}" />
-                </StackPanel>
-                <ComboBox Grid.Column="1"
-                           Width="250"
-                          HorizontalAlignment="Right"
-                          DisplayMemberPath="Value"
-                          SelectedValuePath="Key"
-                          AutomationProperties.Name="Материал окна"
-                          ItemsSource="{Binding BackdropModeOptions}"
-                          SelectedValue="{Binding BackdropMode, Mode=TwoWay}" />
-              </Grid>
-            </Border>
-            <Border Style="{StaticResource AppleRowSeparator}" />
-            <Border Style="{StaticResource AppleSettingRow}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
                   <TextBlock Text="Анимации" Style="{StaticResource Text.Body}" />
                   <TextBlock Text="Пружинные переходы; отключаются в режиме экономии" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" />
                 </StackPanel>
