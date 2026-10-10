@@ -4027,28 +4027,37 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 	}
 
-	private async Task ReconnectAsync(VlessNode node, int connectionGeneration)
+	private async Task ReconnectAsync(VlessNode node, int connectionGeneration, bool environmentChanged = false)
 	{
 		if (_isReconnecting || _isDisposed)
 		{
 			return;
 		}
 		_isReconnecting = true;
-		AppendLog("[sys] Обрыв соединения. Переподключение через 3 сек.: " + node.DisplayName);
+		AppendLog(environmentChanged ? "[sys] Изменение сети: проверка состояния через 3 сек." : "[sys] Обрыв соединения. Переподключение через 3 сек.: " + node.DisplayName);
 		bool lifecycleLockHeld = false;
 		try
 		{
-			if (!CanTryAutoReconnect())
-			{
-				return;
-			}
 			await Task.Delay(TimeSpan.FromSeconds(3.0));
 			await _coreLifecycleLock.WaitAsync();
 			lifecycleLockHeld = true;
-			if (_isDisposed || !AutoReconnect || IsConnected || Volatile.Read(ref _connectionGeneration) != connectionGeneration)
+			if (_isDisposed || !AutoReconnect || Volatile.Read(ref _connectionGeneration) != connectionGeneration)
 			{
 				return;
 			}
+			// Network/TUN notifications are not failed connection attempts. Recheck
+			// under the lifecycle lock before consuming the recovery budget.
+			if (IsActiveCoreRunning())
+			{
+				if (!IsConnected)
+				{
+					IsConnected = true;
+					StatusText = "Подключено";
+				}
+				return;
+			}
+			IsConnected = false;
+			if (!CanTryAutoReconnect()) return;
 			IsLoading = true;
 			StatusText = "Переподключение...";
 			if (ElyTunEnabled && !EnsureElyTunCanRun(showMessage: true))
@@ -4083,6 +4092,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				ConnectedNodeName = node.DisplayName;
 				UpdateConnectionInfo(node);
 				RememberConnectedNode(node);
+				_autoReconnectPolicy.Reset();
 				_networkChangeGuardUntil = DateTime.UtcNow.AddSeconds(8.0);
 				if (SystemProxyEnabled)
 				{
@@ -4118,9 +4128,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 		StatusText = "Автопереподключение остановлено";
 		AppendLog("[err] Автопереподключение остановлено после 3 неудачных попыток.");
-		_connectedNode = null;
-		ConnectionInfo = string.Empty;
-		ConnectedNodeName = string.Empty;
+		// Keep the target available for a manual retry and for the connection card.
+		// Stopping recovery does not itself stop a core or discard session identity.
 		return false;
 	}
 
@@ -4211,7 +4220,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 		_dispatcher.InvokeAsync((Action)delegate
 		{
-			if (suppressedDisconnect)
+			if (_isDisposed || suppressedDisconnect || Volatile.Read(ref _coreLifecycleTransition) > 0
+				|| running != IsActiveCoreRunning())
 			{
 				return;
 			}
@@ -4698,10 +4708,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			return;
 		}
 		_lastEnvironmentReconnectAt = DateTime.UtcNow;
-		AppendLog("[sys] " + reason + ": переподключение…");
+		AppendLog("[sys] " + reason + ": проверка соединения…");
 		_ = _dispatcher.InvokeAsync((Action)delegate
 		{
-			_ = ReconnectAsync(node, Volatile.Read(ref _connectionGeneration));
+			_ = ReconnectAsync(node, Volatile.Read(ref _connectionGeneration), environmentChanged: true);
 		});
 	}
 

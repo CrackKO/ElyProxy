@@ -38,7 +38,7 @@ public partial class MainViewModel
 
     public DateTime? SessionStartedAt { get; private set; }
 
-    public VlessNode? ConnectionPanelNode => IsConnected ? _connectedNode : SelectedNode;
+    public VlessNode? ConnectionPanelNode => IsConnected ? _connectedNode : SelectedNode ?? _connectedNode;
     public static string ServerDisplayName(string name)
     {
         if (name.Length >= 4 && char.IsSurrogatePair(name, 0) && char.IsSurrogatePair(name, 2)

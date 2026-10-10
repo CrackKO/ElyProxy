@@ -48,9 +48,7 @@
           CornerRadius="10"
           Padding="4"
           Margin="10">
-    <Border.Effect>
-      <DropShadowEffect BlurRadius="22" ShadowDepth="5" Direction="270" Opacity="0.35" />
-    </Border.Effect>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <StackPanel MinWidth="180">
       <TextBlock Text="ElyProxy"
                  Style="{StaticResource Text.CaptionStrong}"
@@ -89,5 +87,6 @@
               Click="Exit_Click"
               AutomationProperties.Name="Выйти из ElyProxy" />
     </StackPanel>
+    </ScrollViewer>
   </Border>
 </Window>
