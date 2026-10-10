@@ -23,6 +23,8 @@ public partial class TrayMenuWindow : Window
 
     public event EventHandler? ExitRequested;
 
+    public event EventHandler<Models.TunCoreKind>? TunCoreRequested;
+
     public void ShowAtCursor()
     {
         // Measure first so the window can be anchored above the cursor.
@@ -73,6 +75,18 @@ public partial class TrayMenuWindow : Window
     {
         Close();
         ShowRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void TunCore_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string tag }
+            && int.TryParse(tag, out int index)
+            && index >= 0
+            && index <= 3)
+        {
+            Close();
+            TunCoreRequested?.Invoke(this, (Models.TunCoreKind)index);
+        }
     }
 
     private void Exit_Click(object sender, RoutedEventArgs e)

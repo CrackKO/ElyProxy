@@ -6,7 +6,10 @@
     <ContextMenu x:Key="ProfileRowMenu"
                  x:Shared="False"
                  DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
-      <MenuItem Header="Экспорт профиля" Command="{Binding ExportProfileCommand}" />
+      <MenuItem Header="Экспорт профиля (.elyproxy)" Command="{Binding ExportProfileCommand}" />
+      <MenuItem Header="Экспорт Clash YAML" Click="ExportClash_Click" />
+      <MenuItem Header="Экспорт JSON (Xray outbounds)" Click="ExportJson_Click" />
+      <MenuItem Header="Импорт серверов из файла…" Click="ImportFile_Click" />
       <Separator />
       <MenuItem Header="Удалить профиль" Click="DeleteProfileRow_Click" />
     </ContextMenu>
@@ -146,19 +149,34 @@
                             Margin="0,0,11,0"
                             VerticalAlignment="Center"
                             Visibility="{Binding DataContext.ServerBadgeMode, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BadgeVis}}">
-                      <TextBlock Style="{StaticResource Text.CaptionStrong}"
-                                 HorizontalAlignment="Center"
-                                 VerticalAlignment="Center">
-                        <TextBlock.Text>
-                          <MultiBinding Converter="{StaticResource BadgeText}">
-                            <Binding Path="DisplayName" />
-                            <Binding Path="DataContext.ServerBadgeMode" RelativeSource="{RelativeSource AncestorType=UserControl}" />
-                          </MultiBinding>
-                        </TextBlock.Text>
-                      </TextBlock>
+                      <Grid>
+                        <Image Stretch="UniformToFill"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               SnapsToDevicePixels="True">
+                          <Image.Source>
+                            <MultiBinding Converter="{StaticResource FlagImage}">
+                              <Binding Path="DisplayName" />
+                              <Binding Path="DataContext.ServerBadgeMode" RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                            </MultiBinding>
+                          </Image.Source>
+                          <Image.Clip>
+                            <EllipseGeometry Center="15,15" RadiusX="15" RadiusY="15" />
+                          </Image.Clip>
+                        </Image>
+                        <TextBlock Style="{StaticResource Text.CaptionStrong}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center">
+                          <TextBlock.Text>
+                            <MultiBinding Converter="{StaticResource BadgeText}">
+                              <Binding Path="DisplayName" />
+                              <Binding Path="DataContext.ServerBadgeMode" RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                            </MultiBinding>
+                          </TextBlock.Text>
+                        </TextBlock>
+                      </Grid>
                     </Border>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding DisplayName}" Style="{StaticResource Text.Body}" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding DisplayName}" Style="{StaticResource Text.Body}" FontWeight="Medium" TextTrimming="CharacterEllipsis" ToolTip="{Binding DisplayName}" />
                       <TextBlock Style="{StaticResource Text.Caption}" Margin="0,2,0,0">
                         <Run Text="{Binding Address, Mode=OneWay}" />
                         <Run Text=":" />

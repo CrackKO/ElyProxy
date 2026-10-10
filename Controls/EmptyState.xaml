@@ -6,7 +6,8 @@
               VerticalAlignment="Center"
               MaxWidth="380"
               Margin="24">
-    <Border Width="78"
+    <Border x:Name="GlyphRing"
+            Width="78"
             Height="78"
             CornerRadius="39"
             Background="{DynamicResource FillTertiaryBrush}"
@@ -29,7 +30,8 @@
                TextAlignment="Center"
                TextWrapping="Wrap"
                Margin="0,14,0,0" />
-    <TextBlock Text="{Binding Description, ElementName=Root}"
+    <TextBlock x:Name="DescriptionText"
+               Text="{Binding Description, ElementName=Root}"
                Style="{StaticResource Text.Callout}"
                HorizontalAlignment="Center"
                TextAlignment="Center"

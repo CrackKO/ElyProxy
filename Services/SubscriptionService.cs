@@ -8,6 +8,8 @@ namespace ElyProxy.Services;
 
 public class SubscriptionService : IDisposable
 {
+	private const string DefaultUserAgent = "ElyProxy/1.0";
+
 	private readonly HttpClient _httpClient;
 	private readonly bool _ownsHttpClient;
 
@@ -33,20 +35,53 @@ public class SubscriptionService : IDisposable
 
 	private void ConfigureClient()
 	{
-		_httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("ElyProxy/1.0");
 		_httpClient.DefaultRequestHeaders.Accept.ParseAdd("text/plain, */*");
 	}
 
 	public async Task<string> FetchAsync(string url)
 	{
-		using HttpResponseMessage response = await _httpClient.GetAsync(url);
+		using HttpRequestMessage request = CreateRequest(url, null);
+		using HttpResponseMessage response = await _httpClient.SendAsync(request);
 		response.EnsureSuccessStatusCode();
 		return await response.Content.ReadAsStringAsync();
+	}
+
+	private static HttpRequestMessage CreateRequest(
+		string url,
+		string? userAgent,
+		string? hwid = null,
+		IReadOnlyDictionary<string, string>? customHeaders = null)
+	{
+		HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
+		if (customHeaders != null)
+		{
+			foreach (KeyValuePair<string, string> header in customHeaders)
+			{
+				try
+				{
+					request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+				}
+				catch
+				{
+				}
+			}
+		}
+		request.Headers.TryAddWithoutValidation(
+			"User-Agent",
+			(string.IsNullOrWhiteSpace(userAgent) ? DefaultUserAgent : userAgent.Trim()));
+		if (!string.IsNullOrWhiteSpace(hwid))
+		{
+			request.Headers.TryAddWithoutValidation("X-Hwid", hwid.Trim());
+		}
+		return request;
 	}
 
 	public async Task<SubscriptionRefreshResult> FetchNodesAsync(
 		string url,
 		ParserService parser,
+		string? userAgent = null,
+		string? hwid = null,
+		IReadOnlyDictionary<string, string>? customHeaders = null,
 		CancellationToken cancellationToken = default)
 	{
 		if (!Uri.TryCreate(url?.Trim(), UriKind.Absolute, out Uri? uri)
@@ -60,7 +95,8 @@ public class SubscriptionService : IDisposable
 
 		try
 		{
-			using HttpResponseMessage response = await _httpClient.GetAsync(uri, cancellationToken);
+			using HttpRequestMessage request = CreateRequest(uri.AbsoluteUri, userAgent, hwid, customHeaders);
+			using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken);
 			if (!response.IsSuccessStatusCode)
 			{
 				return new SubscriptionRefreshResult(
@@ -96,10 +132,16 @@ public class SubscriptionService : IDisposable
 				return new SubscriptionRefreshResult(
 					SubscriptionRefreshStatus.InvalidContent,
 					nodes,
-					"Ответ не содержит корректных VLESS-серверов; прежний список сохранён.");
+					"Ответ не содержит корректных серверов; прежний список сохранён.");
 			}
 
-			return new SubscriptionRefreshResult(SubscriptionRefreshStatus.Success, nodes);
+			SubscriptionUserInfo? userInfo = null;
+			if (response.Headers.TryGetValues("subscription-userinfo", out IEnumerable<string>? values))
+			{
+				userInfo = SubscriptionUserInfo.Parse(values.FirstOrDefault());
+			}
+
+			return new SubscriptionRefreshResult(SubscriptionRefreshStatus.Success, nodes, null, userInfo);
 		}
 		catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
 		{

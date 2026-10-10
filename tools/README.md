@@ -11,6 +11,13 @@
 Он не перезаписывает существующую версию и проверяет, что сборка содержит клиент,
 updater, Xray, sing-box и все 22 rule-set файла RoscomVPN DEFAULT.
 
+Проверки вынесены в `ElyProxyUpdateValidation.ps1` и покрыты Pester-тестами
+(11 кейсов: версия csproj, запрет перезаписи, обязательные файлы, 22 rule-set):
+
+```powershell
+Invoke-Pester -Path tools
+```
+
 На сервер сначала загрузите ZIP в:
 
 ```text

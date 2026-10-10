@@ -12,19 +12,20 @@ namespace ElyProxy.Core;
 
 public class ConfigBuilder
 {
-	public string Build(VlessNode node, int socksPort = 1080, XrayTunOptions? tunOptions = null)
+	public string Build(VlessNode node, int socksPort = 1080, XrayTunOptions? tunOptions = null, bool includeTunInbound = true)
 	{
 		JArray inbounds = new JArray { BuildSocksInbound(socksPort) };
-		if (tunOptions != null)
+		if (tunOptions != null && includeTunInbound)
 		{
 			inbounds.Add(BuildTunInbound(tunOptions));
 		}
+		string? routingInboundTag = ((tunOptions != null && includeTunInbound) ? "elytun-in" : ((tunOptions != null) ? "socks-in" : null));
 		return new JObject
 		{
 			["log"] = new JObject { ["loglevel"] = "warning" },
 			["inbounds"] = inbounds,
-			["outbounds"] = BuildVlessOutbounds(node),
-			["routing"] = BuildRouting(tunOptions)
+			["outbounds"] = BuildProxyOutbounds(node, tunOptions),
+			["routing"] = BuildRouting(tunOptions, routingInboundTag)
 		}.ToString(Formatting.Indented);
 	}
 
@@ -35,7 +36,7 @@ public class ConfigBuilder
 			["log"] = new JObject { ["loglevel"] = "warning" },
 			["inbounds"] = new JArray { BuildSocksInbound(localPort) },
 			["outbounds"] = BuildSocksOutbounds(node),
-			["routing"] = BuildRouting(null)
+			["routing"] = BuildRouting(null, null)
 		}.ToString(Formatting.Indented);
 	}
 
@@ -93,7 +94,69 @@ public class ConfigBuilder
 		return jObject;
 	}
 
-	private static JArray BuildVlessOutbounds(VlessNode node)
+	private static JArray BuildProxyOutbounds(VlessNode node, XrayTunOptions? options)
+	{
+		string protocol = (node.Protocol ?? "vless").ToLowerInvariant();
+		JObject proxy = protocol switch
+		{
+			"vless" => BuildVlessOutbound(node),
+			"vmess" => BuildVmessOutbound(node),
+			"trojan" => BuildTrojanOutbound(node),
+			"shadowsocks" or "ss" => BuildShadowsocksOutbound(node),
+			"socks" or "http" => BuildSocksProxyOutbound(node),
+			_ => throw new NotSupportedException($"Протокол {node.ProtocolDisplay} не поддерживается ядром Xray. Выберите ядро sing-box.")
+		};
+		JArray outbounds = new JArray();
+		outbounds.Add(proxy);
+		if (options is { FragmentEnabled: true })
+		{
+			JObject stream = (proxy["streamSettings"] as JObject) ?? new JObject();
+			stream["sockopt"] = new JObject { ["dialerProxy"] = "fragment" };
+			proxy["streamSettings"] = stream;
+			outbounds.Add(BuildFragmentOutbound(options));
+		}
+		outbounds.Add(new JObject
+		{
+			["tag"] = "direct",
+			["protocol"] = "freedom"
+		});
+		outbounds.Add(new JObject
+		{
+			["tag"] = "block",
+			["protocol"] = "blackhole"
+		});
+		return outbounds;
+	}
+
+	private static JObject BuildFragmentOutbound(XrayTunOptions options)
+	{
+		JObject settings = new JObject
+		{
+			["fragment"] = new JObject
+			{
+				["packets"] = Fallback(options.FragmentPackets, "tlshello"),
+				["length"] = Fallback(options.FragmentLength, "100-200"),
+				["interval"] = Fallback(options.FragmentInterval, "10-20")
+			}
+		};
+		if (!string.IsNullOrWhiteSpace(options.NoiseType))
+		{
+			settings["noises"] = new JArray(new JObject
+			{
+				["type"] = options.NoiseType,
+				["packet"] = options.NoisePacket,
+				["delay"] = Fallback(options.NoiseDelay, "10-16")
+			});
+		}
+		return new JObject
+		{
+			["tag"] = "fragment",
+			["protocol"] = "freedom",
+			["settings"] = settings
+		};
+	}
+
+	private static JObject BuildVlessOutbound(VlessNode node)
 	{
 		JObject user = new JObject
 		{
@@ -110,26 +173,95 @@ public class ConfigBuilder
 			["port"] = node.Port,
 			["users"] = new JArray(user)
 		};
-		JObject proxy = new JObject
+		return new JObject
 		{
 			["tag"] = "proxy",
 			["protocol"] = "vless",
 			["settings"] = new JObject { ["vnext"] = new JArray(vnext) },
 			["streamSettings"] = BuildStreamSettings(node)
 		};
-		return new JArray
+	}
+
+	private static JObject BuildVmessOutbound(VlessNode node)
+	{
+		int alterId = 0;
+		int.TryParse(node.AlterId, out alterId);
+		JObject user = new JObject
 		{
-			proxy,
-			new JObject
+			["id"] = node.UUID,
+			["alterId"] = alterId,
+			["security"] = (string.IsNullOrEmpty(node.VmessSecurity) ? "auto" : node.VmessSecurity)
+		};
+		JObject vnext = new JObject
+		{
+			["address"] = node.Address,
+			["port"] = node.Port,
+			["users"] = new JArray(user)
+		};
+		return new JObject
+		{
+			["tag"] = "proxy",
+			["protocol"] = "vmess",
+			["settings"] = new JObject { ["vnext"] = new JArray(vnext) },
+			["streamSettings"] = BuildStreamSettings(node)
+		};
+	}
+
+	private static JObject BuildTrojanOutbound(VlessNode node)
+	{
+		JObject server = new JObject
+		{
+			["address"] = node.Address,
+			["port"] = node.Port,
+			["password"] = node.Password
+		};
+		return new JObject
+		{
+			["tag"] = "proxy",
+			["protocol"] = "trojan",
+			["settings"] = new JObject { ["servers"] = new JArray(server) },
+			["streamSettings"] = BuildStreamSettings(node)
+		};
+	}
+
+	private static JObject BuildShadowsocksOutbound(VlessNode node)
+	{
+		JObject server = new JObject
+		{
+			["address"] = node.Address,
+			["port"] = node.Port,
+			["method"] = node.Method,
+			["password"] = node.Password
+		};
+		return new JObject
+		{
+			["tag"] = "proxy",
+			["protocol"] = "shadowsocks",
+			["settings"] = new JObject { ["servers"] = new JArray(server) }
+		};
+	}
+
+	private static JObject BuildSocksProxyOutbound(VlessNode node)
+	{
+		JObject server = new JObject
+		{
+			["address"] = node.Address,
+			["port"] = node.Port
+		};
+		if (!string.IsNullOrEmpty(node.Username))
+		{
+			server["users"] = new JArray(new JObject
 			{
-				["tag"] = "direct",
-				["protocol"] = "freedom"
-			},
-			new JObject
-			{
-				["tag"] = "block",
-				["protocol"] = "blackhole"
-			}
+				["user"] = node.Username,
+				["pass"] = node.Password
+			});
+		}
+		bool isHttp = string.Equals(node.Protocol, "http", StringComparison.OrdinalIgnoreCase);
+		return new JObject
+		{
+			["tag"] = "proxy",
+			["protocol"] = (isHttp ? "http" : "socks"),
+			["settings"] = new JObject { ["servers"] = new JArray(server) }
 		};
 	}
 
@@ -207,6 +339,23 @@ public class ConfigBuilder
 			}
 			break;
 		}
+		case "raw":
+			stream["rawSettings"] = BuildRawSettings(node);
+			break;
+		case "xhttp":
+		case "splithttp":
+			stream["xhttpSettings"] = BuildXhttpSettings(node);
+			break;
+		case "kcp":
+		case "mkcp":
+			stream["kcpSettings"] = BuildKcpSettings(node);
+			break;
+		case "httpupgrade":
+			stream["httpupgradeSettings"] = BuildHttpUpgradeSettings(node);
+			break;
+		case "quic":
+			stream["quicSettings"] = BuildQuicSettings(node);
+			break;
 		case "h2":
 		case "http":
 			stream["httpSettings"] = BuildHttpSettings(node);
@@ -238,6 +387,10 @@ public class ConfigBuilder
 			["serverName"] = node.SNI,
 			["fingerprint"] = Fallback(node.Fingerprint, "chrome")
 		};
+		if (node.AllowInsecure)
+		{
+			obj["allowInsecure"] = true;
+		}
 		if (!string.IsNullOrEmpty(node.Alpn))
 		{
 			object[] content = (from a in node.Alpn.Split(',')
@@ -287,20 +440,110 @@ public class ConfigBuilder
 		return obj;
 	}
 
-	private static JObject BuildRouting(XrayTunOptions? tunOptions)
+	private static JObject BuildRawSettings(VlessNode node)
+	{
+		JObject header = new JObject
+		{
+			["type"] = (string.IsNullOrEmpty(node.HeaderType) ? "none" : node.HeaderType)
+		};
+		return new JObject { ["acceptProxyProtocol"] = false, ["header"] = header };
+	}
+
+	private static JObject BuildXhttpSettings(VlessNode node)
+	{
+		JObject obj = new JObject { ["path"] = Fallback(node.Path, "/") };
+		if (!string.IsNullOrEmpty(node.Host))
+		{
+			obj["host"] = node.Host;
+		}
+		if (!string.IsNullOrEmpty(node.Mode) && node.Mode != "auto")
+		{
+			obj["mode"] = node.Mode;
+		}
+		string extra = node.GetExtra("xhttp-extra");
+		if (!string.IsNullOrWhiteSpace(extra))
+		{
+			try
+			{
+				obj["extra"] = JObject.Parse(extra);
+			}
+			catch
+			{
+			}
+		}
+		return obj;
+	}
+
+	private static JObject BuildKcpSettings(VlessNode node)
+	{
+		JObject header = new JObject
+		{
+			["type"] = (string.IsNullOrEmpty(node.HeaderType) ? "none" : node.HeaderType)
+		};
+		JObject obj = new JObject
+		{
+			["mtu"] = ParseInt(node.GetExtra("kcp-mtu"), 1350),
+			["tti"] = ParseInt(node.GetExtra("kcp-tti"), 20),
+			["uplinkCapacity"] = ParseInt(node.GetExtra("kcp-uplink"), 12),
+			["downlinkCapacity"] = ParseInt(node.GetExtra("kcp-downlink"), 100),
+			["congestion"] = (node.GetExtra("kcp-congestion").Equals("true", StringComparison.OrdinalIgnoreCase) || node.GetExtra("kcp-congestion") == "1"),
+			["readBufferSize"] = ParseInt(node.GetExtra("kcp-read-buffer"), 2),
+			["writeBufferSize"] = ParseInt(node.GetExtra("kcp-write-buffer"), 2),
+			["header"] = header
+		};
+		string seed = (string.IsNullOrEmpty(node.GetExtra("kcp-seed")) ? node.Seed : node.GetExtra("kcp-seed"));
+		if (!string.IsNullOrEmpty(seed))
+		{
+			obj["seed"] = seed;
+		}
+		return obj;
+	}
+
+	private static int ParseInt(string value, int fallback)
+	{
+		return (int.TryParse(value, out int parsed) && parsed > 0 ? parsed : fallback);
+	}
+
+	private static JObject BuildHttpUpgradeSettings(VlessNode node)
+	{
+		JObject obj = new JObject { ["path"] = Fallback(node.Path, "/") };
+		if (!string.IsNullOrEmpty(node.Host))
+		{
+			obj["host"] = node.Host;
+		}
+		return obj;
+	}
+
+	private static JObject BuildQuicSettings(VlessNode node)
+	{
+		return new JObject
+		{
+			["security"] = "none",
+			["key"] = "",
+			["header"] = new JObject
+			{
+				["type"] = (string.IsNullOrEmpty(node.HeaderType) ? "none" : node.HeaderType)
+			}
+		};
+	}
+
+	private static JObject BuildRouting(XrayTunOptions? tunOptions, string? inboundTag)
 	{
 		JArray rules = new JArray();
-		if (tunOptions != null)
+		if (tunOptions != null && inboundTag != null)
 		{
-			AddTunBypassRules(rules, tunOptions);
-			rules.Add(new JObject
+			AddTunBypassRules(rules, tunOptions, inboundTag);
+			if (inboundTag == "elytun-in")
 			{
-				["type"] = "field",
-				["inboundTag"] = new JArray("elytun-in"),
-				["port"] = 53,
-				["network"] = "tcp,udp",
-				["outboundTag"] = "direct"
-			});
+				rules.Add(new JObject
+				{
+					["type"] = "field",
+					["inboundTag"] = new JArray("elytun-in"),
+					["port"] = 53,
+					["network"] = "tcp,udp",
+					["outboundTag"] = "direct"
+				});
+			}
 		}
 		rules.Add(new JObject
 		{
@@ -314,6 +557,15 @@ public class ConfigBuilder
 			["outboundTag"] = "direct",
 			["ip"] = new JArray("geoip:private")
 		});
+		if (tunOptions != null && tunOptions.PerAppMode == PerAppMode.OnlySelected)
+		{
+			rules.Add(new JObject
+			{
+				["type"] = "field",
+				["network"] = "tcp,udp",
+				["outboundTag"] = "direct"
+			});
+		}
 		return new JObject
 		{
 			["domainStrategy"] = "AsIs",
@@ -321,8 +573,31 @@ public class ConfigBuilder
 		};
 	}
 
-	private static void AddTunBypassRules(JArray rules, XrayTunOptions options)
+	private static void AddTunBypassRules(JArray rules, XrayTunOptions options, string inboundTag)
 	{
+		string[] processPaths = NormalizeProcessPaths(options.BypassProcessPaths);
+		if (processPaths.Length > 0 && options.PerAppMode == PerAppMode.OnlySelected)
+		{
+			rules.Add(new JObject
+			{
+				["type"] = "field",
+				["inboundTag"] = new JArray(inboundTag),
+				["process"] = new JArray(processPaths),
+				["port"] = 53,
+				["network"] = "tcp,udp",
+				["outboundTag"] = "proxy"
+			});
+		}
+		if (processPaths.Length > 0)
+		{
+			rules.Add(new JObject
+			{
+				["type"] = "field",
+				["inboundTag"] = new JArray(inboundTag),
+				["process"] = new JArray(processPaths),
+				["outboundTag"] = (options.PerAppMode == PerAppMode.OnlySelected ? "proxy" : "direct")
+			});
+		}
 		HashSet<string> domains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		HashSet<string> ips = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		foreach (string bypassRule in options.BypassRules)
@@ -341,7 +616,7 @@ public class ConfigBuilder
 			rules.Add(new JObject
 			{
 				["type"] = "field",
-				["inboundTag"] = new JArray("elytun-in"),
+				["inboundTag"] = new JArray(inboundTag),
 				["domain"] = new JArray(domains),
 				["outboundTag"] = "direct"
 			});
@@ -351,7 +626,7 @@ public class ConfigBuilder
 			rules.Add(new JObject
 			{
 				["type"] = "field",
-				["inboundTag"] = new JArray("elytun-in"),
+				["inboundTag"] = new JArray(inboundTag),
 				["ip"] = new JArray(ips),
 				["outboundTag"] = "direct"
 			});
@@ -431,6 +706,16 @@ public class ConfigBuilder
 			return prefix <= address.GetAddressBytes().Length * 8;
 		}
 		return false;
+	}
+
+	private static string[] NormalizeProcessPaths(IReadOnlyList<string>? processPaths)
+	{
+		return (processPaths ?? Array.Empty<string>())
+			.Select(path => path?.Trim().Trim('"').Replace('\\', '/'))
+			.Where(path => !string.IsNullOrWhiteSpace(path))
+			.Select(path => path!)
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.ToArray();
 	}
 
 	private static string Fallback(string? value, string fallback)

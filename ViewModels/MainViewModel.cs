@@ -23,6 +23,7 @@ using ElyProxy.Models;
 using ElyProxy.Services;
 using ElyProxy.Views.Sheets;
 using Microsoft.Win32;
+using PerAppModeKind = ElyProxy.Models.PerAppMode;
 
 namespace ElyProxy.ViewModels;
 
@@ -168,7 +169,81 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private readonly SingBoxProxyManager _singBoxProxyManager;
 
+	private readonly Tun2ProxyManager _tun2ProxyManager;
+
+	private readonly HysteriaManager _hysteriaManager;
+
+	private TunCoreKind _tunCore = TunCoreKind.SingBox;
+
+	private Hysteria2Engine _hysteria2Engine = Hysteria2Engine.SingBox;
+
+	private bool _useHelperService;
+
+	private bool _helperServiceRunning;
+
+	private bool _isHelperBusy;
+
+	private string _helperServiceStatus = string.Empty;
+
+	private FragmentModeKind _fragmentMode = FragmentModeKind.Off;
+
+	private string _fragmentPackets = "tlshello";
+
+	private string _fragmentLength = "100-200";
+
+	private string _fragmentInterval = "10-20";
+
+	private bool _fragmentRecord;
+
+	private string _noiseType = string.Empty;
+
+	private string _noisePacket = string.Empty;
+
+	private string _noiseDelay = "10-16";
+
+	private PerAppModeKind _perAppMode = PerAppModeKind.Bypass;
+
+	private DateTime _networkChangeGuardUntil = DateTime.MinValue;
+
+	private DateTime _lastEnvironmentReconnectAt = DateTime.MinValue;
+
+	private string _activeConfigHash = string.Empty;
+
+	private bool _tlsSpoofEnabled;
+
+	private string _tlsSpoofSni = string.Empty;
+
+	private string _tlsSpoofMethod = "wrong-sequence";
+
 	private readonly UpdateService _updateService;
+
+	private readonly CoreUpdateService _coreUpdateService;
+
+	private readonly GeoDataUpdateService _geoDataUpdateService;
+
+	private readonly TrafficMonitorService _trafficMonitor;
+
+	private string _clashApiSecret = string.Empty;
+
+	private int _clashApiPort;
+
+	private bool _isTrafficMonitorActive;
+
+	private string _downloadSpeedText = "0 Б/с";
+
+	private string _uploadSpeedText = "0 Б/с";
+
+	private string _sessionTrafficText = string.Empty;
+
+	private long _sessionDownloadBytes;
+
+	private long _sessionUploadBytes;
+
+	private readonly List<CoreRelease> _availableCoreReleases = new List<CoreRelease>();
+
+	private string _coreUpdateStatus = "Проверка не выполнялась.";
+
+	private bool _isCoreUpdateBusy;
 
 	private readonly Dispatcher _dispatcher;
 
@@ -429,6 +504,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			}
 		}
 	}
+
+	public string NewSubUserAgent { get; set; } = string.Empty;
+
+	public int NewSubUpdateIntervalMinutes { get; set; }
+
+	public string NewSubServerFilter { get; set; } = string.Empty;
+
+	public string NewSubSortMode { get; set; } = "Default";
+
+	public string NewSubHwid { get; set; } = string.Empty;
+
+	public string NewSubCustomHeadersText { get; set; } = string.Empty;
 
 	public string ManualServerUri
 	{
@@ -710,6 +797,104 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 	}
 
+	public bool IsCoreUpdateBusy
+	{
+		get
+		{
+			return _isCoreUpdateBusy;
+		}
+		private set
+		{
+			if (SetProperty(ref _isCoreUpdateBusy, value, "IsCoreUpdateBusy"))
+			{
+				CommandManager.InvalidateRequerySuggested();
+			}
+		}
+	}
+
+	public string CoreUpdateStatus
+	{
+		get
+		{
+			return _coreUpdateStatus;
+		}
+		private set
+		{
+			SetProperty(ref _coreUpdateStatus, value, "CoreUpdateStatus");
+		}
+	}
+
+	public bool IsTrafficMonitorActive
+	{
+		get
+		{
+			return _isTrafficMonitorActive;
+		}
+		private set
+		{
+			SetProperty(ref _isTrafficMonitorActive, value, "IsTrafficMonitorActive");
+		}
+	}
+
+	public string DownloadSpeedText
+	{
+		get
+		{
+			return _downloadSpeedText;
+		}
+		private set
+		{
+			SetProperty(ref _downloadSpeedText, value, "DownloadSpeedText");
+		}
+	}
+
+	public string UploadSpeedText
+	{
+		get
+		{
+			return _uploadSpeedText;
+		}
+		private set
+		{
+			SetProperty(ref _uploadSpeedText, value, "UploadSpeedText");
+		}
+	}
+
+	public string SessionTrafficText
+	{
+		get
+		{
+			return _sessionTrafficText;
+		}
+		private set
+		{
+			SetProperty(ref _sessionTrafficText, value, "SessionTrafficText");
+		}
+	}
+
+	public string ActiveConfigHash
+	{
+		get
+		{
+			return _activeConfigHash;
+		}
+		private set
+		{
+			if (SetProperty(ref _activeConfigHash, value, "ActiveConfigHash"))
+			{
+				OnPropertyChanged("ActiveConfigHashText");
+			}
+		}
+	}
+
+	public string ActiveConfigHashText
+	{
+		get
+		{
+			return (string.IsNullOrWhiteSpace(_activeConfigHash) ? string.Empty : "cfg " + _activeConfigHash);
+		}
+	}
+
 	public bool AutoUpdate
 	{
 		get
@@ -869,7 +1054,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 		set
 		{
-			if (value && !_isLoadingSettings && !ElyTunElevationService.IsRunningAsAdministrator())
+			if (value && !_isLoadingSettings && !CanRunElyTunWithoutElevation())
 			{
 				OnPropertyChanged("ElyTunEnabled");
 				if (RequestElyTunCommand.CanExecute(null))
@@ -881,6 +1066,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 			if (SetProperty(ref _elyTunEnabled, value, "ElyTunEnabled") && !_isLoadingSettings)
 			{
+				OnPropertyChanged("IsPerAppSupported");
 				ApplyElyTunSettingAsync(value);
 			}
 		}
@@ -897,6 +1083,463 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			if (SetProperty(ref _elyTunIpv6Enabled, value, "ElyTunIpv6Enabled") && !_isLoadingSettings)
 			{
 				ApplyTunRuntimeSetting();
+			}
+		}
+	}
+
+	public TunCoreKind TunCore
+	{
+		get
+		{
+			return _tunCore;
+		}
+		set
+		{
+			if (SetProperty(ref _tunCore, value, "TunCore"))
+			{
+				OnPropertyChanged("TunCoreIndex");
+				OnPropertyChanged("TunCoreDescription");
+				OnPropertyChanged("IsPerAppSupported");
+				if (!_isLoadingSettings)
+				{
+					if (ElyTunEnabled)
+					{
+						ApplyTunRuntimeSetting();
+					}
+					else
+					{
+						SaveSettingsAsync();
+					}
+				}
+			}
+		}
+	}
+
+	public int TunCoreIndex
+	{
+		get
+		{
+			return (int)_tunCore;
+		}
+		set
+		{
+			if (value >= 0 && value <= 3)
+			{
+				TunCore = (TunCoreKind)value;
+			}
+		}
+	}
+
+	public string TunCoreDescription
+	{		get
+		{
+			return _tunCore switch
+			{
+				TunCoreKind.Xray => "Xray TUN — нативный TUN самого Xray (один процесс). VLESS, VMess, Trojan, Shadowsocks, SOCKS.",
+				TunCoreKind.Tun2Proxy => "tun2proxy — TUN-адаптер поверх локального SOCKS-порта; работает со всеми протоколами обоих ядер.",
+				TunCoreKind.Hysteria => "Hysteria 2 TUN — встроенный TUN ядра Hysteria (только для нод hysteria2; autoRoute, правила ElyTun не применяются).",
+				_ => "sing-box — TUN-режим с поддержкой Hysteria2, TUIC, VLESS, VMess, Trojan и Shadowsocks."
+			};
+		}
+	}
+
+	public bool IsPerAppSupported
+	{
+		get
+		{
+			return !(ElyTunEnabled && TunCore is TunCoreKind.Tun2Proxy or TunCoreKind.Hysteria);
+		}
+	}
+
+	public Hysteria2Engine Hysteria2Engine
+	{
+		get
+		{
+			return _hysteria2Engine;
+		}
+		set
+		{
+			if (SetProperty(ref _hysteria2Engine, value, "Hysteria2Engine"))
+			{
+				OnPropertyChanged("Hysteria2EngineIndex");
+				OnPropertyChanged("Hysteria2EngineDescription");
+				if (!_isLoadingSettings)
+				{
+					ApplyTunRuntimeSetting();
+				}
+			}
+		}
+	}
+
+	public int Hysteria2EngineIndex
+	{
+		get
+		{
+			return (int)_hysteria2Engine;
+		}
+		set
+		{
+			if (value >= 0 && value <= 1)
+			{
+				Hysteria2Engine = (Hysteria2Engine)value;
+			}
+		}
+	}
+
+	public string Hysteria2EngineDescription
+	{
+		get
+		{
+			return (_hysteria2Engine == Hysteria2Engine.Hysteria)
+				? "Отдельное ядро Hysteria 2 (Gecko obfs, ECH, mimic). Применяется к нодам hysteria2 в Proxy Pro и tun2proxy."
+				: "sing-box — Hysteria2 работает через sing-box; отдельное ядро не требуется.";
+		}
+	}
+
+	public bool UseHelperService
+	{
+		get
+		{
+			return _useHelperService;
+		}
+		set
+		{
+			if (SetProperty(ref _useHelperService, value, "UseHelperService"))
+			{
+				HelperRuntime.UseHelperService = value;
+				OnPropertyChanged("HelperServiceDescription");
+				if (value && !_helperServiceRunning && !_isLoadingSettings)
+				{
+					DialogService.Current.Notify(
+						"Служба-помощник не запущена",
+						"Без запущенной службы ElyTun снова запросит права администратора. Нажмите «Установить» (потребуется UAC один раз).",
+						NoticeKind.Warning);
+				}
+				if (!_isLoadingSettings)
+				{
+					SaveSettingsAsync();
+				}
+			}
+		}
+	}
+
+	public bool IsHelperAvailable
+	{
+		get
+		{
+			return HelperServiceInstaller.IsHelperAvailable();
+		}
+	}
+
+	public string HelperServiceDescription
+	{
+		get
+		{
+			return (_useHelperService
+				? "Включено: TUN-ядра запускает служба от имени системы — UAC при подключении не появляется."
+				: "Выключено: TUN-ядра запускает само приложение, и при каждом включении ElyTun Windows спрашивает права администратора.");
+		}
+	}
+
+	public string HelperServiceStatus
+	{
+		get
+		{
+			return _helperServiceStatus;
+		}
+		private set
+		{
+			SetProperty(ref _helperServiceStatus, value, "HelperServiceStatus");
+		}
+	}
+
+	public FragmentModeKind FragmentMode
+	{		get
+		{
+			return _fragmentMode;
+		}
+		set
+		{
+			if (SetProperty(ref _fragmentMode, value, "FragmentMode"))
+			{
+				OnPropertyChanged("FragmentModeIndex");
+				OnPropertyChanged("IsFragmentEnabled");
+				OnPropertyChanged("IsCustomFragment");
+				if (!_isLoadingSettings)
+				{
+					ApplyTunRuntimeSetting();
+				}
+			}
+		}
+	}
+
+	public int FragmentModeIndex
+	{
+		get
+		{
+			return (int)_fragmentMode;
+		}
+		set
+		{
+			if (value >= 0 && value <= 2)
+			{
+				FragmentMode = (FragmentModeKind)value;
+			}
+		}
+	}
+
+	public bool IsFragmentEnabled
+	{
+		get
+		{
+			return _fragmentMode != FragmentModeKind.Off;
+		}
+	}
+
+	public bool IsCustomFragment
+	{
+		get
+		{
+			return _fragmentMode == FragmentModeKind.Custom;
+		}
+	}
+
+	public string FragmentPackets
+	{
+		get
+		{
+			return _fragmentPackets;
+		}
+		set
+		{
+			if (SetProperty(ref _fragmentPackets, value, "FragmentPackets") && !_isLoadingSettings)
+			{
+				ApplyTunRuntimeSetting();
+			}
+		}
+	}
+
+	public string FragmentLength
+	{
+		get
+		{
+			return _fragmentLength;
+		}
+		set
+		{
+			if (SetProperty(ref _fragmentLength, value, "FragmentLength") && !_isLoadingSettings)
+			{
+				ApplyTunRuntimeSetting();
+			}
+		}
+	}
+
+	public string FragmentInterval
+	{
+		get
+		{
+			return _fragmentInterval;
+		}
+		set
+		{
+			if (SetProperty(ref _fragmentInterval, value, "FragmentInterval") && !_isLoadingSettings)
+			{
+				ApplyTunRuntimeSetting();
+			}
+		}
+	}
+
+	public bool FragmentRecord
+	{
+		get
+		{
+			return _fragmentRecord;
+		}
+		set
+		{
+			if (SetProperty(ref _fragmentRecord, value, "FragmentRecord") && !_isLoadingSettings)
+			{
+				ApplyTunRuntimeSetting();
+			}
+		}
+	}
+
+	public int NoiseTypeIndex
+	{
+		get
+		{
+			return _noiseType switch
+			{
+				"rand" => 1,
+				"str" => 2,
+				"base64" => 3,
+				_ => 0
+			};
+		}
+		set
+		{
+			string noiseType = value switch
+			{
+				1 => "rand",
+				2 => "str",
+				3 => "base64",
+				_ => string.Empty
+			};
+			if (SetProperty(ref _noiseType, noiseType, "NoiseType"))
+			{
+				OnPropertyChanged("NoiseTypeIndex");
+				OnPropertyChanged("IsNoiseEnabled");
+				if (!_isLoadingSettings)
+				{
+					ApplyTunRuntimeSetting();
+				}
+			}
+		}
+	}
+
+	public bool IsNoiseEnabled
+	{
+		get
+		{
+			return !string.IsNullOrWhiteSpace(_noiseType);
+		}
+	}
+
+	public string NoisePacket
+	{
+		get
+		{
+			return _noisePacket;
+		}
+		set
+		{
+			if (SetProperty(ref _noisePacket, value, "NoisePacket") && !_isLoadingSettings)
+			{
+				ApplyTunRuntimeSetting();
+			}
+		}
+	}
+
+	public string NoiseDelay
+	{
+		get
+		{
+			return _noiseDelay;
+		}
+		set
+		{
+			if (SetProperty(ref _noiseDelay, value, "NoiseDelay") && !_isLoadingSettings)
+			{
+				ApplyTunRuntimeSetting();
+			}
+		}
+	}
+
+	public PerAppModeKind PerAppMode
+	{
+		get
+		{
+			return _perAppMode;
+		}
+		set
+		{
+			if (SetProperty(ref _perAppMode, value, "PerAppMode"))
+			{
+				OnPropertyChanged("PerAppModeIndex");
+				OnPropertyChanged("PerAppModeDescription");
+				if (!_isLoadingSettings)
+				{
+					ApplyTunRuntimeSetting();
+				}
+			}
+		}
+	}
+
+	public int PerAppModeIndex
+	{
+		get
+		{
+			return (int)_perAppMode;
+		}
+		set
+		{
+			if (value is 0 or 1)
+			{
+				PerAppMode = (PerAppModeKind)value;
+			}
+		}
+	}
+
+	public string PerAppModeDescription
+	{
+		get
+		{
+			return (_perAppMode == PerAppModeKind.OnlySelected)
+				? "Через прокси идут только выбранные приложения, остальной трафик — напрямую."
+				: "Выбранные приложения идут напрямую, остальной трафик — через прокси.";
+		}
+	}
+
+	public bool TlsSpoofEnabled
+	{
+		get
+		{
+			return _tlsSpoofEnabled;
+		}
+		set
+		{
+			if (SetProperty(ref _tlsSpoofEnabled, value, "TlsSpoofEnabled") && !_isLoadingSettings)
+			{
+				ApplyTunRuntimeSetting();
+			}
+		}
+	}
+
+	public string TlsSpoofSni
+	{
+		get
+		{
+			return _tlsSpoofSni;
+		}
+		set
+		{
+			if (SetProperty(ref _tlsSpoofSni, value, "TlsSpoofSni") && !_isLoadingSettings)
+			{
+				ApplyTunRuntimeSetting();
+			}
+		}
+	}
+
+	public int TlsSpoofMethodIndex
+	{
+		get
+		{
+			return _tlsSpoofMethod switch
+			{
+				"wrong-checksum" => 1,
+				"wrong-ack" => 2,
+				"wrong-md5" => 3,
+				"wrong-timestamp" => 4,
+				_ => 0
+			};
+		}
+		set
+		{
+			string method = value switch
+			{
+				1 => "wrong-checksum",
+				2 => "wrong-ack",
+				3 => "wrong-md5",
+				4 => "wrong-timestamp",
+				_ => "wrong-sequence"
+			};
+			if (SetProperty(ref _tlsSpoofMethod, method, "TlsSpoofMethod"))
+			{
+				OnPropertyChanged("TlsSpoofMethodIndex");
+				if (!_isLoadingSettings)
+				{
+					ApplyTunRuntimeSetting();
+				}
 			}
 		}
 	}
@@ -1049,6 +1692,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	public ICommand CheckForUpdatesCommand { get; }
 
+	public ICommand CheckCoreUpdatesCommand { get; }
+
+	public ICommand UpdateCoresCommand { get; }
+
+	public ICommand UpdateGeoDataCommand { get; }
+
+	public ICommand InstallHelperCommand { get; }
+
+	public ICommand UninstallHelperCommand { get; }
+
+	public ICommand RefreshHelperStatusCommand { get; }
+
 	public ICommand RequestElyTunCommand { get; }
 
 	public ICommand AddApplicationBypassCommand { get; }
@@ -1080,15 +1735,28 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		_xrayManager = new XrayManager();
 		_singBoxTunManager = new SingBoxTunManager();
 		_singBoxProxyManager = new SingBoxProxyManager();
+		_tun2ProxyManager = new Tun2ProxyManager();
+		_hysteriaManager = new HysteriaManager();
 		_updateService = new UpdateService();
+		_coreUpdateService = new CoreUpdateService();
+		_geoDataUpdateService = new GeoDataUpdateService();
+		_trafficMonitor = new TrafficMonitorService();
+		_trafficMonitor.TrafficUpdated += OnTrafficUpdated;
 		_xrayManager.LogReceived += OnLogReceived;
 		_xrayManager.StatusChanged += OnXrayStatusChanged;
 		_singBoxTunManager.LogReceived += OnLogReceived;
 		_singBoxTunManager.StatusChanged += OnSingBoxTunStatusChanged;
 		_singBoxProxyManager.LogReceived += OnLogReceived;
 		_singBoxProxyManager.StatusChanged += OnSingBoxProxyStatusChanged;
+		_tun2ProxyManager.LogReceived += OnLogReceived;
+		_tun2ProxyManager.StatusChanged += OnTun2ProxyStatusChanged;
+		_hysteriaManager.LogReceived += OnLogReceived;
+		_hysteriaManager.StatusChanged += OnHysteriaStatusChanged;
 		_subscriptionUpdateTimer = new DispatcherTimer((DispatcherPriority)4, _dispatcher);
 		_subscriptionUpdateTimer.Tick += OnSubscriptionUpdateTimerTick;
+		NetworkChange.NetworkAvailabilityChanged += OnNetworkAvailabilityChanged;
+		NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
+		SystemEvents.PowerModeChanged += OnSystemPowerModeChanged;
 		_logFlushTimer = new DispatcherTimer((DispatcherPriority)4, _dispatcher)
 		{
 			Interval = TimeSpan.FromMilliseconds(250.0)
@@ -1110,7 +1778,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		PingAllCommand = new AsyncRelayCommand(PingAllAsync, () => AllNodes.Count > 0 && !IsLoading);
 		RunConnectionDiagnosticsCommand = new AsyncRelayCommand(RunConnectionDiagnosticsAsync, () => IsConnected && !IsLoading);
 		CopyDiagnosticsCommand = new RelayCommand(CopyDiagnostics, () => HasDiagnosticsReport);
-		CheckRuntimeComponentsCommand = new RelayCommand(CheckRuntimeComponents);
+		CheckRuntimeComponentsCommand = new AsyncRelayCommand(CheckRuntimeComponentsAsync, () => !IsLoading);
 		AddManualServerCommand = new RelayCommand(AddManualServer, () => !string.IsNullOrWhiteSpace(ManualServerUri));
 		AddToProfileCommand = new AsyncRelayCommand(() => RunProfileMutationAsync(AddToProfileAsync), () => SelectedNode != null && SelectedProfile != null);
 		CreateProfileCommand = new AsyncRelayCommand(() => RunProfileMutationAsync(CreateProfileAsync), () => !string.IsNullOrWhiteSpace(NewProfileName));
@@ -1131,6 +1799,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}, (Func<bool>?)null);
 		ResetSystemProxyRulesCommand = new RelayCommand(ResetSystemProxyRules);
 		CheckForUpdatesCommand = new AsyncRelayCommand(CheckForUpdatesFromCommandAsync, () => !IsCheckingForUpdates && !IsLoading);
+		CheckCoreUpdatesCommand = new AsyncRelayCommand(CheckCoreUpdatesAsync, () => !IsCoreUpdateBusy && !IsLoading);
+		UpdateCoresCommand = new AsyncRelayCommand(UpdateCoresAsync, () => !IsCoreUpdateBusy && !IsLoading);
+		UpdateGeoDataCommand = new AsyncRelayCommand(UpdateGeoDataAsync, () => !IsCoreUpdateBusy && !IsLoading);
+		InstallHelperCommand = new AsyncRelayCommand(InstallHelperAsync, () => !IsLoading && !_isHelperBusy);
+		UninstallHelperCommand = new AsyncRelayCommand(UninstallHelperAsync, () => !IsLoading && !_isHelperBusy);
+		RefreshHelperStatusCommand = new RelayCommand(RefreshHelperStatus);
 		RequestElyTunCommand = new AsyncRelayCommand(RequestElyTunAsync, () => !IsLoading && !_isRelaunchingForElevation);
 		AddApplicationBypassCommand = new AsyncRelayCommand(AddApplicationBypassAsync, () => !IsLoading);
 		RemoveApplicationBypassCommand = new RelayCommand(RemoveSelectedApplicationBypass, () => SelectedApplicationBypass != null && !IsLoading);
@@ -1148,10 +1822,21 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		{
 			return;
 		}
+		if (NewSubUrl.TrimStart().StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+		{
+			AppendLog("[warn] Подписка добавлена по HTTP без шифрования: " + NewSubUrl.Trim());
+			DialogService.Current.Notify("Подписка без HTTPS", "Ссылка использует http:// — содержимое подписки передаётся без шифрования. По возможности используйте https://.", NoticeKind.Warning);
+		}
 		Subscription sub = new Subscription
 		{
 			Name = (string.IsNullOrWhiteSpace(NewSubName) ? $"Подписка {Subscriptions.Count + 1}" : NewSubName.Trim()),
-			Url = NewSubUrl.Trim()
+			Url = NewSubUrl.Trim(),
+			UserAgent = (NewSubUserAgent ?? string.Empty).Trim(),
+			UpdateIntervalMinutes = Math.Clamp(NewSubUpdateIntervalMinutes, 0, 10080),
+			ServerFilter = (NewSubServerFilter ?? string.Empty).Trim(),
+			SortMode = (string.IsNullOrWhiteSpace(NewSubSortMode) ? "Default" : NewSubSortMode),
+			Hwid = (NewSubHwid ?? string.Empty).Trim(),
+			CustomHeaders = SubscriptionHeaderParser.Parse(NewSubCustomHeadersText)
 		};
 		IsLoading = true;
 		StatusText = "Загрузка подписки...";
@@ -1162,12 +1847,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			{
 				StatusText = "Не удалось добавить подписку";
 				AppendLog("[warn] Подписка не добавлена: " + refresh.ErrorMessage);
-				DialogService.Current.Notify("Не удалось добавить подписку", refresh.ErrorMessage ?? "Ответ не содержит VLESS-серверов.", NoticeKind.Error);
+				DialogService.Current.Notify("Не удалось добавить подписку", refresh.ErrorMessage ?? "Ответ не содержит поддерживаемых серверов.", NoticeKind.Error);
 				return;
 			}
 
 			sub.Nodes = refresh.Nodes.ToList();
 			sub.LastUpdated = DateTime.Now;
+			SubscriptionRefreshCoordinator.ApplyUserInfo(sub, refresh.UserInfo);
+			NotifySubscriptionStatus(sub);
 			List<Subscription> nextSubscriptions = Subscriptions.Append(sub).ToList();
 			await _storageService.SaveSubscriptionsAsync(nextSubscriptions);
 			_dispatcher.Invoke((Action)delegate { Subscriptions.Add(sub); });
@@ -1176,6 +1863,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			AppendLog($"[sys] Подписка «{sub.Name}» добавлена, серверов: {sub.Nodes.Count}");
 			NewSubName = string.Empty;
 			NewSubUrl = string.Empty;
+			NewSubUserAgent = string.Empty;
+			NewSubUpdateIntervalMinutes = 0;
+			NewSubServerFilter = string.Empty;
+			NewSubSortMode = "Default";
+			NewSubHwid = string.Empty;
+			NewSubCustomHeadersText = string.Empty;
 		}
 		catch (Exception ex)
 		{
@@ -1226,14 +1919,25 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private async Task UpdateAllSubscriptionsAsync()
 	{
+		await UpdateSubscriptionsAsync(Subscriptions);
+	}
+
+	private async Task UpdateSubscriptionsAsync(IEnumerable<Subscription> targets)
+	{
 		if (!CanModifySubscriptions())
+		{
+			return;
+		}
+
+		List<Subscription> targetList = targets.ToList();
+		if (targetList.Count == 0)
 		{
 			return;
 		}
 
 		IsLoading = true;
 		StatusText = "Обновление подписок...";
-		SubscriptionRefreshBatchResult refreshBatch = await _subscriptionRefreshCoordinator.RefreshAllAsync(Subscriptions);
+		SubscriptionRefreshBatchResult refreshBatch = await _subscriptionRefreshCoordinator.RefreshAllAsync(targetList);
 		List<Subscription> pending = refreshBatch.Subscriptions.ToList();
 		foreach (Subscription sub in pending.Where(subscription => !string.IsNullOrWhiteSpace(subscription.LastUpdateError)))
 		{
@@ -1241,10 +1945,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 		try
 		{
-			await _storageService.SaveSubscriptionsAsync(pending);
-			for (int index = 0; index < pending.Count; index++)
+			Dictionary<string, Subscription> snapshotsById = pending.ToDictionary(snapshot => snapshot.Id, StringComparer.OrdinalIgnoreCase);
+			List<Subscription> fullList = Subscriptions
+				.Select(subscription => (snapshotsById.TryGetValue(subscription.Id, out Subscription? snapshot) ? snapshot : CloneSubscription(subscription)))
+				.ToList();
+			await _storageService.SaveSubscriptionsAsync(fullList);
+			foreach (Subscription snapshot in pending)
 			{
-				ApplySubscriptionSnapshot(Subscriptions[index], pending[index]);
+				Subscription? target = Subscriptions.FirstOrDefault(subscription => string.Equals(subscription.Id, snapshot.Id, StringComparison.OrdinalIgnoreCase));
+				if (target != null)
+				{
+					ApplySubscriptionSnapshot(target, snapshot);
+					NotifySubscriptionStatus(target);
+				}
 			}
 
 			RefreshAllNodes();
@@ -1281,7 +1994,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			{
 				bool clear = await DialogService.Current.ConfirmAsync(
 					"Подписка не содержит серверов",
-					$"В ответе «{sub.Name}» не найдено ни одного корректного VLESS-сервера. Очистить сохранённый список из {sub.Nodes.Count} серверов?",
+					$"В ответе «{sub.Name}» не найдено ни одного корректного сервера. Очистить сохранённый список из {sub.Nodes.Count} серверов?",
 					"Очистить список",
 					"Оставить прежние");
 				if (!clear)
@@ -1307,6 +2020,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			if (refresh.IsSuccess)
 			{
 				updated.Nodes = refresh.Nodes.ToList();
+				SubscriptionRefreshCoordinator.ApplyUserInfo(updated, refresh.UserInfo);
+				NotifySubscriptionStatus(updated);
 			}
 			updated.LastUpdated = DateTime.Now;
 			updated.LastUpdateError = null;
@@ -1497,7 +2212,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		Url = source.Url,
 		LastUpdated = source.LastUpdated,
 		Nodes = source.Nodes.ToList(),
-		LastUpdateError = source.LastUpdateError
+		LastUpdateError = source.LastUpdateError,
+		UploadBytes = source.UploadBytes,
+		DownloadBytes = source.DownloadBytes,
+		TotalBytes = source.TotalBytes,
+		ExpiresAt = source.ExpiresAt,
+		UserAgent = source.UserAgent,
+		UpdateIntervalMinutes = source.UpdateIntervalMinutes,
+		ServerFilter = source.ServerFilter,
+		SortMode = source.SortMode,
+		Hwid = source.Hwid,
+		CustomHeaders = new Dictionary<string, string>(source.CustomHeaders ?? new Dictionary<string, string>()),
+		TrafficWarningShown = source.TrafficWarningShown,
+		ExpiryWarningShown = source.ExpiryWarningShown
 	};
 
 	private static void ApplySubscriptionSnapshot(Subscription target, Subscription snapshot)
@@ -1505,6 +2232,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		target.Nodes = snapshot.Nodes.ToList();
 		target.LastUpdated = snapshot.LastUpdated;
 		target.LastUpdateError = snapshot.LastUpdateError;
+		target.UploadBytes = snapshot.UploadBytes;
+		target.DownloadBytes = snapshot.DownloadBytes;
+		target.TotalBytes = snapshot.TotalBytes;
+		target.ExpiresAt = snapshot.ExpiresAt;
+		target.UserAgent = snapshot.UserAgent;
+		target.UpdateIntervalMinutes = snapshot.UpdateIntervalMinutes;
+		target.ServerFilter = snapshot.ServerFilter;
+		target.SortMode = snapshot.SortMode;
+		target.Hwid = snapshot.Hwid;
+		target.CustomHeaders = new Dictionary<string, string>(snapshot.CustomHeaders ?? new Dictionary<string, string>());
+		target.TrafficWarningShown = snapshot.TrafficWarningShown;
+		target.ExpiryWarningShown = snapshot.ExpiryWarningShown;
 	}
 
 	private async Task ConnectToNodeCoreAsync(VlessNode? node)
@@ -1519,7 +2258,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		bool stoppedExistingConnection = false;
 		try
 		{
-			if (!ElyTunEnabled && !ProxyProEnabled)
+			if ((!ElyTunEnabled && !ProxyProEnabled) || (ElyTunEnabled && TunCore == TunCoreKind.Xray))
 			{
 				string xrayPath = _xrayManager.GetXrayPath();
 				if (!File.Exists(xrayPath))
@@ -1538,7 +2277,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				stoppedExistingConnection = true;
 				IsConnected = false;
 			}
-			if ((!ElyTunEnabled || EnsureElyTunCanRun(showMessage: true)) && (!ProxyProEnabled || EnsureProxyProCanRun(showMessage: true)) && EnsureSocksPortAvailableForStart())
+			if ((!ElyTunEnabled || EnsureElyTunCanRun(showMessage: true)) && (!ProxyProEnabled || EnsureProxyProCanRun(showMessage: true)) && EnsureSocksPortAvailableForStart() && EnsureNodeSupportedBySelectedCore(node, showMessage: true))
 			{
 				await StartSelectedCoreAsync(node);
 				IsConnected = true;
@@ -1547,6 +2286,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				ConnectedNodeName = node.DisplayName;
 				UpdateConnectionInfo(node);
 				RememberConnectedNode(node);
+				_networkChangeGuardUntil = DateTime.UtcNow.AddSeconds(8.0);
 				if (SystemProxyEnabled)
 				{
 					await TryActivateSystemProxyAsync();
@@ -1626,15 +2366,23 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 	}
 
-	private void CheckRuntimeComponents()
+	private async Task CheckRuntimeComponentsAsync()
 	{
 		try
 		{
+			Dictionary<string, string> coreVersions = new Dictionary<string, string>();
+			foreach (string coreId in CoreUpdateService.CoreIds)
+			{
+				coreVersions[CoreUpdateService.GetDisplayName(coreId)] = await CoreVersionService.GetInstalledVersionAsync(coreId);
+			}
+			RefreshHelperStatus();
 			RuntimePreflightResult result = _runtimePreflightService.Check(
 				_xrayManager.GetXrayPath(),
 				_singBoxTunManager.GetSingBoxPath(),
 				ElyTunElevationService.IsRunningAsAdministrator(),
-				RoscomVpnDefaultRouting.GetMissingAssetPaths());
+				RoscomVpnDefaultRouting.GetMissingAssetPaths(),
+				coreVersions,
+				HelperRuntime.UseHelperService && _helperServiceRunning);
 			string report = result.ToReport();
 			AppendLog("[sys] Проверка компонентов: " + string.Join("; ", result.Checks.Select(check => check.Name + " — " + check.Details)));
 			_ = DialogService.Current.AlertAsync("Проверка компонентов ElyProxy", report);
@@ -1721,9 +2469,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		};
 	}
 
-	private async Task TcpPingAllAsync()
+	private static bool IsUdpOnlyProtocol(VlessNode node)
 	{
-		IsLoading = true;
+		string protocol = (node.Protocol ?? "vless").ToLowerInvariant();
+		return protocol is "hysteria2" or "hy2" or "tuic" or "wireguard";
+	}
+
+	private async Task TcpPingAllAsync()
+	{		IsLoading = true;
 		StatusText = "TCP-пинг серверов...";
 		PingSummary = string.Empty;
 		AppendLog("[sys] Запуск TCP-пинга...");
@@ -1739,8 +2492,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 					await semaphore.WaitAsync();
 					try
 					{
-						node.PingDetails = string.Empty;
-						node.Latency = await MeasureTcpLatencyAsync(node.Address, node.Port);
+						if (IsUdpOnlyProtocol(node))
+						{
+							node.Latency = null;
+							node.PingDetails = "UDP — TCP-пинг неприменим, используйте Proxy-пинг";
+						}
+						else
+						{
+							node.PingDetails = string.Empty;
+							node.Latency = await MeasureTcpLatencyAsync(node.Address, node.Port);
+						}
 						int current = Interlocked.Increment(ref completed);
 						if (current % 5 == 0 || current == nodes.Count)
 						{
@@ -2010,14 +2771,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 	private async Task<int?> MeasureProxyGetLatencyAsync(VlessNode node, Uri pingUri)
 	{
 		int probePort = GetFreeTcpPort();
-		using XrayManager probeXray = new XrayManager();
 		int? result;
 		try
 		{
 			_ = 2;
 			try
 			{
-				await probeXray.StartAsync(node, probePort);
+				await using ProbeCoreRunner probeXray = await ProbeCoreRunner.StartAsync(node, probePort, BuildProbeOptions());
 				if (!(await WaitForLocalPortAsync(probePort, ProxyPingStartupTimeout)))
 				{
 					result = null;
@@ -2060,7 +2820,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 		finally
 		{
-			await probeXray.StopAsync();
 		}
 		return result;
 	}
@@ -2068,14 +2827,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 	private async Task<ElyTurboNodeResult> MeasureElyTurboAsync(VlessNode node)
 	{
 		int probePort = GetFreeTcpPort();
-		using XrayManager probeXray = new XrayManager();
 		ElyTurboNodeResult result;
 		try
 		{
 			_ = 2;
 			try
 			{
-				await probeXray.StartAsync(node, probePort);
+				await using ProbeCoreRunner probeXray = await ProbeCoreRunner.StartAsync(node, probePort, BuildProbeOptions());
 				if (!(await WaitForLocalPortAsync(probePort, ProxyPingStartupTimeout)))
 				{
 					result = ElyTurboNodeResult.Empty(node, ElyTurboTargets.Length);
@@ -2113,7 +2871,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 		finally
 		{
-			await probeXray.StopAsync();
 		}
 		return result;
 	}
@@ -2309,10 +3066,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		{
 			return;
 		}
-		VlessNode node = _parserService.ParseVlessUri(ManualServerUri.Trim());
+		VlessNode node = _parserService.ParseUri(ManualServerUri.Trim());
 		if (node == null)
 		{
-			StatusText = "Неверный формат vless://";
+			StatusText = "Неверный формат ссылки";
 			return;
 		}
 		AllNodes.Add(node);
@@ -2397,8 +3154,56 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		StatusText = "Добавлен в «" + SelectedProfile.Name + "»";
 	}
 
-	private async Task RemoveFromProfileAsync()
+	public async Task<int> ImportNodesToSelectedProfileAsync(IEnumerable<VlessNode> nodes)
 	{
+		if (SelectedProfile == null || !CanModifyProfiles())
+		{
+			return 0;
+		}
+
+		List<VlessNode> incoming = new List<VlessNode>();
+		foreach (VlessNode node in nodes)
+		{
+			if (node == null)
+			{
+				continue;
+			}
+			if (SelectedProfile.Nodes.Any(existing => SameProfileNode(existing, node)))
+			{
+				continue;
+			}
+			if (incoming.Any(existing => SameProfileNode(existing, node)))
+			{
+				continue;
+			}
+			incoming.Add(node);
+		}
+		if (incoming.Count == 0)
+		{
+			StatusText = "Новых серверов для импорта нет";
+			return 0;
+		}
+
+		List<ProxyProfile> pending = CloneProfiles(Profiles);
+		ProxyProfile? staged = pending.FirstOrDefault(profile => profile.Id == SelectedProfile.Id);
+		if (staged == null)
+		{
+			return 0;
+		}
+		staged.Nodes.AddRange(incoming);
+		if (!await SaveProfilesAsync(pending))
+		{
+			return 0;
+		}
+
+		SelectedProfile.Nodes.AddRange(incoming);
+		RefreshProfileNodes();
+		StatusText = $"Импортировано серверов: {incoming.Count}";
+		AppendLog($"[sys] В профиль «{SelectedProfile.Name}» импортировано серверов: {incoming.Count}");
+		return incoming.Count;
+	}
+
+	private async Task RemoveFromProfileAsync()	{
 		if (SelectedProfile == null || SelectedProfileNode == null || !CanModifyProfiles())
 		{
 			return;
@@ -2589,7 +3394,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private void UpdateConnectionInfo(VlessNode node)
 	{
-		string prefix = (ElyTunEnabled ? $"ElyTun + socks5://127.0.0.1:{SocksPort}" : (ProxyProEnabled ? $"Proxy Pro (HTTP/SOCKS) 127.0.0.1:{SocksPort}" : $"socks5://127.0.0.1:{SocksPort}"));
+		string prefix = (ElyTunEnabled ? $"ElyTun ({GetTunCoreDisplayName()}) + socks5://127.0.0.1:{SocksPort}" : (ProxyProEnabled ? $"Proxy Pro (HTTP/SOCKS) 127.0.0.1:{SocksPort}" : $"socks5://127.0.0.1:{SocksPort}"));
 		ConnectionInfo = prefix + "  →  " + node.DisplayName;
 	}
 
@@ -2599,7 +3404,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		{
 			return null;
 		}
-		return new XrayTunOptions(CreateElyTunInterfaceName(), 1500, GetElyTunDnsServers(), ElyTunIpv6Enabled, GetSystemProxyRules(), GetActiveAdapterNetworkCidrs(), RoutingPreset, GetApplicationBypassPaths());
+		return WithFragmentSettings(new XrayTunOptions(CreateElyTunInterfaceName(), 1500, GetElyTunDnsServers(), ElyTunIpv6Enabled, GetSystemProxyRules(), GetActiveAdapterNetworkCidrs(), RoutingPreset, GetApplicationBypassPaths()));
 	}
 
 	private XrayTunOptions? BuildProxyProOptionsOrNull()
@@ -2608,7 +3413,52 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		{
 			return null;
 		}
-		return new XrayTunOptions("ProxyPro", 1500, GetElyTunDnsServers(), ElyTunIpv6Enabled, GetSystemProxyRules(), Array.Empty<string>(), RoutingPreset, GetApplicationBypassPaths());
+		return WithFragmentSettings(new XrayTunOptions("ProxyPro", 1500, GetElyTunDnsServers(), ElyTunIpv6Enabled, GetSystemProxyRules(), Array.Empty<string>(), RoutingPreset, GetApplicationBypassPaths()));
+	}
+
+	private XrayTunOptions? BuildXrayOutboundOptionsOrNull()
+	{
+		if (FragmentMode == FragmentModeKind.Off && _perAppMode != PerAppModeKind.OnlySelected && GetApplicationBypassPaths().Count == 0)
+		{
+			return null;
+		}
+		return WithFragmentSettings(new XrayTunOptions("Xray", 1500, GetElyTunDnsServers(), ElyTunIpv6Enabled, Array.Empty<string>(), Array.Empty<string>(), RoutingPreset, GetApplicationBypassPaths()));
+	}
+
+	private XrayTunOptions WithFragmentSettings(XrayTunOptions options)
+	{
+		bool enabled = FragmentMode != FragmentModeKind.Off;
+		(string packets, string length, string interval) = ResolveFragmentValues();		return options with
+		{
+			FragmentEnabled = enabled,
+			FragmentPackets = packets,
+			FragmentLength = length,
+			FragmentInterval = interval,
+			RecordFragment = FragmentRecord,
+			NoiseType = (enabled ? _noiseType : string.Empty),
+			NoisePacket = NoisePacket,
+			NoiseDelay = NoiseDelay,
+			PerAppMode = _perAppMode,
+			TlsSpoofEnabled = _tlsSpoofEnabled,
+			TlsSpoofSni = (_tlsSpoofEnabled ? TlsSpoofSni.Trim() : string.Empty),
+			TlsSpoofMethod = _tlsSpoofMethod
+		};
+	}
+
+	private XrayTunOptions BuildProbeOptions()
+	{
+		return WithFragmentSettings(new XrayTunOptions("ElyProbe", 1500, GetElyTunDnsServers(), false, Array.Empty<string>(), Array.Empty<string>(), RoutingPreset.Custom, Array.Empty<string>()));
+	}
+
+	private (string Packets, string Length, string Interval) ResolveFragmentValues()	{
+		if (FragmentMode != FragmentModeKind.Custom)
+		{
+			return ("tlshello", "100-200", "10-20");
+		}
+		return (
+			(string.IsNullOrWhiteSpace(FragmentPackets) ? "tlshello" : FragmentPackets.Trim()),
+			(string.IsNullOrWhiteSpace(FragmentLength) ? "100-200" : FragmentLength.Trim()),
+			(string.IsNullOrWhiteSpace(FragmentInterval) ? "10-20" : FragmentInterval.Trim()));
 	}
 
 	private IReadOnlyList<string> GetApplicationBypassPaths()
@@ -2622,7 +3472,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private void ApplyTunRuntimeSetting()
 	{
-		if ((ElyTunEnabled || ProxyProEnabled) && IsConnected)
+		if ((ElyTunEnabled || ProxyProEnabled || SystemProxyEnabled) && IsConnected)
 		{
 			RestartActiveXrayAsync();
 		}
@@ -2671,8 +3521,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			return;
 		}
 
-		if (ElyTunElevationService.IsRunningAsAdministrator())
+		if (!IsRunningAsAdministrator())
 		{
+			RefreshHelperStatus();
+		}
+
+		if (CanRunElyTunWithoutElevation())
+		{
+			if (!IsRunningAsAdministrator())
+			{
+				AppendLog("[sys] ElyTun включается через службу-помощник: UAC не требуется");
+			}
+
 			ElyTunEnabled = true;
 			return;
 		}
@@ -2686,29 +3546,58 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			{
 				_lastConnectedNodeId = GetNodeKey(nodeToResume);
 			}
+
+			StatusText = "Остановка ядер перед перезапуском…";
+			await StopAllCoresAsync();
+			if (SystemProxyEnabled)
+			{
+				StopSystemProxy(silent: true);
+			}
+			DeactivateProxyPro(silent: true);
 			await SaveSettingsAsync();
 
-			using (ElyTunElevationService.StartElevatedForElyTun())
-			{
-				AppendLog("[sys] Запущен ElyProxy с правами администратора для ElyTun");
-				Application.Current.Shutdown();
-			}
+			ElyTunElevationService.StartElevatedForElyTun();
+			AppendLog("[sys] Запущен ElyProxy с правами администратора для ElyTun");
+
+			// A hard exit is deliberate: the elevated instance is already starting,
+			// and a graceful WPF shutdown can deadlock on sync-over-async cleanup
+			// (cores stop with blocking waits while the UI thread is closing).
+			Environment.Exit(0);
 		}
 		catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
 		{
 			StatusText = "Запуск ElyTun отменён";
 			DialogService.Current.Notify("Запуск отменён", "ElyTun не включён. ElyProxy продолжает работать без прав администратора.", NoticeKind.Info);
+			await RestoreConnectionAfterFailedElevationAsync();
 		}
 		catch (Exception ex)
 		{
 			StatusText = "Не удалось запросить права администратора";
 			AppendLog("[err] Не удалось перезапустить ElyProxy от имени администратора: " + ex.Message);
 			DialogService.Current.Notify("Не удалось включить ElyTun", ex.Message, NoticeKind.Error);
+			await RestoreConnectionAfterFailedElevationAsync();
 		}
 		finally
 		{
 			_isRelaunchingForElevation = false;
 			IsLoading = false;
+		}
+	}
+
+	private async Task RestoreConnectionAfterFailedElevationAsync()
+	{
+		if (_connectedNode == null || IsConnected)
+		{
+			return;
+		}
+		try
+		{
+			StatusText = "Восстановление соединения…";
+			await ConnectToNodeCoreAsync(_connectedNode);
+		}
+		catch (Exception ex)
+		{
+			AppendLog("[warn] Не удалось восстановить соединение после отмены ElyTun: " + ex.Message);
 		}
 	}
 
@@ -2805,28 +3694,76 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private bool EnsureElyTunCanRun(bool showMessage)
 	{
-		if (!IsRunningAsAdministrator())
+		if (!CanRunElyTunWithoutElevation())
 		{
 			DisableElyTunAfterPreflightFailure();
 			StatusText = "ElyTun требует запуск от администратора";
-			AppendLog("[err] ElyTun требует запуск приложения от администратора");
+			AppendLog("[err] ElyTun требует запуск приложения от администратора или включённой службы-помощника");
 			if (showMessage)
 			{
-				_ = DialogService.Current.AlertAsync("Нужны права администратора", "ElyTun меняет системные маршруты Windows. Включите ElyTun в селекторе режимов и подтвердите системный запрос Windows на запуск от имени администратора.");
+				_ = DialogService.Current.AlertAsync("Нужны права администратора", "ElyTun меняет системные маршруты Windows. Включите ElyTun в селекторе режимов и подтвердите запрос Windows, либо установите и включите службу-помощник в настройках (Настройки → ElyTun → Служба-помощник), чтобы UAC больше не требовался.");
 			}
 			return false;
 		}
-		string singBoxPath = _singBoxTunManager.GetSingBoxPath();
-		if (!File.Exists(singBoxPath))
+		if (TunCore == TunCoreKind.Xray)
 		{
-			DisableElyTunAfterPreflightFailure();
-			StatusText = "ElyTun: sing-box не найден";
-			AppendLog("[err] ElyTun требует sing-box: " + singBoxPath);
-			if (showMessage)
+			string xrayPath = _xrayManager.GetXrayPath();
+			if (!File.Exists(xrayPath))
 			{
-				_ = DialogService.Current.AlertAsync("sing-box не найден", "ElyTun использует sing-box с автоматической маршрутизацией Windows.\n\nДобавьте sing-box.exe в папку sing-box рядом с ElyProxy.exe.");
+				DisableElyTunAfterPreflightFailure();
+				StatusText = "ElyTun: xray не найден";
+				AppendLog("[err] ElyTun (Xray TUN) требует xray: " + xrayPath);
+				if (showMessage)
+				{
+					_ = DialogService.Current.AlertAsync("Xray не найден", "ElyTun с ядром Xray использует нативный TUN Xray-core.\n\nПоместите xray.exe в папку xray рядом с ElyProxy.exe.");
+				}
+				return false;
 			}
-			return false;
+		}
+		else if (TunCore == TunCoreKind.Tun2Proxy)
+		{
+			string tun2ProxyPath = _tun2ProxyManager.GetTun2ProxyPath();
+			if (!File.Exists(tun2ProxyPath))
+			{
+				DisableElyTunAfterPreflightFailure();
+				StatusText = "ElyTun: tun2proxy не найден";
+				AppendLog("[err] ElyTun (tun2proxy) требует tun2proxy: " + tun2ProxyPath);
+				if (showMessage)
+				{
+					_ = DialogService.Current.AlertAsync("tun2proxy не найден", "Для ядра tun2proxy добавьте tun2proxy-bin.exe в папку tun2proxy рядом с ElyProxy.exe.\n\nДля TUN-адаптера также нужен wintun.dll в папке xray.");
+				}
+				return false;
+			}
+		}
+		else if (TunCore == TunCoreKind.Hysteria)
+		{
+			string hysteriaPath = _hysteriaManager.GetHysteriaPath();
+			if (!File.Exists(hysteriaPath))
+			{
+				DisableElyTunAfterPreflightFailure();
+				StatusText = "ElyTun: Hysteria 2 не найден";
+				AppendLog("[err] ElyTun (Hysteria 2) требует hysteria: " + hysteriaPath);
+				if (showMessage)
+				{
+					_ = DialogService.Current.AlertAsync("Hysteria 2 не найден", "Для TUN-режима Hysteria 2 добавьте hysteria.exe в папку hysteria рядом с ElyProxy.exe или обновите ядра в настройках.");
+				}
+				return false;
+			}
+		}
+		else
+		{
+			string singBoxPath = _singBoxTunManager.GetSingBoxPath();
+			if (!File.Exists(singBoxPath))
+			{
+				DisableElyTunAfterPreflightFailure();
+				StatusText = "ElyTun: sing-box не найден";
+				AppendLog("[err] ElyTun требует sing-box: " + singBoxPath);
+				if (showMessage)
+				{
+					_ = DialogService.Current.AlertAsync("sing-box не найден", "ElyTun использует sing-box с автоматической маршрутизацией Windows.\n\nДобавьте sing-box.exe в папку sing-box рядом с ElyProxy.exe.");
+				}
+				return false;
+			}
 		}
 		if (TryFindConflictingTunAdapter(out string conflictingAdapter))
 		{
@@ -2834,7 +3771,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 		if (TryFindZapretProcess(out string zapret))
 		{
-			AppendLog("[warn] Обнаружен " + zapret + ". ElyTun запускается без strict route, чтобы не конфликтовать с WinDivert/WFP. Если фильтр перехватывает сам VLESS-сервер, исключите его IP в zapret.");
+			AppendLog("[warn] Обнаружен " + zapret + ". ElyTun запускается без strict route, чтобы не конфликтовать с WinDivert/WFP. Если фильтр перехватывает сам прокси-сервер, исключите его IP в zapret.");
 		}
 		return true;
 	}
@@ -2963,6 +3900,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		return ElyTunElevationService.IsRunningAsAdministrator();
 	}
 
+	private bool CanRunElyTunWithoutElevation()
+	{
+		return ElyTunAvailabilityPolicy.CanRunWithoutElevation(
+			IsRunningAsAdministrator(),
+			HelperRuntime.UseHelperService,
+			_helperServiceRunning);
+	}
+
 	private static bool TryGetXrayVersion(string xrayPath, out Version version)
 	{
 		version = new Version(0, 0, 0);
@@ -3017,7 +3962,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		{
 			return true;
 		}
-		string corePath = (ElyTunEnabled ? _singBoxTunManager.GetSingBoxPath() : (ProxyProEnabled ? _singBoxProxyManager.GetSingBoxPath() : _xrayManager.GetXrayPath()));
+		string corePath = (ElyTunEnabled ? ((TunCore == TunCoreKind.SingBox) ? _singBoxTunManager.GetSingBoxPath() : ((TunCore == TunCoreKind.Hysteria) ? _hysteriaManager.GetHysteriaPath() : _xrayManager.GetXrayPath())) : (ProxyProEnabled ? _singBoxProxyManager.GetSingBoxPath() : _xrayManager.GetXrayPath()));
 		if (PortOwnerService.TryStopStaleCoreOnPort(SocksPort, corePath, out string cleanupMessage))
 		{
 			AppendLog(cleanupMessage);
@@ -3090,12 +4035,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 					ConnectedNodeName = string.Empty;
 					return;
 				}
+				if (!EnsureNodeSupportedBySelectedCore(node, showMessage: true))
+				{
+					_connectedNode = null;
+					ConnectionInfo = string.Empty;
+					ConnectedNodeName = string.Empty;
+					return;
+				}
 				await StartSelectedCoreAsync(node);
 				IsConnected = true;
 				_connectedNode = node;
 				ConnectedNodeName = node.DisplayName;
 				UpdateConnectionInfo(node);
 				RememberConnectedNode(node);
+				_networkChangeGuardUntil = DateTime.UtcNow.AddSeconds(8.0);
 				if (SystemProxyEnabled)
 				{
 					await TryActivateSystemProxyAsync();
@@ -3232,6 +4185,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			StatusText = (running ? "Подключено" : "Отключено");
 			if (!running)
 			{
+				ActiveConfigHash = string.Empty;
 				ConnectionInfo = string.Empty;
 				ConnectedNodeName = string.Empty;
 				DeactivateSystemProxyForDisconnectedServer(silent: true);
@@ -3246,15 +4200,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private void OnXrayStatusChanged(bool running)
 	{
-		if (!ElyTunEnabled && !ProxyProEnabled)
+		if ((!ElyTunEnabled && !ProxyProEnabled) || (ElyTunEnabled && TunCore == TunCoreKind.Xray))
 		{
 			OnStatusChanged(running);
+		}
+		else if (ElyTunEnabled && TunCore == TunCoreKind.Tun2Proxy && !running && IsConnected)
+		{
+			OnStatusChanged(running: false);
 		}
 	}
 
 	private void OnSingBoxTunStatusChanged(bool running)
 	{
-		if (ElyTunEnabled)
+		if (ElyTunEnabled && TunCore == TunCoreKind.SingBox)
 		{
 			OnStatusChanged(running);
 		}
@@ -3266,6 +4224,26 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		{
 			OnStatusChanged(running);
 		}
+		else if (ElyTunEnabled && TunCore == TunCoreKind.Tun2Proxy && !running && IsConnected)
+		{
+			OnStatusChanged(running: false);
+		}
+	}
+
+	private void OnTun2ProxyStatusChanged(bool running)
+	{
+		if (ElyTunEnabled && TunCore == TunCoreKind.Tun2Proxy)
+		{
+			OnStatusChanged(running);
+		}
+	}
+
+	private void OnHysteriaStatusChanged(bool running)
+	{
+		if (RequiresHysteriaCore(_connectedNode) || (ElyTunEnabled && TunCore == TunCoreKind.Hysteria))
+		{
+			OnStatusChanged(running);
+		}
 	}
 
 	private async Task StartSelectedCoreAsync(VlessNode node)
@@ -3273,34 +4251,323 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		if (ElyTunEnabled)
 		{
 			XrayTunOptions options = BuildElyTunOptionsOrNull() ?? throw new InvalidOperationException("Параметры ElyTun не подготовлены.");
-			await _singBoxTunManager.StartAsync(node, SocksPort, options);
+			switch (TunCore)
+			{
+			case TunCoreKind.Xray:
+				WarnAboutRoutingPreset("Xray TUN", presetSupported: false);
+				WarnIfSpoofUnsupported("Xray TUN");
+				await _xrayManager.StartAsync(node, SocksPort, options);
+				ActiveConfigHash = _xrayManager.LastConfigHash ?? string.Empty;
+				break;
+			case TunCoreKind.Tun2Proxy:
+				await StartTun2ProxyAsync(node, options);
+				break;
+			case TunCoreKind.Hysteria:
+				WarnAboutRoutingPreset("Hysteria 2 TUN", presetSupported: false);
+				WarnIfSpoofUnsupported("Hysteria 2 TUN");
+				await _hysteriaManager.StartTunAsync(node, options);
+				ActiveConfigHash = _hysteriaManager.LastConfigHash ?? string.Empty;
+				break;
+			default:
+				WarnAboutRoutingPreset("sing-box", presetSupported: true);
+				await _singBoxTunManager.StartAsync(node, SocksPort, WithClashApi(options));
+				ActiveConfigHash = _singBoxTunManager.LastConfigHash ?? string.Empty;
+				StartTrafficMonitor();
+				break;
+			}
 		}
 		else if (ProxyProEnabled)
 		{
-			XrayTunOptions options2 = BuildProxyProOptionsOrNull() ?? throw new InvalidOperationException("Параметры Proxy Pro не подготовлены.");
-			await _singBoxProxyManager.StartAsync(node, SocksPort, options2);
+			if (RequiresHysteriaCore(node))
+			{
+				WarnAboutRoutingPreset("Hysteria 2", presetSupported: false);
+				WarnIfSpoofUnsupported("Hysteria 2");
+				int hysteriaHttpPort = GetFreeTcpPort();
+				await _hysteriaManager.StartAsync(node, SocksPort, hysteriaHttpPort);
+				ActiveConfigHash = _hysteriaManager.LastConfigHash ?? string.Empty;
+				AppendLog("[sys] Proxy Pro: ядро Hysteria 2");
+			}
+			else
+			{
+				WarnAboutRoutingPreset("sing-box", presetSupported: true);
+				XrayTunOptions options2 = BuildProxyProOptionsOrNull() ?? throw new InvalidOperationException("Параметры Proxy Pro не подготовлены.");
+				await _singBoxProxyManager.StartAsync(node, SocksPort, WithClashApi(options2));
+				ActiveConfigHash = _singBoxProxyManager.LastConfigHash ?? string.Empty;
+				StartTrafficMonitor();
+			}
 		}
 		else
 		{
-			await _xrayManager.StartAsync(node, SocksPort);
+			WarnAboutRoutingPreset("Proxy Lite (PAC)", presetSupported: false);
+			WarnIfSpoofUnsupported("Proxy Lite (PAC)");
+			XrayTunOptions? fragmentOptions = BuildXrayOutboundOptionsOrNull();
+			if (fragmentOptions != null)
+			{
+				await _xrayManager.StartAsync(node, SocksPort, fragmentOptions, includeTunInbound: false);
+			}
+			else
+			{
+				await _xrayManager.StartAsync(node, SocksPort);
+			}
+			ActiveConfigHash = _xrayManager.LastConfigHash ?? string.Empty;
 		}
+	}
+
+	private void WarnIfSpoofUnsupported(string coreName)
+	{
+		if (_tlsSpoofEnabled)
+		{
+			AppendLog($"[warn] Подмена ClientHello (spoof) работает только с ядром sing-box; для {coreName} настройка не применяется.");
+		}
+	}
+
+	private void WarnAboutRoutingPreset(string coreName, bool presetSupported)
+	{
+		if (RoutingPreset != RoutingPreset.RoscomVpnDefault)
+		{
+			return;
+		}
+		if (_perAppMode == PerAppModeKind.OnlySelected)
+		{
+			AppendLog("[warn] Режим «Только выбранные приложения»: профиль RoscomVPN DEFAULT не применяется, маршрут определяет список приложений.");
+			StatusText = "RoscomVPN DEFAULT не применяется (только выбранные приложения)";
+			return;
+		}
+		if (!presetSupported)
+		{
+			AppendLog($"[warn] Профиль RoscomVPN DEFAULT не поддерживается ядром {coreName}; применяются «Свои правила» и bypass-список.");
+			StatusText = $"RoscomVPN DEFAULT не применяется ({coreName})";
+		}
+	}
+
+	private void OnTrafficUpdated(long uploadBytesPerSecond, long downloadBytesPerSecond)
+	{
+		_dispatcher.InvokeAsync((Action)delegate
+		{
+			UploadSpeedText = TrafficFormatter.FormatSpeed(uploadBytesPerSecond);
+			DownloadSpeedText = TrafficFormatter.FormatSpeed(downloadBytesPerSecond);
+			_sessionUploadBytes += uploadBytesPerSecond;
+			_sessionDownloadBytes += downloadBytesPerSecond;
+			SessionTrafficText = $"Сессия: ↓ {TrafficFormatter.FormatBytes(_sessionDownloadBytes)} · ↑ {TrafficFormatter.FormatBytes(_sessionUploadBytes)}";
+		});
+	}
+
+	private XrayTunOptions WithClashApi(XrayTunOptions options)
+	{
+		_clashApiSecret = Guid.NewGuid().ToString("N");
+		_clashApiPort = GetFreeTcpPort();
+		return options with
+		{
+			ClashApiPort = _clashApiPort,
+			ClashApiSecret = _clashApiSecret
+		};
+	}
+
+	private void StartTrafficMonitor()
+	{
+		StopTrafficMonitor();
+		if (_clashApiPort <= 0)
+		{
+			return;
+		}
+		_sessionDownloadBytes = 0;
+		_sessionUploadBytes = 0;
+		SessionTrafficText = "Сессия: ↓ 0 Б · ↑ 0 Б";
+		IsTrafficMonitorActive = true;
+		_trafficMonitor.Start(_clashApiPort, _clashApiSecret);
+	}
+
+	private void StopTrafficMonitor()
+	{
+		_trafficMonitor.Stop();
+		if (IsTrafficMonitorActive)
+		{
+			IsTrafficMonitorActive = false;
+		}
+		DownloadSpeedText = "0 Б/с";
+		UploadSpeedText = "0 Б/с";
+	}
+
+	private async Task StartTun2ProxyAsync(VlessNode node, XrayTunOptions options)
+	{
+		IReadOnlyList<string> endpointCidrs = await ServerAddressResolver.ResolveEndpointCidrsAsync(node.Address, TimeSpan.FromSeconds(3.0), AppendLog);
+		if (RequiresHysteriaCore(node))
+		{
+			WarnAboutRoutingPreset("Hysteria 2 (tun2proxy)", presetSupported: false);
+			WarnIfSpoofUnsupported("Hysteria 2 (tun2proxy)");
+			await _hysteriaManager.StartAsync(node, SocksPort);
+			ActiveConfigHash = _hysteriaManager.LastConfigHash ?? string.Empty;
+			AppendLog("[sys] tun2proxy: backend Hysteria 2 (SOCKS 127.0.0.1:" + SocksPort + ")");
+		}
+		else if (ProxyProtocolSupport.SupportsXray(node))
+		{
+			WarnAboutRoutingPreset("Xray (tun2proxy)", presetSupported: false);
+			WarnIfSpoofUnsupported("Xray (tun2proxy)");
+			await _xrayManager.StartSocksBackendAsync(node, SocksPort, options);
+			ActiveConfigHash = _xrayManager.LastConfigHash ?? string.Empty;
+			AppendLog("[sys] tun2proxy: backend Xray (SOCKS 127.0.0.1:" + SocksPort + ")");
+		}
+		else
+		{
+			WarnAboutRoutingPreset("sing-box (tun2proxy)", presetSupported: true);
+			await _singBoxProxyManager.StartAsync(node, SocksPort, WithClashApi(options));
+			ActiveConfigHash = _singBoxProxyManager.LastConfigHash ?? string.Empty;
+			AppendLog("[sys] tun2proxy: backend sing-box (mixed 127.0.0.1:" + SocksPort + ")");
+			StartTrafficMonitor();
+		}
+		await _tun2ProxyManager.StartAsync(SocksPort, options, endpointCidrs);
+	}
+
+	private bool UsesHysteriaCore(VlessNode? node)
+	{
+		if (node == null || _hysteria2Engine != Hysteria2Engine.Hysteria)
+		{
+			return false;
+		}
+		string protocol = (node.Protocol ?? "vless").ToLowerInvariant();
+		return protocol is "hysteria2" or "hy2";
+	}
+
+	private bool RequiresHysteriaCore(VlessNode? node)
+	{
+		if (!UsesHysteriaCore(node))
+		{
+			return false;
+		}
+		return ProxyProEnabled || (ElyTunEnabled && TunCore == TunCoreKind.Tun2Proxy);
+	}
+
+	private bool EnsureNodeSupportedBySelectedCore(VlessNode node, bool showMessage)
+	{
+		if (_perAppMode == PerAppModeKind.OnlySelected)
+		{
+			if (!IsPerAppSupported)
+			{
+				StatusText = "Режим «Только выбранные» недоступен";
+				string message = $"Выбранное ядро TUN ({GetTunCoreDisplayName()}) не поддерживает правила по приложениям. Переключите ядро на sing-box или Xray либо верните режим «Исключать выбранные».";
+				AppendLog("[err] " + message);
+				if (showMessage)
+				{
+					_ = DialogService.Current.AlertAsync("Режим не поддерживается", message);
+				}
+				return false;
+			}
+			if (GetApplicationBypassPaths().Count == 0)
+			{
+				StatusText = "Список приложений пуст";
+				string message = "Включён режим «Только выбранные приложения», но список пуст — тогда весь трафик пошёл бы напрямую. Добавьте хотя бы одно приложение в Настройки → Разделение трафика или верните режим «Исключать выбранные».";
+				AppendLog("[err] " + message);
+				if (showMessage)
+				{
+					_ = DialogService.Current.AlertAsync("Добавьте приложения", message);
+				}
+				return false;
+			}
+		}
+		if (ElyTunEnabled && TunCore == TunCoreKind.Hysteria)
+		{
+			string protocol = (node.Protocol ?? "vless").ToLowerInvariant();
+			if (protocol is not ("hysteria2" or "hy2"))
+			{
+				StatusText = "Hysteria TUN поддерживает только Hysteria2";
+				string message = $"Ядро Hysteria 2 TUN работает только с нодами hysteria2, а выбрана нода {node.ProtocolDisplay}. Выберите sing-box, Xray или tun2proxy.";
+				AppendLog("[err] " + message);
+				if (showMessage)
+				{
+					_ = DialogService.Current.AlertAsync("Протокол не поддерживается", message);
+				}
+				return false;
+			}
+			if (!File.Exists(_hysteriaManager.GetHysteriaPath()))
+			{
+				StatusText = "Ядро Hysteria 2 не найдено";
+				string message = "hysteria.exe не найден. Обновите ядра в настройках или добавьте файл в папку hysteria рядом с ElyProxy.exe.";
+				AppendLog("[err] " + message);
+				if (showMessage)
+				{
+					_ = DialogService.Current.AlertAsync("Hysteria 2 не найден", message);
+				}
+				return false;
+			}
+		}
+		if (RequiresHysteriaCore(node) && !File.Exists(_hysteriaManager.GetHysteriaPath()))
+		{
+			StatusText = "Ядро Hysteria 2 не найдено";
+			string message = "Выбран движок Hysteria 2, но hysteria.exe не найден. Обновите ядра в настройках или добавьте файл в папку hysteria рядом с ElyProxy.exe.";
+			AppendLog("[err] " + message);
+			if (showMessage)
+			{
+				_ = DialogService.Current.AlertAsync("Hysteria 2 не найден", message);
+			}
+			return false;
+		}
+		string? limitation = null;
+		if (ElyTunEnabled)
+		{
+			limitation = TunCore switch
+			{
+				TunCoreKind.Xray => ProxyProtocolSupport.DescribeXrayLimitation(node),
+				TunCoreKind.Tun2Proxy => ((ProxyProtocolSupport.SupportsXray(node) || ProxyProtocolSupport.SupportsSingBox(node)) ? null : $"Протокол {node.ProtocolDisplay} не поддерживается доступными ядрами."),
+				_ => ProxyProtocolSupport.DescribeSingBoxLimitation(node)
+			};
+		}
+		else if (ProxyProEnabled)
+		{
+			limitation = ProxyProtocolSupport.DescribeSingBoxLimitation(node);
+		}
+		else
+		{
+			limitation = ProxyProtocolSupport.DescribeXrayLimitation(node);
+		}
+		if (limitation == null)
+		{
+			return true;
+		}
+		StatusText = "Ядро не поддерживает протокол";
+		AppendLog("[err] " + limitation);
+		if (showMessage)
+		{
+			_ = DialogService.Current.AlertAsync("Протокол не поддерживается", limitation);
+		}
+		return false;
+	}
+
+	private string GetTunCoreDisplayName()
+	{
+		return TunCore switch
+		{
+			TunCoreKind.Xray => "Xray TUN",
+			TunCoreKind.Tun2Proxy => "tun2proxy",
+			TunCoreKind.Hysteria => "Hysteria 2",
+			_ => "sing-box"
+		};
 	}
 
 	private bool IsActiveCoreRunning()
 	{
 		if (ElyTunEnabled)
 		{
-			return _singBoxTunManager.IsRunning;
+			return TunCore switch
+			{
+				TunCoreKind.Xray => _xrayManager.IsRunning,
+				TunCoreKind.Tun2Proxy => _tun2ProxyManager.IsRunning,
+				TunCoreKind.Hysteria => _hysteriaManager.IsRunning,
+				_ => _singBoxTunManager.IsRunning
+			};
 		}
 		if (ProxyProEnabled)
 		{
-			return _singBoxProxyManager.IsRunning;
+			return (UsesHysteriaCore(_connectedNode) ? _hysteriaManager.IsRunning : _singBoxProxyManager.IsRunning);
 		}
 		return _xrayManager.IsRunning;
 	}
 
 	private async Task StopAllCoresAsync()
 	{
+		StopTrafficMonitor();
+		ActiveConfigHash = string.Empty;
+		await _tun2ProxyManager.StopAsync();
+		await _hysteriaManager.StopAsync();
 		await _xrayManager.StopAsync();
 		await _singBoxTunManager.StopAsync();
 		await _singBoxProxyManager.StopAsync();
@@ -3308,21 +4575,152 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private async void OnSubscriptionUpdateTimerTick(object? sender, EventArgs e)
 	{
-		if (!IsLoading && Subscriptions.Count != 0)
+		if (IsLoading || Subscriptions.Count == 0)
 		{
-			AppendLog("[sys] Автообновление подписок...");
-			await RunSubscriptionMutationAsync(UpdateAllSubscriptionsAsync);
+			return;
 		}
+		List<Subscription> due = Subscriptions.Where(IsSubscriptionDue).ToList();
+		if (due.Count == 0)
+		{
+			return;
+		}
+		AppendLog($"[sys] Автообновление подписок: {due.Count} из {Subscriptions.Count}");
+		await RunSubscriptionMutationAsync(() => UpdateSubscriptionsAsync(due));
+	}
+
+	private void NotifySubscriptionStatus(Subscription subscription)
+	{
+		if (subscription.TotalBytes > 0)
+		{
+			long used = subscription.UploadBytes + subscription.DownloadBytes;
+			double percent = used * 100.0 / subscription.TotalBytes;
+			if (percent >= 80.0 && !subscription.TrafficWarningShown)
+			{
+				subscription.TrafficWarningShown = true;
+				string message = $"«{subscription.Name}»: израсходовано {percent:0}% трафика ({TrafficFormatter.FormatBytes(used)} из {TrafficFormatter.FormatBytes(subscription.TotalBytes)}).";
+				AppendLog("[warn] Подписка: " + message);
+				DialogService.Current.Notify("Заканчивается трафик подписки", message, NoticeKind.Warning);
+			}
+			else if (percent < 75.0)
+			{
+				subscription.TrafficWarningShown = false;
+			}
+		}
+		if (subscription.ExpiresAt is { } expires)
+		{
+			double days = (expires - DateTimeOffset.Now).TotalDays;
+			if (days <= 3.0 && !subscription.ExpiryWarningShown)
+			{
+				subscription.ExpiryWarningShown = true;
+				string message = ((days < 0.0)
+					? $"«{subscription.Name}» истекла {expires:dd.MM.yyyy}."
+					: $"«{subscription.Name}» истекает {expires:dd.MM.yyyy} (осталось {Math.Max(0.0, Math.Ceiling(days)):0} дн.).");
+				AppendLog("[warn] Подписка: " + message);
+				DialogService.Current.Notify((days < 0.0 ? "Подписка истекла" : "Подписка скоро истекает"), message, NoticeKind.Warning);
+			}
+			else if (days > 7.0)
+			{
+				subscription.ExpiryWarningShown = false;
+			}
+		}
+	}
+
+	private void OnNetworkAvailabilityChanged(object? sender, NetworkAvailabilityEventArgs e)
+	{
+		TryReconnectAfterEnvironmentChange("Сеть изменилась");
+	}
+
+	private void OnNetworkAddressChanged(object? sender, EventArgs e)
+	{
+		TryReconnectAfterEnvironmentChange("Сетевой адрес изменился");
+	}
+
+	private void OnSystemPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
+	{
+		if (e.Mode == PowerModes.Resume)
+		{
+			TryReconnectAfterEnvironmentChange("Пробуждение системы", force: true);
+		}
+	}
+
+	private void TryReconnectAfterEnvironmentChange(string reason, bool force = false)
+	{
+		if (_isDisposed || Volatile.Read(ref _coreLifecycleTransition) > 0)
+		{
+			return;
+		}
+		VlessNode? node = _connectedNode;
+		if (node == null || !IsConnected)
+		{
+			return;
+		}
+		if (!force && DateTime.UtcNow < _networkChangeGuardUntil)
+		{
+			return;
+		}
+		if (DateTime.UtcNow - _lastEnvironmentReconnectAt < TimeSpan.FromSeconds(10.0))
+		{
+			return;
+		}
+		_lastEnvironmentReconnectAt = DateTime.UtcNow;
+		AppendLog("[sys] " + reason + ": переподключение…");
+		_ = _dispatcher.InvokeAsync((Action)delegate
+		{
+			_ = ReconnectAsync(node, Volatile.Read(ref _connectionGeneration));
+		});
+	}
+
+	private bool IsSubscriptionDue(Subscription subscription)
+	{
+		int interval = ((subscription.UpdateIntervalMinutes > 0) ? subscription.UpdateIntervalMinutes : SubscriptionUpdateIntervalMinutes);
+		if (interval <= 0)
+		{
+			return false;
+		}
+		if (subscription.LastUpdated == default)
+		{
+			return true;
+		}
+		return DateTime.Now - subscription.LastUpdated >= TimeSpan.FromMinutes(interval);
 	}
 
 	private void ConfigureSubscriptionUpdateTimer()
 	{
 		_subscriptionUpdateTimer.Stop();
-		if (SubscriptionUpdateIntervalMinutes > 0)
+		_subscriptionUpdateTimer.Interval = TimeSpan.FromMinutes(1.0);
+		_subscriptionUpdateTimer.Start();
+	}
+
+	public async Task ApplySubscriptionSettingsAsync(Subscription subscription)
+	{
+		if (!CanModifySubscriptions())
 		{
-			_subscriptionUpdateTimer.Interval = TimeSpan.FromMinutes(SubscriptionUpdateIntervalMinutes);
-			_subscriptionUpdateTimer.Start();
+			return;
 		}
+		await RunSubscriptionMutationAsync(async () =>
+		{
+			List<VlessNode> current = subscription.Nodes.ToList();
+			IReadOnlyList<VlessNode> filtered = SubscriptionRefreshCoordinator.ApplyFilterAndSort(current, subscription);
+			bool keptOriginal = filtered.Count == 0 && current.Count > 0;
+			if (!keptOriginal)
+			{
+				subscription.Nodes = filtered.ToList();
+			}
+			List<Subscription> pending = Subscriptions.Select(CloneSubscription).ToList();
+			await _storageService.SaveSubscriptionsAsync(pending);
+			RefreshAllNodes();
+			if (keptOriginal)
+			{
+				AppendLog("[warn] Настройки подписки сохранены, но фильтр не оставил серверов — список не изменён: " + subscription.Name);
+				StatusText = "Фильтр не оставил серверов — список не изменён";
+				DialogService.Current.Notify("Фильтр пуст", "Настройки сохранены, но фильтр не оставил ни одного сервера — текущий список не изменён.", NoticeKind.Warning);
+			}
+			else
+			{
+				AppendLog("[sys] Настройки подписки применены: " + subscription.Name);
+				StatusText = $"Настройки подписки применены: {subscription.Nodes.Count} серверов";
+			}
+		});
 	}
 
 	private void DeactivateSystemProxyForDisconnectedServer(bool silent)
@@ -3787,6 +5185,247 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		await CheckForUpdatesAsync(showNoUpdateMessage: true);
 	}
 
+	private async Task InstallHelperAsync()
+	{
+		if (!HelperServiceInstaller.IsHelperAvailable())
+		{
+			DialogService.Current.Notify("Компонент службы не найден", "ElyProxy.Helper.exe отсутствует в сборке. Переустановите ElyProxy.", NoticeKind.Error);
+			return;
+		}
+		bool confirmed = await DialogService.Current.ConfirmAsync(
+			"Установить службу-помощник?",
+			"Windows один раз запросит права администратора. После установки TUN-ядра будут запускаться службой от имени системы, и UAC при каждом подключении больше не потребуется.",
+			"Установить",
+			"Отмена");
+		if (!confirmed)
+		{
+			return;
+		}
+		_isHelperBusy = true;
+		HelperServiceStatus = "Установка службы…";
+		try
+		{
+			bool running = await HelperServiceInstaller.InstallAsync();
+			RefreshHelperStatus();
+			if (running)
+			{
+				UseHelperService = true;
+				DialogService.Current.Notify("Служба установлена", "TUN-ядра будут запускаться без UAC.", NoticeKind.Success);
+			}
+			else
+			{
+				DialogService.Current.Notify("Служба установлена, но не запустилась", "Проверьте службу ElyProxyHelper в services.msc.", NoticeKind.Warning);
+			}
+		}
+		catch (Exception ex)
+		{
+			HelperServiceStatus = "Не удалось установить службу.";
+			AppendLog("[err] Служба-помощник: " + ex.Message);
+			DialogService.Current.Notify("Не удалось установить службу", ex.Message, NoticeKind.Error);
+		}
+		finally
+		{
+			_isHelperBusy = false;
+			CommandManager.InvalidateRequerySuggested();
+		}
+	}
+
+	private async Task UninstallHelperAsync()
+	{
+		bool confirmed = await DialogService.Current.ConfirmAsync(
+			"Удалить службу-помощник?",
+			"TUN-режимы снова будут запрашивать UAC при подключении.",
+			"Удалить",
+			"Отмена",
+			destructive: true);
+		if (!confirmed)
+		{
+			return;
+		}
+		_isHelperBusy = true;
+		try
+		{
+			await HelperServiceInstaller.UninstallAsync();
+			UseHelperService = false;
+			RefreshHelperStatus();
+			DialogService.Current.Notify("Служба удалена", "ElyProxy вернулся к обычному режиму запуска TUN.", NoticeKind.Success);
+		}
+		catch (Exception ex)
+		{
+			AppendLog("[err] Служба-помощник: " + ex.Message);
+			DialogService.Current.Notify("Не удалось удалить службу", ex.Message, NoticeKind.Error);
+		}
+		finally
+		{
+			_isHelperBusy = false;
+			CommandManager.InvalidateRequerySuggested();
+		}
+	}
+
+	private void RefreshHelperStatus()
+	{
+		_helperServiceRunning = HelperServiceInstaller.IsServiceRunning();
+		bool installed = _helperServiceRunning || HelperServiceInstaller.IsServiceInstalled();
+		if (_helperServiceRunning)
+		{
+			HelperServiceStatus = "Служба запущена.";
+		}
+		else if (installed)
+		{
+			HelperServiceStatus = "Служба установлена, но не запущена.";
+		}
+		else
+		{
+			HelperServiceStatus = HelperServiceInstaller.IsHelperAvailable()
+				? "Служба не установлена."
+				: "ElyProxy.Helper.exe не найден в сборке.";
+		}
+	}
+
+	private async Task CheckCoreUpdatesAsync()
+	{
+		if (IsCoreUpdateBusy)
+		{
+			return;
+		}
+		IsCoreUpdateBusy = true;
+		try
+		{
+			CoreUpdateStatus = "Проверка версий ядер…";
+			_availableCoreReleases.Clear();
+			List<string> lines = new List<string>();
+			foreach (string coreId in CoreUpdateService.CoreIds)
+			{
+				string installed = await CoreVersionService.GetInstalledVersionAsync(coreId);
+				try
+				{
+					CoreRelease latest = await _coreUpdateService.GetLatestAsync(coreId);
+					_availableCoreReleases.Add(latest);
+					bool actual = string.Equals(installed, latest.Version, StringComparison.OrdinalIgnoreCase);
+					lines.Add($"{latest.DisplayName}: установлено {installed} — " + (actual ? "актуально" : "доступно " + latest.Version));
+					AppendLog($"[sys] Ядра · {latest.DisplayName}: установлено {installed}, последняя {latest.Version}");
+				}
+				catch (Exception ex)
+				{
+					lines.Add($"{CoreUpdateService.GetDisplayName(coreId)}: установлено {installed} — не удалось проверить");
+					AppendLog("[warn] Ядра · " + CoreUpdateService.GetDisplayName(coreId) + ": проверка не удалась — " + ex.Message);
+				}
+			}
+			CoreUpdateStatus = string.Join(Environment.NewLine, lines);
+		}
+		finally
+		{
+			IsCoreUpdateBusy = false;
+		}
+	}
+
+	private async Task UpdateGeoDataAsync()
+	{
+		if (IsCoreUpdateBusy)
+		{
+			return;
+		}
+		if (IsConnected)
+		{
+			DialogService.Current.Notify("Сначала отключитесь", "Обновление geo-данных заменяет файлы, которые читает работающий Xray. Отключитесь и повторите.", NoticeKind.Warning);
+			return;
+		}
+		bool confirmed = await DialogService.Current.ConfirmAsync(
+			"Обновить geo-данные Xray?",
+			"Будут скачаны свежие geoip.dat и geosite.dat (источник — Loyalsoldier/v2ray-rules-dat) и положены рядом с активным xray.exe. Это влияет на категории geoip:/geosite: в правилах Xray; встроенные rule-set'ы RoscomVPN обновляются вместе с приложением. Предыдущие файлы будут заменены.",
+			"Обновить",
+			"Отмена");
+		if (!confirmed)
+		{
+			return;
+		}
+		IsCoreUpdateBusy = true;
+		try
+		{
+			CoreUpdateStatus = "Обновление geo-данных…";
+			Progress<double> progress = new Progress<double>(percent => CoreUpdateStatus = $"Обновление geo-данных: {percent:0}%");
+			string result = await _geoDataUpdateService.UpdateXrayGeoAsync(progress);
+			CoreUpdateStatus = result;
+			AppendLog("[sys] " + result);
+			DialogService.Current.Notify("Geo-данные обновлены", result, NoticeKind.Success);
+		}
+		catch (Exception ex)
+		{
+			CoreUpdateStatus = "Не удалось обновить geo-данные.";
+			AppendLog("[warn] Geo-данные: " + ex.Message);
+			DialogService.Current.Notify("Не удалось обновить geo-данные", ex.Message, NoticeKind.Error);
+		}
+		finally
+		{
+			IsCoreUpdateBusy = false;
+		}
+	}
+
+	private async Task UpdateCoresAsync()
+	{
+		if (IsCoreUpdateBusy)
+		{
+			return;
+		}
+		if (IsConnected)
+		{
+			DialogService.Current.Notify("Сначала отключитесь", "Обновление ядер заменяет исполняемые файлы. Отключитесь и повторите.", NoticeKind.Warning);
+			return;
+		}
+		bool confirmed = await DialogService.Current.ConfirmAsync(
+			"Обновить ядра?",
+			"Будут скачаны последние версии Xray, sing-box, tun2proxy и Hysteria 2 с GitHub, проверены по SHA-256 и сохранены в локальную папку ElyProxy.\n\nНовые файлы имеют приоритет над встроенными.",
+			"Обновить",
+			"Отмена");
+		if (!confirmed)
+		{
+			return;
+		}
+		IsCoreUpdateBusy = true;
+		try
+		{
+			int updated = 0;
+			int failed = 0;
+			foreach (string coreId in CoreUpdateService.CoreIds)
+			{
+				CoreRelease latest;
+				try
+				{
+					latest = await _coreUpdateService.GetLatestAsync(coreId);
+				}
+				catch (Exception ex)
+				{
+					failed++;
+					AppendLog("[warn] Ядра · " + CoreUpdateService.GetDisplayName(coreId) + ": " + ex.Message);
+					continue;
+				}
+				CoreUpdateStatus = $"Обновление {latest.DisplayName} {latest.Version}…";
+				Progress<double> progress = new Progress<double>(percent =>
+					CoreUpdateStatus = $"Обновление {latest.DisplayName} {latest.Version}: {percent:0}%");
+				try
+				{
+					await _coreUpdateService.InstallAsync(latest, progress);
+					updated++;
+					AppendLog($"[sys] Ядра · {latest.DisplayName} обновлён до {latest.Version}");
+				}
+				catch (Exception ex)
+				{
+					failed++;
+					AppendLog("[warn] Ядра · не удалось обновить " + latest.DisplayName + ": " + ex.Message);
+				}
+			}
+			CoreUpdateStatus = $"Готово: обновлено {updated}" + (failed > 0 ? $", с ошибками {failed}" : "") + ". Новые ядра применятся при следующем подключении.";
+			DialogService.Current.Notify(
+				failed > 0 ? "Ядра обновлены частично" : "Ядра обновлены",
+				CoreUpdateStatus,
+				failed > 0 ? NoticeKind.Warning : NoticeKind.Success);
+		}
+		finally
+		{
+			IsCoreUpdateBusy = false;
+		}
+	}
+
 	private async Task<bool> CheckForUpdatesAsync(bool showNoUpdateMessage)
 	{
 		if (IsCheckingForUpdates || _isUpdating)
@@ -3901,8 +5540,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			ReportStorageLoadResult("Настройки", settingsResult);
 			AppSettings settings = settingsResult.Data;
 			bool isAdministrator = ElyTunElevationService.IsRunningAsAdministrator();
+			RefreshHelperStatus();
+			bool helperReady = settings.UseHelperService && _helperServiceRunning;
 			bool elevatedElyTunLaunch = _launchElyTunOnStartup && isAdministrator;
-			bool deferSavedElyTunAutoConnect = !isAdministrator && (settings.ElyTunEnabled || _launchElyTunOnStartup);
+			bool deferSavedElyTunAutoConnect = !isAdministrator && !helperReady && (settings.ElyTunEnabled || _launchElyTunOnStartup);
 			_isLoadingSettings = true;
 			SocksPort = ((settings.SocksPort > 0) ? settings.SocksPort : 1080);
 			AutoConnect = settings.AutoConnect;
@@ -3916,8 +5557,36 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			mainViewModel.PacPort = ((pacPort >= 1024 && pacPort <= 65535) ? settings.PacPort : 18080);
 			_previousAutoConfigUrl = settings.PreviousAutoConfigUrl;
 			ProxyProEnabled = !elevatedElyTunLaunch && settings.ProxyProEnabled;
-			ElyTunEnabled = elevatedElyTunLaunch || (!ProxyProEnabled && settings.ElyTunEnabled && isAdministrator);
+			ElyTunEnabled = elevatedElyTunLaunch || (!ProxyProEnabled && settings.ElyTunEnabled && (isAdministrator || helperReady));
 			ElyTunIpv6Enabled = settings.ElyTunIpv6Enabled;
+			TunCore = (Enum.IsDefined(settings.TunCore) ? settings.TunCore : TunCoreKind.SingBox);
+			Hysteria2Engine = (Enum.IsDefined(settings.Hysteria2Engine) ? settings.Hysteria2Engine : Hysteria2Engine.SingBox);
+			UseHelperService = settings.UseHelperService;
+			FragmentMode = (Enum.IsDefined(settings.FragmentMode) ? settings.FragmentMode : FragmentModeKind.Off);
+			FragmentPackets = (string.IsNullOrWhiteSpace(settings.FragmentPackets) ? "tlshello" : settings.FragmentPackets);
+			FragmentLength = (string.IsNullOrWhiteSpace(settings.FragmentLength) ? "100-200" : settings.FragmentLength);
+			FragmentInterval = (string.IsNullOrWhiteSpace(settings.FragmentInterval) ? "10-20" : settings.FragmentInterval);
+			FragmentRecord = settings.FragmentRecord;
+			PerAppMode = (Enum.IsDefined(settings.PerAppMode) ? settings.PerAppMode : PerAppModeKind.Bypass);
+			TlsSpoofEnabled = settings.TlsSpoofEnabled;
+			TlsSpoofSni = (settings.TlsSpoofSni ?? string.Empty);
+			TlsSpoofMethodIndex = (settings.TlsSpoofMethod switch
+			{
+				"wrong-checksum" => 1,
+				"wrong-ack" => 2,
+				"wrong-md5" => 3,
+				"wrong-timestamp" => 4,
+				_ => 0
+			});
+			NoiseTypeIndex = (settings.NoiseType switch
+			{
+				"rand" => 1,
+				"str" => 2,
+				"base64" => 3,
+				_ => 0
+			});
+			NoisePacket = (settings.NoisePacket ?? string.Empty);
+			NoiseDelay = (string.IsNullOrWhiteSpace(settings.NoiseDelay) ? "10-16" : settings.NoiseDelay);
 			RoutingPreset = (Enum.IsDefined(settings.RoutingPreset) ? settings.RoutingPreset : RoutingPreset.Custom);
 			SystemProxyEnabled = !elevatedElyTunLaunch && !ProxyProEnabled && !ElyTunEnabled && (settings.SystemProxyEnabled || settings.PacModeEnabled);
 			MainViewModel mainViewModel2 = this;
@@ -3972,6 +5641,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			{
 				_isLoadingSettings = false;
 				ConfigureSubscriptionUpdateTimer();
+				RefreshHelperStatus();
 			}
 			StorageLoadResult<List<Subscription>> subscriptionsResult = await _storageService.LoadSubscriptionsAsync();
 			_canSaveSubscriptions = subscriptionsResult.CanSave;
@@ -4138,6 +5808,21 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				ProxyProEnabled = ProxyProEnabled,
 				ElyTunEnabled = ElyTunEnabled,
 				ElyTunIpv6Enabled = ElyTunIpv6Enabled,
+				TunCore = TunCore,
+				Hysteria2Engine = Hysteria2Engine,
+				UseHelperService = UseHelperService,
+				FragmentMode = FragmentMode,
+				FragmentPackets = FragmentPackets,
+				FragmentLength = FragmentLength,
+				FragmentInterval = FragmentInterval,
+				FragmentRecord = FragmentRecord,
+				PerAppMode = PerAppMode,
+				TlsSpoofEnabled = TlsSpoofEnabled,
+				TlsSpoofSni = TlsSpoofSni,
+				TlsSpoofMethod = _tlsSpoofMethod,
+				NoiseType = _noiseType,
+				NoisePacket = NoisePacket,
+				NoiseDelay = NoiseDelay,
 				RoutingPreset = RoutingPreset,
 				PreviousAutoConfigUrl = _previousAutoConfigUrl,
 				SubscriptionUpdateIntervalMinutes = SubscriptionUpdateIntervalMinutes,
@@ -4165,6 +5850,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		_subscriptionUpdateTimer.Stop();
 		_logFlushTimer.Stop();
 		_subscriptionUpdateTimer.Tick -= OnSubscriptionUpdateTimerTick;
+		NetworkChange.NetworkAvailabilityChanged -= OnNetworkAvailabilityChanged;
+		NetworkChange.NetworkAddressChanged -= OnNetworkAddressChanged;
+		SystemEvents.PowerModeChanged -= OnSystemPowerModeChanged;
 		try
 		{
 			if (SystemProxyEnabled)
@@ -4180,6 +5868,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		_xrayManager.Dispose();
 		_singBoxTunManager.Dispose();
 		_singBoxProxyManager.Dispose();
+		_tun2ProxyManager.Dispose();
+		_hysteriaManager.Dispose();
+		_coreUpdateService.Dispose();
+		_geoDataUpdateService.Dispose();
+		_trafficMonitor.Dispose();
 		_subscriptionService.Dispose();
 		GC.SuppressFinalize(this);
 	}

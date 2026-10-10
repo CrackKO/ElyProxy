@@ -36,9 +36,14 @@
                    Style="{StaticResource Text.Headline}"
                    TextWrapping="Wrap" />
 
-        <ContentPresenter x:Name="BodyHost"
-                          Grid.Row="1"
-                          Margin="0,10,0,0" />
+        <ScrollViewer x:Name="BodyScroll"
+                      Grid.Row="1"
+                      Margin="0,10,0,0"
+                      MaxHeight="520"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+          <ContentPresenter x:Name="BodyHost" />
+        </ScrollViewer>
 
         <StackPanel Grid.Row="2"
                     Orientation="Horizontal"

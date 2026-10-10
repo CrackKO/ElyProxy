@@ -4,6 +4,10 @@ obj/
 publish/
 out/
 
+## Release builds / test artifacts
+release-build/
+testResults.xml
+
 ## User-specific
 *.rsuser
 *.suo
@@ -41,6 +45,11 @@ project.fragment.lock.json
 bin/xray/xray.exe
 bin/xray/geoip.dat
 bin/xray/geosite.dat
+
+## Locally placed core binaries (untracked like before; updated via Settings → Ядра)
+xray/
+tun2proxy/
+hysteria/
 
 ## Temp
 *.tmp

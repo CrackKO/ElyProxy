@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ElyProxy.Tests", "tests\Ely
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ElyProxy.Updater", "ElyProxy.Updater\ElyProxy.Updater.csproj", "{84F9AC98-7A2A-4D0D-8F9E-7E58E28B1E75}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ElyProxy.Helper", "ElyProxy.Helper\ElyProxy.Helper.csproj", "{B7D3C2A1-5E4F-4A8B-9C0D-1F2E3A4B5C6D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,5 +29,9 @@ Global
 		{84F9AC98-7A2A-4D0D-8F9E-7E58E28B1E75}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{84F9AC98-7A2A-4D0D-8F9E-7E58E28B1E75}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{84F9AC98-7A2A-4D0D-8F9E-7E58E28B1E75}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B7D3C2A1-5E4F-4A8B-9C0D-1F2E3A4B5C6D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7D3C2A1-5E4F-4A8B-9C0D-1F2E3A4B5C6D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7D3C2A1-5E4F-4A8B-9C0D-1F2E3A4B5C6D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7D3C2A1-5E4F-4A8B-9C0D-1F2E3A4B5C6D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

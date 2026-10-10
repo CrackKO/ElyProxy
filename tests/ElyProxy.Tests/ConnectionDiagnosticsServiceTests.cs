@@ -11,7 +11,6 @@ public sealed class ConnectionDiagnosticsServiceTests
     [Fact]
     public async Task RunAsync_SeparatesCoreProxyModeAndExternalRouteChecks()
     {
-        int unusedPort = ReservePort();
         const string pacUrl = "http://127.0.0.1:18080/proxy.pac";
         var proxy = new FakeProxyService
         {
@@ -21,13 +20,25 @@ public sealed class ConnectionDiagnosticsServiceTests
                 null,
                 new WindowsProxyValueSnapshot { Kind = RegistryValueKind.String, StringValue = pacUrl })
         };
+        var service = new ConnectionDiagnosticsService(proxy);
 
-        ConnectionDiagnosticsResult result = await new ConnectionDiagnosticsService(proxy).RunAsync(
-            coreRunning: true,
-            unusedPort,
-            "Proxy Lite",
-            pacUrl,
-            Array.Empty<string>());
+        // The reserved port is released before the probe, so another process can
+        // steal it; retry until the port really was refused.
+        ConnectionDiagnosticsResult result = null!;
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            result = await service.RunAsync(
+                coreRunning: true,
+                ReservePort(),
+                "Proxy Lite",
+                pacUrl,
+                Array.Empty<string>());
+
+            if (!result.Checks.Single(check => check.Name == "Локальный SOCKS5").Passed)
+            {
+                break;
+            }
+        }
 
         Assert.Equal(4, result.Checks.Count);
         Assert.True(result.Checks.Single(check => check.Name == "Ядро").Passed);

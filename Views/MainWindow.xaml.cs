@@ -40,6 +40,23 @@ public partial class MainWindow : Window
 
         SourceInitialized += (_, _) => WindowChromeHelper.Configure(this, MaximizeButton);
         Loaded += OnLoaded;
+        App.ActivationRequested += OnActivationRequested;
+        Closed += (_, _) => App.ActivationRequested -= OnActivationRequested;
+    }
+
+    private void OnActivationRequested()
+    {
+        if (!IsVisible)
+        {
+            RestoreFromTray();
+        }
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+        Activate();
+        Topmost = true;
+        Topmost = false;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -320,6 +337,7 @@ public partial class MainWindow : Window
 
         var menu = new TrayMenuWindow();
         menu.ShowRequested += (_, _) => RestoreFromTray();
+        menu.TunCoreRequested += (_, core) => _viewModel.TunCore = core;
         menu.ExitRequested += (_, _) =>
         {
             if (_trayIcon is not null)

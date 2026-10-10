@@ -17,6 +17,8 @@ public partial class ServersView : UserControl
 
     private bool _sortReady;
 
+    private string _protocolFilter = string.Empty;
+
     public ServersView()
     {
         InitializeComponent();
@@ -27,6 +29,17 @@ public partial class ServersView : UserControl
     private MainViewModel? ViewModel => DataContext as MainViewModel;
 
     private async void AddServer_Click(object sender, RoutedEventArgs e) => await AddServerAsync();
+
+    private async void RowShare_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } viewModel || viewModel.SelectedNode is not { } node)
+        {
+            return;
+        }
+
+        var sheet = new ShareServerSheet(node);
+        await DialogService.Current.ShowCustomAsync("Поделиться сервером", sheet, "Готово");
+    }
 
     private async Task AddServerAsync()
     {
@@ -68,7 +81,24 @@ public partial class ServersView : UserControl
         viewModel.AddSubscriptionCommand.Execute(null);
     }
 
-    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyFilter();
+
+    private void ProtocolBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        _protocolFilter = ProtocolBox.SelectedIndex switch
+        {
+            1 => "vless",
+            2 => "vmess",
+            3 => "trojan",
+            4 => "shadowsocks",
+            5 => "hysteria2",
+            6 => "tuic",
+            _ => string.Empty
+        };
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
     {
         if (ViewModel is not { } viewModel)
         {
@@ -77,10 +107,29 @@ public partial class ServersView : UserControl
 
         var view = CollectionViewSource.GetDefaultView(viewModel.AllNodes);
         var query = SearchBox.Text.Trim();
+        if (string.IsNullOrEmpty(query) && string.IsNullOrEmpty(_protocolFilter))
+        {
+            view.Filter = null;
+            return;
+        }
 
-        view.Filter = string.IsNullOrEmpty(query)
-            ? null
-            : item => item is VlessNode node && Matches(node, query);
+        view.Filter = item => item is VlessNode node && Matches(node, query) && MatchesProtocol(node);
+    }
+
+    private bool MatchesProtocol(VlessNode node)
+    {
+        if (string.IsNullOrEmpty(_protocolFilter))
+        {
+            return true;
+        }
+
+        var protocol = (node.Protocol ?? "vless").ToLowerInvariant();
+        return _protocolFilter switch
+        {
+            "shadowsocks" => protocol is "shadowsocks" or "ss",
+            "hysteria2" => protocol is "hysteria2" or "hy2",
+            _ => protocol == _protocolFilter
+        };
     }
 
     private void SortBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

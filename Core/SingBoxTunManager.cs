@@ -36,13 +36,15 @@ public sealed class SingBoxTunManager : IDisposable
 
 	public bool IsRunning => _processManager.IsRunning;
 
+	public string? LastConfigHash { get; private set; }
+
 	public event Action<string>? LogReceived;
 
 	public event Action<bool>? StatusChanged;
 
 	public SingBoxTunManager(IProcessManager? processManager = null)
 	{
-		_processManager = processManager ?? new ProcessManager();
+		_processManager = processManager ?? new ProcessManagerRouter();
 		_processManager.ProcessStartedForProcess += OnProcessStarted;
 		_processManager.OutputReceivedForProcess += OnProcessLine;
 		_processManager.ErrorReceivedForProcess += OnProcessLine;
@@ -51,14 +53,7 @@ public sealed class SingBoxTunManager : IDisposable
 
 	public string GetSingBoxPath()
 	{
-		string appDir = AppDomain.CurrentDomain.BaseDirectory;
-		string[] candidates = new string[3]
-		{
-			Path.Combine(appDir, "sing-box", "sing-box.exe"),
-			Path.Combine(appDir, "bin", "sing-box", "sing-box.exe"),
-			Path.Combine(appDir, "sing-box.exe")
-		};
-		return candidates.FirstOrDefault(File.Exists) ?? candidates[0];
+		return CoreLocator.Resolve("sing-box", "sing-box.exe", "sing-box", Path.Combine("bin", "sing-box"), string.Empty);
 	}
 
 	public async Task StartAsync(VlessNode node, int socksPort, XrayTunOptions tunOptions)
@@ -84,6 +79,8 @@ public sealed class SingBoxTunManager : IDisposable
 			CleanupConfig();
 			XrayTunOptions effectiveTunOptions = await AddServerRouteExclusionsAsync(node, tunOptions);
 			string configJson = _configBuilder.BuildTun(node, socksPort, effectiveTunOptions);
+			LastConfigHash = ConfigHash.Compute(configJson);
+		this.LogReceived?.Invoke("[sys] Хеш конфига: " + LastConfigHash);
 			await WriteConfigAsync(configJson);
 			using CancellationTokenSource startCancellation = new CancellationTokenSource();
 			SetStartCancellation(startCancellation);
@@ -239,7 +236,7 @@ public sealed class SingBoxTunManager : IDisposable
 	private async Task StopProcessAsync()
 	{
 		Interlocked.Exchange(ref _activeProcessId, 0);
-		await _processManager.StopAsync();
+		await _processManager.StopAsync().ConfigureAwait(false);
 	}
 
 	private async Task ValidateConfigurationAsync(string executablePath, string configPath, CancellationToken cancellationToken)

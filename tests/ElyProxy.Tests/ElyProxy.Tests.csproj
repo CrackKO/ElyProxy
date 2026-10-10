@@ -18,6 +18,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\ElyProxy.csproj" />
+    <ProjectReference Include="..\..\ElyProxy.Updater\ElyProxy.Updater.csproj" />
+    <ProjectReference Include="..\..\ElyProxy.Helper\ElyProxy.Helper.csproj" />
   </ItemGroup>
 
 </Project>

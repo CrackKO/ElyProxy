@@ -13,13 +13,17 @@ public sealed class UpdateService : IDisposable
 
     private const long MaxPackageBytes = 750L * 1024 * 1024;
     private readonly HttpClient _httpClient;
+    private readonly string? _updatesDirectory;
 
     public UpdateService()
+        : this(new HttpClient { Timeout = TimeSpan.FromSeconds(15) })
     {
-        _httpClient = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(15)
-        };
+    }
+
+    public UpdateService(HttpClient httpClient, string? updatesDirectory = null)
+    {
+        _httpClient = httpClient;
+        _updatesDirectory = updatesDirectory;
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd($"ElyProxy/{CurrentVersion}");
     }
 
@@ -49,7 +53,7 @@ public sealed class UpdateService : IDisposable
     {
         ValidateManifest(manifest);
         var version = ParseVersion(manifest.Version);
-        var destinationDirectory = Path.Combine(
+        var destinationDirectory = _updatesDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "ElyProxy",
             "updates");

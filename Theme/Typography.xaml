@@ -17,6 +17,7 @@
     <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
     <Setter Property="Typography.Kerning" Value="True" />
     <Setter Property="TextWrapping" Value="NoWrap" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
   </Style>
 
   <Style x:Key="Text.LargeTitle" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource Text.Base}">

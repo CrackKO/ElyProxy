@@ -60,6 +60,30 @@
               Click="Show_Click"
               AutomationProperties.Name="Показать окно ElyProxy" />
       <Border Style="{StaticResource AppleRowSeparator}" Margin="8,4" />
+      <TextBlock Text="Ядро TUN"
+                 Style="{StaticResource Text.Caption}"
+                 Margin="12,4,12,2" />
+      <Button Style="{StaticResource TrayMenuItem}"
+              Content="sing-box"
+              Tag="0"
+              Click="TunCore_Click"
+              AutomationProperties.Name="Ядро TUN: sing-box" />
+      <Button Style="{StaticResource TrayMenuItem}"
+              Content="Xray TUN"
+              Tag="1"
+              Click="TunCore_Click"
+              AutomationProperties.Name="Ядро TUN: Xray" />
+      <Button Style="{StaticResource TrayMenuItem}"
+              Content="tun2proxy"
+              Tag="2"
+              Click="TunCore_Click"
+              AutomationProperties.Name="Ядро TUN: tun2proxy" />
+      <Button Style="{StaticResource TrayMenuItem}"
+              Content="Hysteria 2 TUN"
+              Tag="3"
+              Click="TunCore_Click"
+              AutomationProperties.Name="Ядро TUN: Hysteria 2" />
+      <Border Style="{StaticResource AppleRowSeparator}" Margin="8,4" />
       <Button Style="{StaticResource TrayMenuItem}"
               Content="Выход"
               Click="Exit_Click"

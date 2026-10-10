@@ -61,7 +61,7 @@ public class ProcessManager : IProcessManager
 			StandardOutputEncoding = Encoding.UTF8,
 			StandardErrorEncoding = Encoding.UTF8
 		};
-		await _lock.WaitAsync();
+		await _lock.WaitAsync().ConfigureAwait(false);
 		try
 		{
 			_process = new Process
@@ -85,7 +85,11 @@ public class ProcessManager : IProcessManager
 
 	public async Task StopAsync()
 	{
-		await _lock.WaitAsync();
+		if (!await _lock.WaitAsync(TimeSpan.FromSeconds(2.0)).ConfigureAwait(false))
+		{
+			ForceKill();
+			return;
+		}
 		try
 		{
 			if (_process == null)
@@ -97,7 +101,7 @@ public class ProcessManager : IProcessManager
 				if (!_process.HasExited)
 				{
 					_process.Kill(entireProcessTree: true);
-					await _process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5.0));
+					await _process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5.0)).ConfigureAwait(false);
 				}
 			}
 			catch (TimeoutException)
@@ -118,6 +122,21 @@ public class ProcessManager : IProcessManager
 		finally
 		{
 			_lock.Release();
+		}
+	}
+
+	private void ForceKill()
+	{
+		try
+		{
+			Process? process = _process;
+			if (process != null && !process.HasExited)
+			{
+				process.Kill(entireProcessTree: true);
+			}
+		}
+		catch
+		{
 		}
 	}
 

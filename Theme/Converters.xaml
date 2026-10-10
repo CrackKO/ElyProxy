@@ -13,6 +13,7 @@
   <converters:ComboLabelConverter x:Key="ComboLabel" />
   <converters:BadgeTextConverter x:Key="BadgeText" />
   <converters:BadgeVisibilityConverter x:Key="BadgeVis" />
+  <converters:FlagImageConverter x:Key="FlagImage" />
 
   <Style x:Key="AppleFocusVisual">
     <Setter Property="Control.Template">

@@ -7,9 +7,9 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>ElyProxy</RootNamespace>
     <AssemblyName>ElyProxy</AssemblyName>
-    <Version>1.3.8</Version>
-    <AssemblyVersion>1.3.8.0</AssemblyVersion>
-    <FileVersion>1.3.8.0</FileVersion>
+    <Version>1.4.0</Version>
+    <AssemblyVersion>1.4.0.0</AssemblyVersion>
+    <FileVersion>1.4.0.0</FileVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -21,16 +21,21 @@
     <Using Remove="System.Windows.Forms" />
     <Compile Remove="tests\**\*.cs" />
     <Compile Remove="ElyProxy.Updater\**\*.cs" />
+    <Compile Remove="ElyProxy.Helper\**\*.cs" />
     <Compile Remove="SevenLive\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="QRCoder" Version="1.8.0" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.0" />
     <PackageReference Include="WPF-UI" Version="4.3.0" />
+    <PackageReference Include="YamlDotNet" Version="18.1.0" />
   </ItemGroup>
 
   <ItemGroup>
     <Resource Include="icon.ico" />
+    <Resource Include="Assets\Flags\**\*.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -51,6 +56,12 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </None>
+    <!-- tun2proxy runtime (untracked locally placed binary, like xray/). -->
+    <None Update="tun2proxy\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </None>
     <None Update="Assets\RoscomVPN\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
@@ -60,5 +71,8 @@
 
   <Target Name="PublishUpdater" AfterTargets="Publish">
     <MSBuild Projects="ElyProxy.Updater\ElyProxy.Updater.csproj" Targets="Restore;Publish" Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishDir=$(PublishDir)updater\" />
+  </Target>
+  <Target Name="PublishHelper" AfterTargets="Publish">
+    <MSBuild Projects="ElyProxy.Helper\ElyProxy.Helper.csproj" Targets="Restore;Publish" Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishDir=$(PublishDir)helper\" />
   </Target>
 </Project>

@@ -40,6 +40,36 @@ public class AppSettings
 
 	public bool ElyTunIpv6Enabled { get; set; } = true;
 
+	public TunCoreKind TunCore { get; set; } = TunCoreKind.SingBox;
+
+	public Hysteria2Engine Hysteria2Engine { get; set; } = Hysteria2Engine.SingBox;
+
+	public bool UseHelperService { get; set; }
+
+	public FragmentModeKind FragmentMode { get; set; } = FragmentModeKind.Off;
+
+	public string FragmentPackets { get; set; } = "tlshello";
+
+	public string FragmentLength { get; set; } = "100-200";
+
+	public string FragmentInterval { get; set; } = "10-20";
+
+	public bool FragmentRecord { get; set; }
+
+	public PerAppMode PerAppMode { get; set; } = PerAppMode.Bypass;
+
+	public string NoiseType { get; set; } = string.Empty;
+
+	public string NoisePacket { get; set; } = string.Empty;
+
+	public string NoiseDelay { get; set; } = "10-16";
+
+	public bool TlsSpoofEnabled { get; set; }
+
+	public string TlsSpoofSni { get; set; } = string.Empty;
+
+	public string TlsSpoofMethod { get; set; } = "wrong-sequence";
+
 	public RoutingPreset RoutingPreset { get; set; }
 
 	public string? PreviousAutoConfigUrl { get; set; }

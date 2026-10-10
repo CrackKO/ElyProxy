@@ -83,7 +83,12 @@
             </Style>
           </Ellipse.Style>
         </Ellipse>
-        <TextBlock Text="{Binding StatusText}" Style="{StaticResource PillText}" VerticalAlignment="Center" />
+        <TextBlock Text="{Binding StatusText}"
+                   Style="{StaticResource PillText}"
+                   VerticalAlignment="Center"
+                   MaxWidth="260"
+                   TextTrimming="CharacterEllipsis"
+                   ToolTip="{Binding StatusText}" />
         <TextBlock Text="{Binding ConnectedNodeName}"
                    Style="{StaticResource PillText}"
                    Foreground="{DynamicResource FgDimBrush}"
@@ -91,6 +96,7 @@
                    MaxWidth="220"
                    VerticalAlignment="Center"
                    TextTrimming="CharacterEllipsis"
+                   ToolTip="{Binding ConnectedNodeName}"
                    Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}" />
       </StackPanel>
 
@@ -199,8 +205,12 @@
 
           <Border Grid.Row="0" Style="{StaticResource AppleCard}" Padding="14,13" Margin="0,4,0,12">
             <StackPanel>
-              <StackPanel Orientation="Horizontal">
-                <Ellipse Width="10" Height="10" Margin="1,0,9,0" VerticalAlignment="Center">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Ellipse Grid.Column="0" Width="10" Height="10" Margin="1,4,9,0" VerticalAlignment="Top">
                   <Ellipse.Style>
                     <Style TargetType="{x:Type Ellipse}">
                       <Setter Property="Fill" Value="{DynamicResource FgDimBrush}" />
@@ -212,19 +222,21 @@
                     </Style>
                   </Ellipse.Style>
                 </Ellipse>
-                <TextBlock Text="{Binding StatusText}"
+                <TextBlock Grid.Column="1"
+                           Text="{Binding StatusText}"
                            Style="{StaticResource Text.BodyStrong}"
                            FontSize="14"
-                           VerticalAlignment="Center"
-                           TextWrapping="Wrap" />
-              </StackPanel>
+                           TextWrapping="Wrap"
+                           ToolTip="{Binding StatusText}" />
+              </Grid>
               <!-- Two lines with an ellipsis on the last one: server names are long. -->
               <TextBlock Text="{Binding ConnectedNodeName}"
                          Style="{StaticResource Text.Caption}"
                          Margin="20,4,0,0"
                          TextWrapping="Wrap"
                          TextTrimming="CharacterEllipsis"
-                         MaxHeight="36" />
+                         MaxHeight="36"
+                         ToolTip="{Binding ConnectedNodeName}" />
 
               <Button Content="Подключить"
                       Style="{StaticResource PrimaryButton}"
@@ -323,23 +335,25 @@
               <StackPanel Orientation="Horizontal">
                 <TextBlock Text="Журнал"
                            Style="{StaticResource Text.Headline}"
-                           VerticalAlignment="Center" />
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" />
                 <controls:BusyRing Width="16"
                              Height="16"
                              Margin="10,2,0,0"
                              Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}" />
               </StackPanel>
-              <StackPanel Grid.Column="1" Orientation="Horizontal">
+              <WrapPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
                 <TextBox x:Name="LogSearchBox"
                          Width="170"
                          MinHeight="30"
+                         Margin="0,0,8,0"
                          controls:Placeholder.Text="Поиск по журналу"
                          AutomationProperties.Name="Поиск по журналу"
                          TextChanged="LogFilter_Changed" />
                 <ComboBox x:Name="LogLevelBox"
                           MinWidth="150"
                           MinHeight="30"
-                          Margin="8,0,0,0"
+                          Margin="0,0,8,0"
                           AutomationProperties.Name="Фильтр по уровню"
                           SelectionChanged="LogFilter_Changed">
                   <ComboBoxItem Content="Все уровни" IsSelected="True" />
@@ -349,15 +363,14 @@
                 </ComboBox>
                 <Button Content="Копировать"
                         Style="{StaticResource ToolbarButton}"
-                        Margin="8,0,0,0"
+                        Margin="0,0,4,0"
                         Click="CopyLog_Click"
                         AutomationProperties.Name="Копировать журнал" />
                 <Button Content="Очистить"
                         Style="{StaticResource ToolbarButton}"
-                        Margin="4,0,0,0"
                         Command="{Binding ClearLogCommand}"
                         AutomationProperties.Name="Очистить журнал" />
-              </StackPanel>
+              </WrapPanel>
             </Grid>
             <TextBox x:Name="LogBox"
                      Grid.Row="1"
@@ -400,7 +413,12 @@
                   </Style>
                 </Ellipse.Style>
               </Ellipse>
-              <TextBlock Text="{Binding StatusText}" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource FgBrush}" />
+              <TextBlock Text="{Binding StatusText}"
+                         Style="{StaticResource Text.Caption}"
+                         Foreground="{DynamicResource FgBrush}"
+                         MaxWidth="220"
+                         TextTrimming="CharacterEllipsis"
+                         ToolTip="{Binding StatusText}" />
             </StackPanel>
             <TextBlock Grid.Column="1"
                        Text="{Binding ConnectionInfo}"
@@ -408,11 +426,39 @@
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding ConnectionInfo}"
                        Margin="16,0" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+              <TextBlock Style="{StaticResource Text.Caption}"
+                         VerticalAlignment="Center"
+                         Margin="0,0,12,0"
+                         Visibility="{Binding IsTrafficMonitorActive, Converter={StaticResource BoolToVis}}">
+                <TextBlock.ToolTip>
+                  <StackPanel MaxWidth="320">
+                    <TextBlock Text="Скорость и трафик текущей сессии"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding SessionTrafficText}"
+                               Margin="0,4,0,0" />
+                    <TextBlock Text="Счётчики показывают, сколько скачано и отправлено с момента подключения, и сбрасываются при каждом новом подключении. Доступно для ядер sing-box; для Xray и Hysteria 2 скорость не измеряется."
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,0" />
+                  </StackPanel>
+                </TextBlock.ToolTip>
+                <Run Text="↓ " Foreground="{DynamicResource GreenBrush}" />
+                <Run Text="{Binding DownloadSpeedText, Mode=OneWay}" />
+                <Run Text="  ↑ " Foreground="{DynamicResource AccentBrush}" />
+                <Run Text="{Binding UploadSpeedText, Mode=OneWay}" />
+              </TextBlock>
               <TextBlock Style="{StaticResource Text.Caption}" VerticalAlignment="Center">
                 <Run Text="SOCKS5 " />
                 <Run Text="{Binding SocksPort, Mode=OneWay}" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold" />
+              </TextBlock>
+              <TextBlock Style="{StaticResource Text.Micro}"
+                         VerticalAlignment="Center"
+                         Margin="10,0,0,0"
+                         Visibility="{Binding ActiveConfigHashText, Converter={StaticResource StringToVis}}"
+                         ToolTip="Короткий SHA-256 применённого конфига. Позволяет убедиться, что настройки действительно применились: то же значение выводится в журнале при запуске ядра.">
+                <Run Text="{Binding ActiveConfigHashText, Mode=OneWay}" />
               </TextBlock>
               <Button x:Name="LogToggleButton"
                       Style="{StaticResource IconButton}"

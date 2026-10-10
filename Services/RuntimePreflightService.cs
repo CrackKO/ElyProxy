@@ -8,7 +8,9 @@ public sealed class RuntimePreflightService
         string xrayPath,
         string singBoxPath,
         bool isAdministrator,
-        IReadOnlyCollection<string>? missingRoutingAssets = null)
+        IReadOnlyCollection<string>? missingRoutingAssets = null,
+        IReadOnlyDictionary<string, string>? coreVersions = null,
+        bool helperServiceRunning = false)
     {
         bool xrayAvailable = File.Exists(xrayPath);
         bool singBoxAvailable = File.Exists(singBoxPath);
@@ -25,7 +27,11 @@ public sealed class RuntimePreflightService
             new(
                 "Права ElyTun",
                 true,
-                isAdministrator ? "приложение уже запущено с правами администратора" : "UAC будет запрошен при включении ElyTun"),
+                isAdministrator
+                    ? "приложение уже запущено с правами администратора"
+                    : helperServiceRunning
+                        ? "ElyTun запускается через службу-помощник — запрос прав администратора не потребуется"
+                        : "UAC будет запрошен при включении ElyTun"),
             new(
                 "RoscomVPN DEFAULT",
                 missingRoutingAssets == null || missingRoutingAssets.Count == 0,
@@ -33,6 +39,13 @@ public sealed class RuntimePreflightService
                     ? "встроенные rule-set файлы найдены"
                     : $"не найдены файлы: {string.Join(", ", missingRoutingAssets.Select(Path.GetFileName))}")
         };
+        if (coreVersions != null)
+        {
+            foreach (KeyValuePair<string, string> version in coreVersions)
+            {
+                checks.Add(new RuntimePreflightCheck("Версия " + version.Key, true, version.Value));
+            }
+        }
 
         return new RuntimePreflightResult(checks);
     }

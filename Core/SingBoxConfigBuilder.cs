@@ -147,8 +147,9 @@ public sealed class SingBoxConfigBuilder
 
 	public string BuildTun(VlessNode node, int socksPort, XrayTunOptions options)
 	{
-		bool useRoscomVpnDefault = options.RoutingPreset == RoutingPreset.RoscomVpnDefault;
-		DirectRules direct = BuildDirectRules(options, !useRoscomVpnDefault);
+		bool onlySelectedApps = options.PerAppMode == PerAppMode.OnlySelected;
+		bool useRoscomVpnDefault = options.RoutingPreset == RoutingPreset.RoscomVpnDefault && !onlySelectedApps;
+		DirectRules direct = BuildDirectRules(options, includeCustomBypassRules: true);
 		JArray routeRules = new JArray
 		{
 			new JObject
@@ -162,7 +163,7 @@ public sealed class SingBoxConfigBuilder
 				["action"] = "hijack-dns"
 			}
 		};
-		AddProcessBypassRouteRule(routeRules, options.BypassProcessPaths);
+		AddProcessBypassRouteRule(routeRules, options.BypassProcessPaths, onlySelectedApps ? "proxy" : "direct");
 		if (useRoscomVpnDefault)
 		{
 			AddRoscomVpnDefaultRouteRules(routeRules, direct);
@@ -190,14 +191,14 @@ public sealed class SingBoxConfigBuilder
 		{
 			tun["route_exclude_address"] = new JArray(direct.RouteExcludes);
 		}
-		return new JObject
+		JObject root = new JObject
 		{
 			["log"] = new JObject
 			{
 				["level"] = "warn",
 				["timestamp"] = true
 			},
-			["dns"] = (useRoscomVpnDefault ? BuildRoscomVpnDefaultDns(options.BypassProcessPaths) : BuildDns(direct, options)),
+			["dns"] = (useRoscomVpnDefault ? BuildRoscomVpnDefaultDns(direct, options.BypassProcessPaths) : BuildDns(direct, options)),
 			["inbounds"] = new JArray
 			{
 				new JObject
@@ -209,30 +210,19 @@ public sealed class SingBoxConfigBuilder
 				},
 				tun
 			},
-			["outbounds"] = new JArray
-			{
-				BuildVlessOutbound(node),
-				new JObject
-				{
-					["type"] = "direct",
-					["tag"] = "direct"
-				},
-				new JObject
-				{
-					["type"] = "block",
-					["tag"] = "block"
-				}
-			},
-			["route"] = BuildRoute(routeRules, useRoscomVpnDefault)
-		}.ToString(Formatting.Indented);
+			["outbounds"] = BuildOutbounds(node, options),
+			["route"] = BuildRoute(routeRules, useRoscomVpnDefault, onlySelectedApps ? "direct" : "proxy")
+		};
+		return BuildRoot(root, node, options);
 	}
 
 	public string BuildSystemProxy(VlessNode node, int proxyPort, XrayTunOptions options)
 	{
-		bool useRoscomVpnDefault = options.RoutingPreset == RoutingPreset.RoscomVpnDefault;
-		DirectRules direct = BuildDirectRules(options, !useRoscomVpnDefault);
+		bool onlySelectedApps = options.PerAppMode == PerAppMode.OnlySelected;
+		bool useRoscomVpnDefault = options.RoutingPreset == RoutingPreset.RoscomVpnDefault && !onlySelectedApps;
+		DirectRules direct = BuildDirectRules(options, includeCustomBypassRules: true);
 		JArray routeRules = new JArray();
-		AddProcessBypassRouteRule(routeRules, options.BypassProcessPaths);
+		AddProcessBypassRouteRule(routeRules, options.BypassProcessPaths, onlySelectedApps ? "proxy" : "direct");
 		if (useRoscomVpnDefault)
 		{
 			AddRoscomVpnDefaultRouteRules(routeRules, direct);
@@ -241,14 +231,14 @@ public sealed class SingBoxConfigBuilder
 		{
 			AddCustomRouteRules(routeRules, direct);
 		}
-		return new JObject
+		JObject root = new JObject
 		{
 			["log"] = new JObject
 			{
 				["level"] = "warn",
 				["timestamp"] = true
 			},
-			["dns"] = (useRoscomVpnDefault ? BuildRoscomVpnDefaultDns(options.BypassProcessPaths) : BuildDns(direct, options)),
+			["dns"] = (useRoscomVpnDefault ? BuildRoscomVpnDefaultDns(direct, options.BypassProcessPaths) : BuildDns(direct, options)),
 			["inbounds"] = new JArray
 			{
 				new JObject
@@ -259,32 +249,20 @@ public sealed class SingBoxConfigBuilder
 					["listen_port"] = proxyPort
 				}
 			},
-			["outbounds"] = new JArray
-			{
-				BuildVlessOutbound(node),
-				new JObject
-				{
-					["type"] = "direct",
-					["tag"] = "direct"
-				},
-				new JObject
-				{
-					["type"] = "block",
-					["tag"] = "block"
-				}
-			},
-			["route"] = BuildRoute(routeRules, useRoscomVpnDefault)
-		}.ToString(Formatting.Indented);
+			["outbounds"] = BuildOutbounds(node, options),
+			["route"] = BuildRoute(routeRules, useRoscomVpnDefault, onlySelectedApps ? "direct" : "proxy")
+		};
+		return BuildRoot(root, node, options);
 	}
 
-	private static JObject BuildRoute(JArray routeRules, bool useRoscomVpnDefault)
+	private static JObject BuildRoute(JArray routeRules, bool useRoscomVpnDefault, string finalOutbound)
 	{
 		JObject route = new JObject
 		{
 			["auto_detect_interface"] = true,
 			["default_domain_resolver"] = (useRoscomVpnDefault ? "dns-domestic" : "dns-direct"),
 			["rules"] = routeRules,
-			["final"] = "proxy"
+			["final"] = finalOutbound
 		};
 		if (useRoscomVpnDefault)
 		{
@@ -315,11 +293,15 @@ public sealed class SingBoxConfigBuilder
 
 	private static void AddRoscomVpnDefaultRouteRules(JArray routeRules, DirectRules direct)
 	{
+		AddRouteRule(routeRules, "domain_suffix", direct.DomainSuffixes, "direct");
+		AddRouteRule(routeRules, "domain", direct.FullDomains, "direct");
+		AddRouteRule(routeRules, "domain_regex", direct.DomainRegexes, "direct");
+		AddRouteRule(routeRules, "domain_keyword", direct.DomainKeywords, "direct");
+		AddRouteRule(routeRules, "ip_cidr", direct.IpCidrs, "direct");
 		AddRuleSetRoute(routeRules, RoscomVpnDefaultRouting.BlockSiteTags, "block");
 		AddRuleSetRoute(routeRules, RoscomVpnDefaultRouting.ProxySiteTags, "proxy");
 		AddRuleSetRoute(routeRules, RoscomVpnDefaultRouting.DirectSiteTags, "direct");
 		AddRuleSetRoute(routeRules, RoscomVpnDefaultRouting.DirectIpTags, "direct");
-		AddRouteRule(routeRules, "ip_cidr", direct.IpCidrs, "direct");
 		routeRules.Add(new JObject
 		{
 			["ip_is_private"] = true,
@@ -327,7 +309,7 @@ public sealed class SingBoxConfigBuilder
 		});
 	}
 
-	private static void AddProcessBypassRouteRule(JArray routeRules, IReadOnlyList<string>? processPaths)
+	private static void AddProcessBypassRouteRule(JArray routeRules, IReadOnlyList<string>? processPaths, string outbound)
 	{
 		string[] paths = NormalizeProcessPaths(processPaths);
 		if (paths.Length == 0)
@@ -338,7 +320,7 @@ public sealed class SingBoxConfigBuilder
 		routeRules.Add(new JObject
 		{
 			["process_path"] = new JArray(paths),
-			["outbound"] = "direct"
+			["outbound"] = outbound
 		});
 	}
 
@@ -359,8 +341,9 @@ public sealed class SingBoxConfigBuilder
 	{
 		IPAddress address2;
 		string directDns = options.DnsServers.FirstOrDefault((string address) => IPAddress.TryParse(address, out address2)) ?? "1.1.1.1";
+		bool onlySelectedApps = options.PerAppMode == PerAppMode.OnlySelected;
 		JArray rules = new JArray();
-		AddProcessDnsRule(rules, options.BypassProcessPaths, "dns-direct");
+		AddProcessDnsRule(rules, options.BypassProcessPaths, onlySelectedApps ? "dns-remote" : "dns-direct");
 		AddDnsRule(rules, "domain_suffix", direct.DomainSuffixes);
 		AddDnsRule(rules, "domain", direct.FullDomains);
 		AddDnsRule(rules, "domain_regex", direct.DomainRegexes);
@@ -393,12 +376,11 @@ public sealed class SingBoxConfigBuilder
 				}
 			},
 			["rules"] = rules,
-			["final"] = "dns-remote",
-			["independent_cache"] = true
+			["final"] = (onlySelectedApps ? "dns-direct" : "dns-remote")
 		};
 	}
 
-	private static JObject BuildRoscomVpnDefaultDns(IReadOnlyList<string>? processPaths)
+	private static JObject BuildRoscomVpnDefaultDns(DirectRules direct, IReadOnlyList<string>? processPaths)
 	{
 		string[] directTags = RoscomVpnDefaultRouting.DirectSiteTags;
 		JObject jObject = new JObject();
@@ -425,6 +407,10 @@ public sealed class SingBoxConfigBuilder
 				["server"] = "dns-hosts"
 			}
 		};
+		AddDnsRule(jArray, "domain_suffix", direct.DomainSuffixes, "dns-domestic");
+		AddDnsRule(jArray, "domain", direct.FullDomains, "dns-domestic");
+		AddDnsRule(jArray, "domain_regex", direct.DomainRegexes, "dns-domestic");
+		AddDnsRule(jArray, "domain_keyword", direct.DomainKeywords, "dns-domestic");
 		AddProcessDnsRule(jArray, processPaths, "dns-domestic");
 		JObject jObject2 = new JObject();
 		object[] content = directTags;
@@ -433,7 +419,6 @@ public sealed class SingBoxConfigBuilder
 		jArray.Add(jObject2);
 		jObject["rules"] = jArray;
 		jObject["final"] = "dns-remote";
-		jObject["independent_cache"] = true;
 		return jObject;
 	}
 
@@ -485,8 +470,77 @@ public sealed class SingBoxConfigBuilder
 		return server;
 	}
 
-	private static JObject BuildVlessOutbound(VlessNode node)
+	private static JObject BuildProxyOutbound(VlessNode node, XrayTunOptions options)
 	{
+		string protocol = (node.Protocol ?? "vless").ToLowerInvariant();
+		return protocol switch
+		{
+			"vless" => BuildVlessOutbound(node, options),
+			"vmess" => BuildVmessOutbound(node, options),
+			"trojan" => BuildTrojanOutbound(node, options),
+			"shadowsocks" or "ss" => BuildShadowsocksOutbound(node),
+			"hysteria2" or "hy2" => BuildHysteria2Outbound(node),
+			"tuic" => BuildTuicOutbound(node),
+			"anytls" => BuildAnyTlsOutbound(node, options),
+			"naive" => BuildNaiveOutbound(node),
+			"ssh" => BuildSshOutbound(node),
+			"socks" or "http" => BuildSocksOutbound(node, options),
+			_ => throw new NotSupportedException($"Протокол {node.ProtocolDisplay} не поддерживается ядром sing-box.")
+		};
+	}
+
+	private static JObject BuildAnyTlsOutbound(VlessNode node, XrayTunOptions options)
+	{
+		JObject outbound = new JObject
+		{
+			["type"] = "anytls",
+			["tag"] = "proxy",
+			["server"] = node.Address,
+			["server_port"] = node.Port,
+			["password"] = node.Password
+		};
+		JObject tls = BuildTls(node, options);
+		if (tls != null)
+		{
+			outbound["tls"] = tls;
+		}
+		return outbound;
+	}
+
+	private static JObject BuildSshOutbound(VlessNode node)
+	{
+		JObject outbound = new JObject
+		{
+			["type"] = "ssh",
+			["tag"] = "proxy",
+			["server"] = node.Address,
+			["server_port"] = node.Port
+		};
+		if (!string.IsNullOrWhiteSpace(node.Username))
+		{
+			outbound["user"] = node.Username;
+		}
+		if (!string.IsNullOrWhiteSpace(node.Password))
+		{
+			outbound["password"] = node.Password;
+		}
+		if (node.Extra.TryGetValue("private-key", out string? privateKey) && !string.IsNullOrWhiteSpace(privateKey))
+		{
+			outbound["private_key"] = privateKey;
+		}
+		if (node.Extra.TryGetValue("private-key-passphrase", out string? passphrase) && !string.IsNullOrWhiteSpace(passphrase))
+		{
+			outbound["private_key_passphrase"] = passphrase;
+		}
+		return outbound;
+	}
+
+	private static JObject BuildVlessOutbound(VlessNode node, XrayTunOptions options)
+	{
+		if (!string.IsNullOrWhiteSpace(node.Encryption) && !string.Equals(node.Encryption, "none", StringComparison.OrdinalIgnoreCase))
+		{
+			throw new NotSupportedException("sing-box не поддерживает VLESS Encryption (пост-квантовое шифрование). Выберите ядро Xray.");
+		}
 		JObject outbound = new JObject
 		{
 			["type"] = "vless",
@@ -499,7 +553,7 @@ public sealed class SingBoxConfigBuilder
 		{
 			outbound["flow"] = node.Flow;
 		}
-		JObject tls = BuildTls(node);
+		JObject tls = BuildTls(node, options);
 		if (tls != null)
 		{
 			outbound["tls"] = tls;
@@ -512,10 +566,413 @@ public sealed class SingBoxConfigBuilder
 		return outbound;
 	}
 
-	private static JObject? BuildTls(VlessNode node)
+	private static JObject BuildVmessOutbound(VlessNode node, XrayTunOptions options)
+	{
+		int alterId = 0;
+		int.TryParse(node.AlterId, out alterId);
+		JObject outbound = new JObject
+		{
+			["type"] = "vmess",
+			["tag"] = "proxy",
+			["server"] = node.Address,
+			["server_port"] = node.Port,
+			["uuid"] = node.UUID,
+			["security"] = (string.IsNullOrWhiteSpace(node.VmessSecurity) ? "auto" : node.VmessSecurity)
+		};
+		if (alterId > 0)
+		{
+			outbound["alter_id"] = alterId;
+		}
+		JObject tls = BuildTls(node, options);
+		if (tls != null)
+		{
+			outbound["tls"] = tls;
+		}
+		JObject transport = BuildTransport(node);
+		if (transport != null)
+		{
+			outbound["transport"] = transport;
+		}
+		return outbound;
+	}
+
+	private static JObject BuildTrojanOutbound(VlessNode node, XrayTunOptions options)
+	{
+		JObject outbound = new JObject
+		{
+			["type"] = "trojan",
+			["tag"] = "proxy",
+			["server"] = node.Address,
+			["server_port"] = node.Port,
+			["password"] = node.Password
+		};
+		JObject tls = BuildTls(node, options);
+		if (tls != null)
+		{
+			outbound["tls"] = tls;
+		}
+		JObject transport = BuildTransport(node);
+		if (transport != null)
+		{
+			outbound["transport"] = transport;
+		}
+		return outbound;
+	}
+
+	private static JObject BuildShadowsocksOutbound(VlessNode node)
+	{
+		return new JObject
+		{
+			["type"] = "shadowsocks",
+			["tag"] = "proxy",
+			["server"] = node.Address,
+			["server_port"] = node.Port,
+			["method"] = node.Method,
+			["password"] = node.Password
+		};
+	}
+
+	private static JObject BuildHysteria2Outbound(VlessNode node)
+	{
+		JObject outbound = new JObject
+		{
+			["type"] = "hysteria2",
+			["tag"] = "proxy",
+			["server"] = node.Address,
+			["server_port"] = node.Port,
+			["password"] = node.Password
+		};
+		if (!string.IsNullOrWhiteSpace(node.Obfs))
+		{
+			outbound["obfs"] = new JObject
+			{
+				["type"] = node.Obfs,
+				["password"] = node.ObfsPassword
+			};
+		}
+		string[] serverPorts = ParseServerPorts(node.ServerPorts);
+		if (serverPorts.Length > 0)
+		{
+			outbound["server_ports"] = new JArray(serverPorts);
+		}
+		if (int.TryParse(node.UpMbps, out int upMbps) && upMbps > 0)
+		{
+			outbound["up_mbps"] = upMbps;
+		}
+		if (int.TryParse(node.DownMbps, out int downMbps) && downMbps > 0)
+		{
+			outbound["down_mbps"] = downMbps;
+		}
+		string hopInterval = NormalizeDuration(node.HopInterval);
+		if (!string.IsNullOrWhiteSpace(hopInterval))
+		{
+			outbound["hop_interval"] = hopInterval;
+		}
+		outbound["tls"] = BuildQuicTls(node, "h3");
+		return outbound;
+	}
+
+	private static string NormalizeDuration(string? value)
+	{
+		string text = (value ?? string.Empty).Trim();
+		if (text.Length == 0)
+		{
+			return string.Empty;
+		}
+		return (int.TryParse(text, out int seconds) ? (seconds + "s") : text);
+	}
+
+	private static JObject BuildTuicOutbound(VlessNode node)
+	{
+		JObject outbound = new JObject
+		{
+			["type"] = "tuic",
+			["tag"] = "proxy",
+			["server"] = node.Address,
+			["server_port"] = node.Port,
+			["uuid"] = node.UUID,
+			["password"] = node.Password
+		};
+		if (!string.IsNullOrWhiteSpace(node.CongestionControl))
+		{
+			outbound["congestion_control"] = node.CongestionControl;
+		}
+		if (!string.IsNullOrWhiteSpace(node.UdpRelayMode))
+		{
+			outbound["udp_relay_mode"] = node.UdpRelayMode;
+		}
+		outbound["tls"] = BuildQuicTls(node, "h3");
+		return outbound;
+	}
+
+	private static JObject BuildSocksOutbound(VlessNode node, XrayTunOptions options)
+	{
+		bool isHttp = string.Equals(node.Protocol, "http", StringComparison.OrdinalIgnoreCase);
+		JObject outbound = new JObject
+		{
+			["type"] = (isHttp ? "http" : "socks"),
+			["tag"] = "proxy",
+			["server"] = node.Address,
+			["server_port"] = node.Port
+		};
+		if (isHttp)
+		{
+			if (!string.IsNullOrWhiteSpace(node.Username))
+			{
+				outbound["username"] = node.Username;
+				outbound["password"] = node.Password;
+			}
+			JObject tls = BuildTls(node, options);
+			if (tls != null)
+			{
+				outbound["tls"] = tls;
+			}
+		}
+		else
+		{
+			outbound["version"] = "5";
+			if (!string.IsNullOrWhiteSpace(node.Username))
+			{
+				outbound["username"] = node.Username;
+				outbound["password"] = node.Password;
+			}
+		}
+		return outbound;
+	}
+
+	private static JArray BuildOutbounds(VlessNode node, XrayTunOptions options)
+	{
+		JArray outbounds = new JArray();
+		string protocol = (node.Protocol ?? "vless").ToLowerInvariant();
+		if (protocol == "shadowtls")
+		{
+			outbounds.Add(BuildShadowTlsInnerOutbound(node));
+			outbounds.Add(BuildShadowTlsOutbound(node));
+		}
+		else if (!IsWireGuard(node))
+		{
+			outbounds.Add(BuildProxyOutbound(node, options));
+		}
+		outbounds.Add(new JObject
+		{
+			["type"] = "direct",
+			["tag"] = "direct"
+		});
+		outbounds.Add(new JObject
+		{
+			["type"] = "block",
+			["tag"] = "block"
+		});
+		return outbounds;
+	}
+
+	private static JObject BuildShadowTlsInnerOutbound(VlessNode node)
+	{
+		string method = node.GetExtra("ss-method");
+		string password = node.GetExtra("ss-password");
+		if (string.IsNullOrWhiteSpace(method) || string.IsNullOrWhiteSpace(password))
+		{
+			throw new NotSupportedException("Для ShadowTLS нужны параметры Shadowsocks (method и password). Импортируйте узел из sing-box JSON с цепочкой shadowsocks → shadowtls.");
+		}
+		return new JObject
+		{
+			["type"] = "shadowsocks",
+			["tag"] = "proxy",
+			["server"] = node.Address,
+			["server_port"] = node.Port,
+			["method"] = method,
+			["password"] = password,
+			["detour"] = "proxy-shadowtls"
+		};
+	}
+
+	private static JObject BuildShadowTlsOutbound(VlessNode node)
+	{
+		int version = 3;
+		if (!int.TryParse(node.GetExtra("shadowtls-version"), out version) || version < 1 || version > 3)
+		{
+			version = 3;
+		}
+		JObject tls = new JObject
+		{
+			["enabled"] = true,
+			["server_name"] = node.SNI
+		};
+		if (node.AllowInsecure)
+		{
+			tls["insecure"] = true;
+		}
+		return new JObject
+		{
+			["type"] = "shadowtls",
+			["tag"] = "proxy-shadowtls",
+			["server"] = node.Address,
+			["server_port"] = node.Port,
+			["version"] = version,
+			["password"] = node.Password,
+			["tls"] = tls
+		};
+	}
+
+	private static JObject BuildNaiveOutbound(VlessNode node)
+	{
+		JObject tls = new JObject
+		{
+			["enabled"] = true,
+			["server_name"] = node.SNI
+		};
+		if (node.AllowInsecure)
+		{
+			tls["insecure"] = true;
+		}
+		if (!string.IsNullOrWhiteSpace(node.Alpn))
+		{
+			tls["alpn"] = new JArray(from value in node.Alpn.Split(',')
+				select value.Trim());
+		}
+		return new JObject
+		{
+			["type"] = "naive",
+			["tag"] = "proxy",
+			["server"] = node.Address,
+			["server_port"] = node.Port,
+			["username"] = node.Username,
+			["password"] = node.Password,
+			["tls"] = tls
+		};
+	}
+
+	private static bool IsWireGuard(VlessNode node)
+	{
+		return string.Equals(node.Protocol, "wireguard", StringComparison.OrdinalIgnoreCase);
+	}
+
+	private static JArray? BuildEndpointsOrNull(VlessNode node)
+	{
+		if (!IsWireGuard(node))
+		{
+			return null;
+		}
+		JObject peer = new JObject
+		{
+			["address"] = node.Address,
+			["port"] = node.Port,
+			["public_key"] = ExtraValue(node, "public-key"),
+			["allowed_ips"] = new JArray(SplitList(ExtraValue(node, "allowed-ips"), new string[2] { "0.0.0.0/0", "::/0" }))
+		};
+		string preSharedKey = ExtraValue(node, "pre-shared-key");
+		if (!string.IsNullOrWhiteSpace(preSharedKey))
+		{
+			peer["pre_shared_key"] = preSharedKey;
+		}
+		JArray? reserved = ParseIntArray(ExtraValue(node, "reserved"));
+		if (reserved != null)
+		{
+			peer["reserved"] = reserved;
+		}
+		JObject endpoint = new JObject
+		{
+			["type"] = "wireguard",
+			["tag"] = "proxy",
+			["system"] = false,
+			["address"] = new JArray(SplitList(ExtraValue(node, "address"), new string[1] { "172.16.0.2/32" })),
+			["private_key"] = ExtraValue(node, "private-key"),
+			["peers"] = new JArray(peer)
+		};
+		if (int.TryParse(ExtraValue(node, "mtu"), out int mtu) && mtu > 0)
+		{
+			endpoint["mtu"] = mtu;
+		}
+		return new JArray(endpoint);
+	}
+
+	private static string ExtraValue(VlessNode node, string key)
+	{
+		return (node.Extra.TryGetValue(key, out string? value) ? (value ?? string.Empty) : string.Empty);
+	}
+
+	private static string[] SplitList(string value, params string[] fallback)
+	{
+		string[] items = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+		return ((items.Length != 0) ? items : fallback);
+	}
+
+	private static JArray? ParseIntArray(string value)
+	{
+		string[] items = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+		if (items.Length == 0)
+		{
+			return null;
+		}
+		JArray array = new JArray();
+		foreach (string item in items)
+		{
+			if (!int.TryParse(item, out int parsed))
+			{
+				return null;
+			}
+			array.Add(parsed);
+		}
+		return array;
+	}
+
+	private static string BuildRoot(JObject root, VlessNode node, XrayTunOptions options)
+	{
+		JArray? endpoints = BuildEndpointsOrNull(node);
+		if (endpoints != null)
+		{
+			root["endpoints"] = endpoints;
+		}
+		if (options.ClashApiPort > 0)
+		{
+			root["experimental"] = new JObject
+			{
+				["clash_api"] = new JObject
+				{
+					["external_controller"] = ("127.0.0.1:" + options.ClashApiPort),
+					["secret"] = options.ClashApiSecret
+				}
+			};
+		}
+		return root.ToString(Formatting.Indented);
+	}
+
+	private static JObject BuildQuicTls(VlessNode node, string defaultAlpn)
+	{
+		JObject tls = new JObject
+		{
+			["enabled"] = true,
+			["server_name"] = node.SNI
+		};
+		if (node.AllowInsecure)
+		{
+			tls["insecure"] = true;
+		}
+		if (!string.IsNullOrWhiteSpace(node.Alpn))
+		{
+			tls["alpn"] = new JArray(from value in node.Alpn.Split(',')
+				select value.Trim());
+		}
+		else if (!string.IsNullOrWhiteSpace(defaultAlpn))
+		{
+			tls["alpn"] = new JArray(defaultAlpn);
+		}
+		return tls;
+	}
+
+	private static string[] ParseServerPorts(string? value)
+	{
+		if (string.IsNullOrWhiteSpace(value))
+		{
+			return Array.Empty<string>();
+		}
+		return value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+	}
+
+	private static JObject? BuildTls(VlessNode node, XrayTunOptions options)
 	{
 		string security = node.Security?.ToLowerInvariant();
-		if ((!(security == "tls") && !(security == "reality")) || 1 == 0)
+		if (!(security == "tls") && !(security == "reality"))
 		{
 			return null;
 		}
@@ -529,6 +986,10 @@ public sealed class SingBoxConfigBuilder
 				["fingerprint"] = (string.IsNullOrWhiteSpace(node.Fingerprint) ? "chrome" : node.Fingerprint)
 			}
 		};
+		if (node.AllowInsecure)
+		{
+			tls["insecure"] = true;
+		}
 		if (security == "reality")
 		{
 			tls["reality"] = new JObject
@@ -538,12 +999,39 @@ public sealed class SingBoxConfigBuilder
 				["short_id"] = node.ShortId
 			};
 		}
+		if (options is { FragmentEnabled: true })
+		{
+			tls["fragment"] = true;
+			tls["fragment_fallback_delay"] = FragmentFallbackDelay(options.FragmentInterval);
+			if (options.RecordFragment)
+			{
+				tls["record_fragment"] = true;
+			}
+		}
+		if (security == "tls" && options is { TlsSpoofEnabled: true } && !string.IsNullOrWhiteSpace(options.TlsSpoofSni))
+		{
+			tls["spoof"] = options.TlsSpoofSni;
+			tls["spoof_method"] = (string.IsNullOrWhiteSpace(options.TlsSpoofMethod) ? "wrong-sequence" : options.TlsSpoofMethod);
+		}
 		if (!string.IsNullOrWhiteSpace(node.Alpn))
 		{
 			tls["alpn"] = new JArray(from value in node.Alpn.Split(',')
 				select value.Trim());
 		}
 		return tls;
+	}
+
+	private static string FragmentFallbackDelay(string? interval)
+	{
+		if (!string.IsNullOrWhiteSpace(interval))
+		{
+			string first = interval.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? string.Empty;
+			if (int.TryParse(first, out int milliseconds) && milliseconds > 0)
+			{
+				return milliseconds + "ms";
+			}
+		}
+		return "500ms";
 	}
 
 	private static JObject? BuildTransport(VlessNode node)
@@ -565,6 +1053,14 @@ public sealed class SingBoxConfigBuilder
 			};
 		case "quic":
 			return new JObject { ["type"] = "quic" };
+		case "xhttp":
+		case "splithttp":
+			throw new NotSupportedException("sing-box не поддерживает транспорт xhttp. Выберите ядро Xray.");
+		case "kcp":
+		case "mkcp":
+			throw new NotSupportedException("sing-box не поддерживает транспорт mKCP. Выберите ядро Xray.");
+		case "raw":
+			return null;
 		case "tcp":
 			if (string.Equals(node.HeaderType, "http", StringComparison.OrdinalIgnoreCase))
 			{
@@ -633,13 +1129,18 @@ public sealed class SingBoxConfigBuilder
 
 	private static void AddDnsRule(JArray rules, string property, IEnumerable<string> values)
 	{
+		AddDnsRule(rules, property, values, "dns-direct");
+	}
+
+	private static void AddDnsRule(JArray rules, string property, IEnumerable<string> values, string server)
+	{
 		string[] items = values.Distinct<string>(StringComparer.OrdinalIgnoreCase).ToArray();
 		if (items.Length != 0)
 		{
 			JObject jObject = new JObject();
 			object[] content = items;
 			jObject[property] = new JArray(content);
-			jObject["server"] = "dns-direct";
+			jObject["server"] = server;
 			rules.Add(jObject);
 		}
 	}

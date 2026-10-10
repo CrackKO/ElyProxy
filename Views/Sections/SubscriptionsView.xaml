@@ -7,6 +7,7 @@
                  x:Shared="False"
                  DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
       <MenuItem Header="Обновить" Click="RowUpdate_Click" />
+      <MenuItem Header="Настройки подписки…" Click="RowSettings_Click" />
       <Separator />
       <MenuItem Header="Удалить" Click="RowDelete_Click" />
     </ContextMenu>
@@ -72,11 +73,13 @@
                   <TextBlock Text="{Binding Name}"
                              Style="{StaticResource Text.Body}"
                              FontWeight="Medium"
-                             TextTrimming="CharacterEllipsis" />
+                             TextTrimming="CharacterEllipsis"
+                             ToolTip="{Binding Name}" />
                   <TextBlock Text="{Binding Url}"
                              Style="{StaticResource Text.Caption}"
                              Margin="0,2,0,0"
-                             TextTrimming="CharacterEllipsis" />
+                             TextTrimming="CharacterEllipsis"
+                             ToolTip="{Binding Url}" />
                 </StackPanel>
                 <Border Grid.Column="1" Style="{StaticResource Chip}" Margin="8,0">
                   <TextBlock Style="{StaticResource ChipText}">
@@ -84,13 +87,17 @@
                     <Run Text="серв." />
                   </TextBlock>
                 </Border>
-                <TextBlock Grid.Column="2"
-                           Text="{Binding LastUpdateStatus}"
-                           Style="{StaticResource Text.Caption}"
-                           MaxWidth="190"
-                           TextWrapping="Wrap"
-                           ToolTip="{Binding LastUpdateStatus}"
-                           VerticalAlignment="Center" />
+                <StackPanel Grid.Column="2" VerticalAlignment="Center" MaxWidth="190">
+                  <TextBlock Text="{Binding LastUpdateStatus}"
+                             Style="{StaticResource Text.Caption}"
+                             TextWrapping="Wrap"
+                             ToolTip="{Binding LastUpdateStatus}" />
+                  <TextBlock Text="{Binding TrafficSummary}"
+                             Style="{StaticResource Text.Micro}"
+                             Margin="0,2,0,0"
+                             TextWrapping="Wrap"
+                             Visibility="{Binding TrafficSummary, Converter={StaticResource StringToVis}}" />
+                </StackPanel>
                 <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
                   <StackPanel.Style>
                     <Style TargetType="{x:Type StackPanel}">

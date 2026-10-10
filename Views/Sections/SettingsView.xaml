@@ -169,7 +169,10 @@
                   <ColumnDefinition Width="*" />
                   <ColumnDefinition Width="250" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="Переподключаться при обрыве" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                  <TextBlock Text="Переподключаться при обрыве" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                  <controls:InfoHint Text="Приложение переподключается, когда ядро падает, а также автоматически реагирует на смену сети (Wi-Fi ↔ Ethernet, появление/пропадание сети) и на пробуждение компьютера из сна. Переподключение выполняется один раз в 10 секунд, чтобы не было циклов." />
+                </StackPanel>
                 <controls:SpringToggleSwitch Grid.Column="1"
                                              HorizontalAlignment="Right"
                                              AutomationProperties.Name="Переподключаться при обрыве"
@@ -302,6 +305,7 @@
         <!-- ================= ElyTun ================= -->
         <TextBlock Text="ElyTun" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
         <Border Style="{StaticResource AppleInsetGroup}">
+          <StackPanel>
           <Border Style="{StaticResource AppleSettingRow}">
             <Grid>
               <Grid.ColumnDefinitions>
@@ -309,7 +313,10 @@
                 <ColumnDefinition Width="250" />
               </Grid.ColumnDefinitions>
               <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                <TextBlock Text="Туннелировать IPv6" Style="{StaticResource Text.Body}" />
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="Туннелировать IPv6" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                  <controls:InfoHint Text="Добавляет IPv6-адрес в TUN-интерфейс. Выключайте, если провайдер или сервер не поддерживает IPv6 — тогда трафик пойдёт только по IPv4 без зависаний на AAAA-запросах." />
+                </StackPanel>
                 <TextBlock Text="Полный TUN-режим; выключите, если провайдер не поддерживает IPv6" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
               </StackPanel>
               <controls:SpringToggleSwitch Grid.Column="1"
@@ -318,6 +325,328 @@
                                            IsChecked="{Binding ElyTunIpv6Enabled, Mode=TwoWay}" />
             </Grid>
           </Border>
+          <Border Style="{StaticResource AppleRowSeparator}" />
+          <Border Style="{StaticResource AppleSettingRow}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="250" />
+              </Grid.ColumnDefinitions>
+              <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="Ядро TUN" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                  <controls:InfoHint Text="Какой движок создаёт TUN-туннель. sing-box — универсальный: все протоколы, правила маршрутизации, обход по приложениям. Xray TUN — нативный TUN Xray в одном процессе: VLESS/VMess/Trojan/Shadowsocks, VLESS Encryption, xhttp и mKCP. tun2proxy — TUN поверх локального SOCKS/mixed: максимальная совместимость, но без обхода по приложениям и без собственной маршрутизации по доменам. Hysteria 2 TUN — встроенный TUN ядра Hysteria: только для нод hysteria2, правила ElyTun и профиль RoscomVPN не применяются." />
+                </StackPanel>
+                <TextBlock Text="{Binding TunCoreDescription}" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+              </StackPanel>
+              <ComboBox Grid.Column="1"
+                        Width="250"
+                        HorizontalAlignment="Right"
+                        AutomationProperties.Name="Ядро TUN"
+                        SelectedIndex="{Binding TunCoreIndex, Mode=TwoWay}">
+                <ComboBoxItem Content="sing-box" />
+                <ComboBoxItem Content="Xray TUN" />
+                <ComboBoxItem Content="tun2proxy" />
+                <ComboBoxItem Content="Hysteria 2 TUN" />
+              </ComboBox>
+            </Grid>
+          </Border>
+          <Border Style="{StaticResource AppleRowSeparator}" />
+          <Border Style="{StaticResource AppleSettingRow}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="250" />
+              </Grid.ColumnDefinitions>
+              <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="Служба-помощник (без UAC)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                  <controls:InfoHint Text="Зачем: чтобы ElyTun включался без запроса прав администратора каждый раз. Как это работает: вы один раз устанавливаете службу ElyProxyHelper (Windows попросит UAC один раз) — дальше TUN-ядра запускает служба от имени системы, и запросов прав больше нет. Как проверить: под переключателем статус должен быть «Служба запущена». Если служба не установлена или остановлена, ElyProxy тихо работает как раньше — с UAC при каждом включении ElyTun. Безопасность: служба принимает только известные ядра ElyProxy (xray, sing-box, tun2proxy, hysteria) и останавливает их при отключении. Удаление — кнопкой «Удалить», тогда права снова будут запрашиваться." />
+                </StackPanel>
+                <TextBlock Text="{Binding HelperServiceDescription}" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding HelperServiceStatus}" Style="{StaticResource Text.Micro}" Margin="0,4,0,0" TextWrapping="Wrap" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" HorizontalAlignment="Right" MaxWidth="250">
+                <controls:SpringToggleSwitch HorizontalAlignment="Right"
+                                              AutomationProperties.Name="TUN через службу-помощник"
+                                              IsChecked="{Binding UseHelperService, Mode=TwoWay}" />
+                <WrapPanel HorizontalAlignment="Right" Margin="0,8,0,0" MaxWidth="250">
+                  <Button Content="Установить"
+                          Style="{StaticResource SecondaryButton}"
+                          IsEnabled="{Binding IsHelperAvailable}"
+                          Margin="0,0,6,6"
+                          Command="{Binding InstallHelperCommand}"
+                          AutomationProperties.Name="Установить службу-помощник" />
+                  <Button Content="Удалить"
+                          Style="{StaticResource GhostButton}"
+                          Margin="0,0,6,6"
+                          Command="{Binding UninstallHelperCommand}"
+                          AutomationProperties.Name="Удалить службу-помощник" />
+                  <Button Content="Обновить статус"
+                          Style="{StaticResource GhostButton}"
+                          Margin="0,0,0,6"
+                          Command="{Binding RefreshHelperStatusCommand}"
+                          AutomationProperties.Name="Обновить статус службы-помощника" />
+                </WrapPanel>
+              </StackPanel>
+            </Grid>
+          </Border>
+          </StackPanel>
+        </Border>
+
+        <!-- ================= DPI ================= -->
+        <TextBlock Text="Обход DPI" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <Border Style="{StaticResource AppleInsetGroup}">
+          <StackPanel>
+            <Border Style="{StaticResource AppleSettingRow}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Фрагментация TLS" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                    <controls:InfoHint Text="Дробит TLS ClientHello на части, чтобы обойти фильтрацию по SNI. Режим «Авто» подходит большинству. Фрагментация может замедлить соединение и изредка ломать отдельные сайты — если что-то перестало открываться, выключите её. Работает для Xray (через dialerProxy) и sing-box (tls.fragment); ядро Hysteria 2 TUN фрагментацию не использует." />
+                  </StackPanel>
+                  <TextBlock Text="Дробит TLS ClientHello, чтобы обойти SNI-фильтры. Может замедлить соединение." Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+                <ComboBox Grid.Column="1"
+                          Width="250"
+                          HorizontalAlignment="Right"
+                          AutomationProperties.Name="Фрагментация TLS"
+                          SelectedIndex="{Binding FragmentModeIndex, Mode=TwoWay}">
+                  <ComboBoxItem Content="Выключено" />
+                  <ComboBoxItem Content="Авто" />
+                  <ComboBoxItem Content="Свой" />
+                </ComboBox>
+              </Grid>
+            </Border>
+            <StackPanel Visibility="{Binding IsCustomFragment, Converter={StaticResource BoolToVis}}">
+              <Border Style="{StaticResource AppleRowSeparator}" />
+              <Border Style="{StaticResource AppleSettingRow}">
+                <StackPanel>
+                  <TextBlock Text="Дробить пакеты" Style="{StaticResource Text.Body}" />
+                  <TextBlock Text="tlshello — рукопожатие TLS; 1-3 — первые записи TCP." Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                  <TextBox Margin="0,8,0,0"
+                           AutomationProperties.Name="Дробить пакеты"
+                           Text="{Binding FragmentPackets, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource AppleRowSeparator}" />
+              <Border Style="{StaticResource AppleSettingRow}">
+                <StackPanel>
+                  <TextBlock Text="Длина фрагмента" Style="{StaticResource Text.Body}" />
+                  <TextBlock Text="Диапазон в байтах, например 100-200." Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                  <TextBox Margin="0,8,0,0"
+                           AutomationProperties.Name="Длина фрагмента"
+                           Text="{Binding FragmentLength, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource AppleRowSeparator}" />
+              <Border Style="{StaticResource AppleSettingRow}">
+                <StackPanel>
+                  <TextBlock Text="Интервал, мс" Style="{StaticResource Text.Body}" />
+                  <TextBlock Text="Пауза между фрагментами, например 10-20." Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                  <TextBox Margin="0,8,0,0"
+                           AutomationProperties.Name="Интервал фрагментации"
+                           Text="{Binding FragmentInterval, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Дробить TLS-записи (sing-box)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                    <controls:InfoHint Text="Только для sing-box (VLESS/VMess/Trojan). Дробит TLS-рукопожатие на отдельные TLS-записи — это быстрее полной фрагментации. Включайте, если провайдер фильтрует по SNI, но полная фрагментация заметно замедляет соединение. Для Xray настройка не применяется." />
+                  </StackPanel>
+                  <TextBlock Text="Быстрее полной фрагментации; применяется к VLESS/VMess/Trojan." Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+                <controls:SpringToggleSwitch Grid.Column="1"
+                                              HorizontalAlignment="Right"
+                                              AutomationProperties.Name="Дробить TLS-записи"
+                                              IsChecked="{Binding FragmentRecord, Mode=TwoWay}" />
+              </Grid>
+            </Border>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Noise-пакеты (Xray)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                    <controls:InfoHint Text="Только для Xray и только при включённой фрагментации. Перед реальными данными отправляются «шумовые» пакеты, чтобы сбить сигнатуры DPI. rand — случайные байты (в поле укажите длину, например 50-150), str — произвольная строка, base64 — данные в base64. Слишком агрессивные значения могут мешать соединению." />
+                  </StackPanel>
+                  <TextBlock Text="Случайные пакеты перед данными; работает при включённой фрагментации." Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+                <ComboBox Grid.Column="1"
+                          Width="250"
+                          HorizontalAlignment="Right"
+                          AutomationProperties.Name="Тип noise-пакетов"
+                          SelectedIndex="{Binding NoiseTypeIndex, Mode=TwoWay}">
+                  <ComboBoxItem Content="Выключено" />
+                  <ComboBoxItem Content="rand" />
+                  <ComboBoxItem Content="str" />
+                  <ComboBoxItem Content="base64" />
+                </ComboBox>
+              </Grid>
+            </Border>
+            <StackPanel Visibility="{Binding IsNoiseEnabled, Converter={StaticResource BoolToVis}}">
+              <Border Style="{StaticResource AppleRowSeparator}" />
+              <Border Style="{StaticResource AppleSettingRow}">
+                <StackPanel>
+                  <TextBlock Text="Содержимое пакета" Style="{StaticResource Text.Body}" />
+                  <TextBlock Text="Для rand — длина (50-150), для str — строка, для base64 — данные." Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                  <TextBox Margin="0,8,0,0"
+                           AutomationProperties.Name="Содержимое noise-пакета"
+                           Text="{Binding NoisePacket, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource AppleRowSeparator}" />
+              <Border Style="{StaticResource AppleSettingRow}">
+                <StackPanel>
+                  <TextBlock Text="Задержка noise, мс" Style="{StaticResource Text.Body}" />
+                  <TextBlock Text="Пауза после пакета, например 10-16." Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                  <TextBox Margin="0,8,0,0"
+                           AutomationProperties.Name="Задержка noise"
+                           Text="{Binding NoiseDelay, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Подмена ClientHello (spoof)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                    <controls:InfoHint Text="Перед настоящим TLS-рукопожатием отправляется поддельный ClientHello с «разрешённым» SNI. Помогает, если провайдер пропускает только белые домены (например, google.com), а ваш сервер блокирует. Работает только с ядром sing-box и требует прав администратора при подключении; для Xray, Hysteria и tun2proxy с Xray-бэкендом настройка не применяется. Может ломать соединение с частью серверов — сначала попробуйте обычную фрагментацию." />
+                  </StackPanel>
+                  <TextBlock Text="Только sing-box; нужен запуск от администратора." Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+                <controls:SpringToggleSwitch Grid.Column="1"
+                                              HorizontalAlignment="Right"
+                                              AutomationProperties.Name="Подмена ClientHello"
+                                              IsChecked="{Binding TlsSpoofEnabled, Mode=TwoWay}" />
+              </Grid>
+            </Border>
+            <StackPanel Visibility="{Binding TlsSpoofEnabled, Converter={StaticResource BoolToVis}}">
+              <Border Style="{StaticResource AppleRowSeparator}" />
+              <Border Style="{StaticResource AppleSettingRow}">
+                <StackPanel>
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Разрешённый SNI" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                    <controls:InfoHint Text="Домен, который фильтр считает разрешённым и пропускает без блокировки. Подставьте популярный сервис, доступный у вашего провайдера (например, www.google.com или www.microsoft.com). Чем ближе этот домен к реальному трафику, тем лучше." />
+                  </StackPanel>
+                  <TextBox Margin="0,8,0,0"
+                           controls:Placeholder.Text="www.google.com"
+                           AutomationProperties.Name="Разрешённый SNI для подмены"
+                           Text="{Binding TlsSpoofSni, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource AppleRowSeparator}" />
+              <Border Style="{StaticResource AppleSettingRow}">
+                <StackPanel>
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Метод отбрасывания подделки" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                    <controls:InfoHint Text="Как настоящий сервер отбросит поддельный пакет, чтобы он не долетел до него: wrong-sequence (по умолчанию) — неверный номер последовательности; wrong-checksum — плохая контрольная сумма; wrong-ack — неверное подтверждение; wrong-md5 — подпись TCP-MD5; wrong-timestamp — устаревшая метка времени. Если фильтр пропускает первый вариант, попробуйте другой." />
+                  </StackPanel>
+                  <ComboBox Margin="0,8,0,0"
+                            AutomationProperties.Name="Метод подмены ClientHello"
+                            SelectedIndex="{Binding TlsSpoofMethodIndex, Mode=TwoWay}">
+                    <ComboBoxItem Content="wrong-sequence (по умолчанию)" />
+                    <ComboBoxItem Content="wrong-checksum" />
+                    <ComboBoxItem Content="wrong-ack" />
+                    <ComboBoxItem Content="wrong-md5" />
+                    <ComboBoxItem Content="wrong-timestamp" />
+                  </ComboBox>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <!-- ================= Cores ================= -->
+        <TextBlock Text="Ядра" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <Border Style="{StaticResource AppleInsetGroup}">
+          <StackPanel>
+            <Border Style="{StaticResource AppleSettingRow}">
+              <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="Версии и обновление" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                  <controls:InfoHint Text="Скачивает свежие версии Xray, sing-box, tun2proxy и Hysteria 2 прямо из релизов на GitHub, проверяет SHA-256 и устанавливает в %LocalAppData%\ElyProxy\cores. Локальные копии имеют приоритет над встроенными в сборку. Обновление недоступно при активном подключении — сначала отключитесь. Hysteria 2 нужна только если выбран соответствующий движок или TUN-ядро." />
+                </StackPanel>
+                <TextBlock Text="Скачивает свежие Xray, sing-box, tun2proxy и Hysteria 2 с GitHub, проверяет SHA-256 и кладёт в локальную папку ElyProxy." Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding CoreUpdateStatus}"
+                           Style="{StaticResource Text.Micro}"
+                           Margin="0,8,0,0"
+                           TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                  <Button Content="Проверить"
+                          Style="{StaticResource SecondaryButton}"
+                          Command="{Binding CheckCoreUpdatesCommand}"
+                          AutomationProperties.Name="Проверить обновления ядер" />
+                  <Button Content="Обновить"
+                          Style="{StaticResource PrimaryButton}"
+                          Margin="8,0,0,0"
+                          Command="{Binding UpdateCoresCommand}"
+                          AutomationProperties.Name="Обновить ядра" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}">
+              <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="Geo-данные Xray" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                  <controls:InfoHint Text="geoip.dat и geosite.dat — базы для категорий geoip:/geosite: в правилах Xray (RoscomVPN и свои правила). Обновляются отдельно от ядра: источник — Loyalsoldier/v2ray-rules-dat, файлы кладутся рядом с активным xray.exe. Помогает, когда нужные категории устарели; риск — новые базы могут поменять состав категорий, поэтому изменения вступают в силу при следующем подключении. Обновление ядра Xray позже перезапишет эти файлы версией из релиза — тогда geo-данные можно обновить повторно." />
+                </StackPanel>
+                <TextBlock Text="Отдельное обновление geoip.dat и geosite.dat для Xray. Встроенные rule-set'ы RoscomVPN обновляются вместе с приложением." Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                <Button Content="Обновить geo-данные"
+                        Style="{StaticResource SecondaryButton}"
+                        HorizontalAlignment="Left"
+                        Margin="0,10,0,0"
+                        Command="{Binding UpdateGeoDataCommand}"
+                        AutomationProperties.Name="Обновить geo-данные Xray" />
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Движок Hysteria2" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                    <controls:InfoHint Text="Каким ядром обслуживать hysteria2-ноды в Proxy Pro и tun2proxy. sing-box — не требует дополнительных файлов. Hysteria 2 — отдельное ядро: поддерживает Gecko obfs, ECH и mimic, которых нет в sing-box; hysteria.exe скачивается в разделе «Ядра». На ElyTun с ядром sing-box эта настройка не влияет (там Hysteria2 идёт через sing-box)." />
+                  </StackPanel>
+                  <TextBlock Text="{Binding Hysteria2EngineDescription}" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+                <ComboBox Grid.Column="1"
+                          Width="250"
+                          HorizontalAlignment="Right"
+                          AutomationProperties.Name="Движок Hysteria2"
+                          SelectedIndex="{Binding Hysteria2EngineIndex, Mode=TwoWay}">
+                  <ComboBoxItem Content="sing-box" />
+                  <ComboBoxItem Content="Hysteria 2" />
+                </ComboBox>
+              </Grid>
+            </Border>
+          </StackPanel>
         </Border>
 
         <!-- ================= Subscriptions ================= -->
@@ -329,7 +658,10 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="250" />
               </Grid.ColumnDefinitions>
-              <TextBlock Grid.Column="0" Text="Автообновление" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Автообновление" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                <controls:InfoHint Text="Глобальный интервал автообновления подписок. Подписка со своим интервалом (контекстное меню → «Настройки подписки…») обновляется по нему, остальные — по этому значению. «Выключено» отключает автообновление для подписок без своего интервала." />
+              </StackPanel>
               <ComboBox Grid.Column="1"
                         Width="250"
                         HorizontalAlignment="Right"
@@ -348,7 +680,10 @@
           <StackPanel>
             <Border Style="{StaticResource AppleSettingRow}">
               <StackPanel>
-                <TextBlock Text="Профиль маршрутизации ElyTun" Style="{StaticResource Text.Body}" />
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="Профиль маршрутизации ElyTun" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                  <controls:InfoHint Text="RoscomVPN DEFAULT — встроенный набор rule-set'ов: блок-листы, прокси-домены и прямые домены РФ. Работает только на ядрах sing-box (ElyTun sing-box, Proxy Pro, tun2proxy с sing-box-бэкендом). Для Xray TUN и Xray-бэкенда применяются только «Свои правила» — в журнале появится предупреждение. В режиме «Только выбранные приложения» профиль игнорируется, потому что маршрут определяется списком приложений." />
+                </StackPanel>
                 <RadioButton Content="Свои правила"
                              Margin="0,10,0,0"
                              GroupName="ElyTunRoutingPreset"
@@ -364,7 +699,10 @@
             <Border Style="{StaticResource AppleRowSeparator}" />
             <Border Style="{StaticResource AppleSettingRow}">
               <StackPanel>
-                <TextBlock Text="Bypass-правила для Proxy Lite, Proxy Pro и ElyTun" Style="{StaticResource Text.Body}" />
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="Bypass-правила для Proxy Lite, Proxy Pro и ElyTun" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                  <controls:InfoHint Text="Домены, *.домены, IP и CIDR, которые всегда идут напрямую. Работают во всех режимах. В профиле RoscomVPN DEFAULT эти правила добавляются поверх встроенных и имеют приоритет. Для Xray-бэкенда tun2proxy правила применяются к доменам и IP." />
+                </StackPanel>
                 <TextBlock Text="По одному правилу в строке: домен, *.домен, IP или CIDR. Эти адреса идут напрямую."
                            Style="{StaticResource Text.Caption}"
                            Margin="0,4,0,0"
@@ -394,9 +732,36 @@
               </StackPanel>
             </Border>
             <Border Style="{StaticResource AppleRowSeparator}" />
-            <Border Style="{StaticResource AppleSettingRow}">
+            <Border Style="{StaticResource AppleSettingRow}" IsEnabled="{Binding IsPerAppSupported}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Режим приложений" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                    <controls:InfoHint Text="«Исключать выбранные» — перечисленные .exe идут напрямую, остальное через прокси. «Только выбранные» — наоборот: через прокси идут только они, остальной трафик напрямую, а профиль RoscomVPN и доменные правила не применяются. Ядро tun2proxy не умеет работать по приложениям — для него режим и список будут недоступны." />
+                  </StackPanel>
+                  <TextBlock Text="{Binding PerAppModeDescription}" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+                <ComboBox Grid.Column="1"
+                          Width="250"
+                          HorizontalAlignment="Right"
+                          AutomationProperties.Name="Режим обхода по приложениям"
+                          SelectedIndex="{Binding PerAppModeIndex, Mode=TwoWay}">
+                  <ComboBoxItem Content="Исключать выбранные" />
+                  <ComboBoxItem Content="Только выбранные" />
+                </ComboBox>
+              </Grid>
+            </Border>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}" IsEnabled="{Binding IsPerAppSupported}">
               <StackPanel>
-                <TextBlock Text="Обход по приложениям" Style="{StaticResource Text.Body}" />
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="Обход по приложениям" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                  <controls:InfoHint Text="Список .exe для правил по приложениям. В ElyTun (sing-box и Xray TUN) сопоставление идёт по полному пути процесса, поэтому выбирайте файл из папки установки. В Proxy Pro правило срабатывает для процесса, чей трафик пришёл в системный прокси. PAC (Proxy Lite) имя приложения не передаёт, поэтому список там не действует. Ядро tun2proxy не поддерживает per-app — список будет недоступен." />
+                </StackPanel>
                 <TextBlock Text="В ElyTun весь трафик выбранного .exe идёт напрямую, независимо от доменных/IP-правил. В Proxy Pro правило действует на трафик, поступающий в системный прокси. Proxy Lite (PAC) не передаёт имя приложения."
                            Style="{StaticResource Text.Caption}"
                            Margin="0,4,0,0"

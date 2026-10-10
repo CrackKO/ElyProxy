@@ -1,0 +1,47 @@
+<UserControl x:Class="ElyProxy.Views.Sheets.ShareServerSheet"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root"
+             Width="430">
+  <StackPanel>
+    <TextBlock Text="Ссылка для импорта в другие клиенты"
+               Style="{StaticResource Text.Body}" />
+    <TextBox x:Name="LinkBox"
+             Margin="0,8,0,0"
+             MaxHeight="120"
+             TextWrapping="Wrap"
+             IsReadOnly="True"
+             FontFamily="{StaticResource AppMonoFontFamily}"
+             FontSize="12"
+             AutomationProperties.Name="Ссылка сервера"
+             Text="{Binding Link, ElementName=Root, Mode=OneWay}" />
+    <Grid Margin="0,10,0,0">
+      <Button Content="Копировать ссылку"
+              Style="{StaticResource SecondaryButton}"
+              HorizontalAlignment="Left"
+              Click="Copy_Click"
+              AutomationProperties.Name="Копировать ссылку" />
+      <Button Content="Сохранить в файл…"
+              Style="{StaticResource GhostButton}"
+              HorizontalAlignment="Right"
+              Click="Save_Click"
+              AutomationProperties.Name="Сохранить ссылку в файл" />
+    </Grid>
+    <Border Margin="0,14,0,0"
+            HorizontalAlignment="Center"
+            Background="White"
+            CornerRadius="8"
+            Padding="10"
+            Visibility="{Binding HasQr, ElementName=Root, Converter={StaticResource BoolToVis}}">
+      <Image x:Name="QrImage"
+             Width="230"
+             Height="230"
+             Stretch="Uniform"
+             AutomationProperties.Name="QR-код сервера" />
+    </Border>
+    <TextBlock Text="{Binding ProtocolNote, ElementName=Root}"
+               Style="{StaticResource Text.Caption}"
+               Margin="0,10,0,0"
+               TextWrapping="Wrap" />
+  </StackPanel>
+</UserControl>

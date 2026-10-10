@@ -5,7 +5,7 @@
              x:Name="Root"
              Width="400">
   <StackPanel>
-    <TextBlock Text="Вставьте ссылку vless:// — сервер добавится в список вручную."
+    <TextBlock Text="Вставьте ссылку vless://, vmess://, trojan://, ss://, hysteria2:// или tuic:// — сервер добавится в список вручную."
                Style="{StaticResource Text.Callout}"
                TextWrapping="Wrap"
                Margin="0,0,0,10" />

@@ -40,6 +40,12 @@ public partial class SubscriptionsView : UserControl
 
         viewModel.NewSubName = sheet.SubscriptionName.Trim();
         viewModel.NewSubUrl = sheet.SubscriptionUrl.Trim();
+        viewModel.NewSubUserAgent = sheet.UserAgent;
+        viewModel.NewSubUpdateIntervalMinutes = sheet.UpdateIntervalMinutes;
+        viewModel.NewSubServerFilter = sheet.ServerFilter;
+        viewModel.NewSubSortMode = sheet.SortMode;
+        viewModel.NewSubHwid = sheet.Hwid;
+        viewModel.NewSubCustomHeadersText = sheet.CustomHeadersText;
         viewModel.AddSubscriptionCommand.Execute(null);
     }
 
@@ -73,6 +79,23 @@ public partial class SubscriptionsView : UserControl
 
         viewModel.SelectedSubscription = subscription;
         await DeleteSubscriptionAsync(subscription);
+    }
+
+    private async void RowSettings_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } viewModel || ResolveSubscription(sender) is not { } subscription)
+        {
+            return;
+        }
+
+        var sheet = new SubscriptionSettingsSheet(subscription);
+        if (!await DialogService.Current.ShowCustomAsync("Настройки подписки", sheet, "Сохранить") || !sheet.IsValid)
+        {
+            return;
+        }
+
+        sheet.ApplyTo(subscription);
+        await viewModel.ApplySubscriptionSettingsAsync(subscription);
     }
 
     private void SubscriptionList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)

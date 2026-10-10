@@ -1,0 +1,417 @@
+# TESTING.md — полный план тестирования ElyProxy
+
+Документ описывает стратегию тестирования клиента ElyProxy: уровни, матрицу
+покрытия, конкретные кейсы по каждой подсистеме, окружения, пробелы и
+релизные критерии. Правило проекта: **новый функционал без теста или кейса
+в этом документе считается незавершённым.**
+
+- Актуальный прогон: **236 тестов** в `tests/ElyProxy.Tests` (30 файлов), 0 пропусков.
+- Pester (валидация релизного скрипта): `Invoke-Pester -Path tools` — 11 тестов.
+- CI дополнительно публикует пакет и проверяет его состав (updater/helper/sing-box/22 rule-set).
+- Запуск: `dotnet test` из корня репозитория.
+- Один класс: `dotnet test --filter "FullyQualifiedName~SingBoxConfigBuilderTests"`.
+
+## 0. Принципы
+
+1. **Реальные артефакты вместо моков.** Конфиг-тесты валидируются настоящими
+   бинарями ядер (`sing-box check`, `xray run -test`); подменяются только сеть
+   (`HttpMessageHandler`) и реестр.
+2. **Изоляция.** Тесты пишут только во временные каталоги
+   (`%TEMP%\ElyProxy-*Tests-<guid>`) и удаляют их в `Dispose`. Никаких записей
+   в `%AppData%`, реестр и сеть под тестами.
+3. **Детерминизм.** Время инжектируется (политики), формат чисел —
+   `InvariantCulture` там, где строки не являются проверяемым контрактом.
+4. **Почему это важно:** каждый кейс ниже отвечает на вопрос «что сломается у
+   пользователя, если этого теста нет» — неверный узел, неработающий туннель,
+   потеря настроек, зависание приложения или утечка трафика.
+
+## 1. Карта продукта и рисков
+
+| Подсистема | Что делает | Риск без тестов |
+|---|---|---|
+| Парсеры (12 протоколов, 4 формата) | ссылки, base64, Clash YAML, Xray/sing-box JSON, массивы конфигов | узел распознан неверно → соединения нет или трафик идёт не туда |
+| Конфиг-генерация (Xray/sing-box/Hysteria) | JSON/YAML для ядер, маршрутизация, DPI, per-app | ядро не стартует или маршруты неверны |
+| Процесс-слой + служба-помощник | запуск/остановка ядер, pipe, UAC | зависания (sync-over-async), утечки процессов, лишние UAC |
+| Режимы (Off/Lite/Pro/ElyTun, 4 TUN-ядра) | системный прокси, PAC, полный туннель | нет интернета, утечки трафика, петли переподключений |
+| Подписки | HTTP, UA/HWID, заголовки, userinfo, фильтр/сорт | пустой список, потеря серверов, ложные уведомления |
+| Хранилище | JSON + схема + 3 бэкапа + миграции | потеря настроек и подписок |
+| Обновления (клиент/ядра/geo) | манифест, SHA-256, updater, откат | «кирпич» установки, подмена пакета |
+| Прокси Windows/PAC | реестр, PAC-сервер, восстановление | пользователь остаётся без интернета после краха |
+| Reconnect | сеть/сон/краш ядра | туннель молча мёртв |
+| Мониторинг (Clash API) | скорости, сессионный трафик | неверные цифры в статусбаре |
+| UI/темы/флаги/анимации | 3 темы, motion, адаптивность, бейджи | визуальные регрессии, нечитаемость |
+
+## 2. Уровни тестирования
+
+| Уровень | Что проверяет | Инструмент | Когда гонять |
+|---|---|---|---|
+| L0 Сборка | Release/Debug build без ошибок, single-instance | `dotnet build ElyProxy.sln`, CI | каждый PR |
+| L1 Юниты | парсеры, билдеры, сервисы, политики | xunit | каждый PR |
+| L2 Контракт | `sing-box check`, `xray run -test`, 22 rule-set, 250+ флагов, SHA | xunit + бинарь ядра | каждый PR (локально), CI — sing-box |
+| L3 Интеграция | процессы, pipe helper'а, PAC-сервер, storage, HTTP-fakes, Clash API | xunit + harness'ы | каждый PR/перед релизом |
+| L4 E2E | 4 режима, 4 TUN-ядра, reconnect, обновление, helper install, UAC-handoff | ручные прогоны | перед релизом |
+| L5 UI | экраны/шиты/тосты/трей, темы, HC, motion, адаптивность, DPI | smoke harness + скриншоты | перед релизом |
+| L6 Ручное QA | то, что нельзя автоматизировать (раздел 9) | чек-лист | перед релизом |
+| L7 Безопасность | pipe ACL, allowlist, zip-slip, HTTPS-only, секреты в логах | юниты + ревью | перед релизом |
+| L8 Надёжность | утечки процессов, deadlock-регрессия, 1000 нод, длительный прогон | probe-check, dotnet-dump | ежемесячно/перед релизом |
+| L9 Релиз | publish targets, `New-ElyProxyUpdate.ps1`, откат | скрипт + ручной прогон | каждый релиз |
+
+## 3. Текущее покрытие (174 теста, 23 файла)
+
+| Файл | Фокус | Кейсов |
+|---|---|---|
+| `AutoReconnectPolicyTests` | лимит попыток reconnect, сброс после ручного | 2 |
+| `ConfigBuilderTests` | Xray JSON: TUN/socks, VMess/Trojan/SS, xhttp/mKCP, process/fragment/OnlySelected | 12 |
+| `ConnectionDiagnosticsServiceTests` | 4 проверки диагностики + маскирование UUID в отчёте | 1 |
+| `CoreUpdateServiceTests` | парсинг версий релизов, список ядер, display names | 7 |
+| `CoreUpdateServiceInstallTests` | релиз GitHub (digest/URL), установка архива, откат (версия/архив/SHA) | 12 |
+| `ElyTunAvailabilityPolicyTests` | гейт «админ ИЛИ (helper включён + запущен)» | 6 |
+| `FlagCatalogTests` | код страны из имени, алиасы UK/EL, 250+ файлов флагов | 21 |
+| `GeoDataUpdateServiceTests` | geoip/geosite: установка, откат, битый digest, URL | 5 |
+| `HelperProtocolTests` | allowlist 4 ядер, парсинг запроса, фабрики событий | 16 |
+| `HysteriaConfigBuilderTests` | YAML: inbound'ы, TLS, obfs, TUN-секция с исключениями | 2 |
+| `ImportExportServiceTests` | экспорт/импорт профилей, битый JSON | 2 |
+| `MainWindowLayoutTests` | XAML-регрессии: перенос статуса в сайдбаре, тултипы у обрезаемых текстов | 2 |
+| `PackageExtractorTests` | zip-slip: traversal/абсолютные пути, нормальная распаковка | 12 |
+| `PacServerServiceTests` | реальный loopback-сервер: PAC, 404, занятый порт | 3 |
+| `ParserServiceTests` | все протоколы, IPv6, base64, невалидные порты | 12 |
+| `RuntimePreflightServiceTests` | ядра, rule-set, права ElyTun (admin/helper/UAC) | 3 |
+| `ShareExportTests` | share-link round-trip, Clash YAML, v2rayN JSON | 9 |
+| `SingBoxConfigBuilderTests` | 27 кейсов, 17 прогонов `sing-box check`, rule-sets, DPI, per-app | 27 |
+| `StorageServiceTests` | схема, миграция, 3 бэкапа, восстановление, блокировка записи | 6 |
+| `SubscriptionFilterTests` | фильтр по имени, пустой результат, сортировка | 3 |
+| `SubscriptionFormatParserTests` | Clash YAML, Xray/sing-box JSON, массивы конфигов, naive | 8 |
+| `SubscriptionHeadersAndHashTests` | заголовки/Host/UA, каталог UA, ConfigHash | 4 |
+| `SubscriptionRefreshCoordinatorTests` | staging успеха, сохранение серверов при ошибке | 1 |
+| `SubscriptionServiceTests` | garbage/HTML/503, секретный токен не утекает, scheme | 6 |
+| `SubscriptionUserInfoTests` | трафик/срок, форматирование, сводка, культуронезависимые даты | 8 |
+| `TrafficMonitorServiceTests` | fake Clash API: строки /traffic, Bearer, битые строки, 503, Stop | 5 |
+| `UpdaterCliTests` | аргументы updater, preflight установки (root/EXE/пакет) | 15 |
+| `UpdateServiceTests` | манифест (10 негативных), SHA, лимит размера, `.partial` | 17 |
+| `WindowsProxyRecoveryServiceTests` | журнал восстановления PAC/ручного прокси | 7 |
+| `XrayConfigContractTests` | 11 конфигов через `xray run -test` + негатив VLESS none | 2 |
+
+### Внешние harness'ы (вне репозитория, `%TEMP%\opencode\`)
+
+| Harness | Что делает | Проверка |
+|---|---|---|
+| `elyproxy-smoke` | рендерит окно и все секции off-screen; ассерты: токены Light↔Dark, ComboBox foreground, ModeSelector height/синк, alpha оболочки, шиты/тосты; собирает binding warnings | `RENDERED OK`, `TRACE_COUNT=0`, `CHECKS_FAILED=0` + скриншоты |
+| `helper-check` | полный цикл через pipe: start/stop xray как служба | `HELPER OK` |
+| `probe-check` | пробы пинга: старт, отказ битого конфига, отсутствие утечек процессов | `PROBE OK` |
+| `sub-parse-check` | парсинг реальной подписки из файла | число нод/строки |
+| `xray-config-check` | генерирует 12 конфигов для ручного `xray run -test` | (покрыто контрактным тестом) |
+
+### CI
+
+`.github/workflows/ci.yml`: `windows-latest`, Release build всего решения +
+`dotnet test -c Release --no-build`. Покрывает L0–L2/L3 (кроме контракта Xray —
+`xray/` не в репозитории) на каждый push в `main` и любой PR.
+
+## 4. Матрица «подсистема × уровень»
+
+| Подсистема | L1 | L2 | L3 | L4-L6 | Статус/где |
+|---|---|---|---|---|---|
+| Парсеры ссылок/base64 | есть | — | — | — | `ParserServiceTests` |
+| Clash YAML / JSON / массивы | есть | — | — | — | `SubscriptionFormatParserTests` |
+| Xray ConfigBuilder | есть | есть | — | — | `ConfigBuilderTests` + `XrayConfigContractTests` |
+| sing-box ConfigBuilder | есть | есть | — | — | `SingBoxConfigBuilderTests` |
+| Hysteria YAML | есть | частично | — | — | `HysteriaConfigBuilderTests` (нет `hysteria check`) |
+| Подписки (HTTP, ошибки) | есть | — | есть | — | `SubscriptionServiceTests` и др. |
+| Таймер/интервал подписок | — | — | — | частично | gap: P2 |
+| Хранилище | есть | — | есть | — | `StorageServiceTests` |
+| Обновление клиента | есть | — | — | частично | `UpdateServiceTests`; updater E2E — вручную |
+| Updater (zip-slip, CLI) | есть | — | — | — | `PackageExtractorTests`, `UpdaterCliTests` |
+| Обновление ядер/geo | есть | — | — | вручную | `CoreUpdateServiceInstallTests`, `GeoDataUpdateServiceTests` |
+| Helper (pipe, ACL) | есть | — | есть | вручную | `HelperProtocolTests` + `helper-check`; ACL/exit-коды — вручную |
+| Процесс-слой/менеджеры | — | — | есть | — | `probe-check`, deadlock-регрессия |
+| Гейты ElyTun (UAC/helper) | есть | — | — | вручную | `ElyTunAvailabilityPolicyTests` |
+| Reconnect | есть | — | — | вручную | `AutoReconnectPolicyTests` (только лимит) |
+| Мониторинг (Clash API) | есть | — | — | вручную | `TrafficMonitorServiceTests` (fake-сервер) |
+| Прокси Windows/PAC | есть | — | есть | вручную | `PacServerServiceTests`, recovery-тесты |
+| Флаги/бейджи | есть | — | — | — | `FlagCatalogTests` |
+| UI/темы/адаптивность | — | — | — | вручную | smoke harness (скриншоты) |
+| Безопасность | есть | — | — | — | манифест, zip-slip, маскирование, pipe (вручную) |
+
+## 5. Детальные кейсы по подсистемам
+
+### 5.1 Парсеры
+
+| Кейс | Вход | Ожидание | Почему важно |
+|---|---|---|---|
+| VLESS IPv6/ws/TLS | ссылка с `[::1]`, ws-параметрами | корректные Address/Path/Host/SNI | IPv6-ноды ломаются при неверном разборе |
+| VMess base64 JSON | `vmess://<base64>` | UUID/AlterId/сеть/транспорт | самый популярный формат после vless |
+| SS SIP002 и legacy | `ss://` в двух форматах | method/пароль/хост | legacy-подписки ещё в ходу |
+| Hysteria2/TUIC/AnyTLS/SSH/Naive | ссылки с auth/obfs/pin/портами | все поля в `Extra` | sing-box-only протоколы |
+| ShadowTLS-пара | sing-box JSON с detour | связка ss→shadowtls | неверная пара = нерабочий узел |
+| WireGuard endpoints | JSON с `endpoints` | поля в Extra | нестандартное размещение |
+| Массивы полных конфигов | 42 Xray-конфига с `remarks` | 36 нод, дубликаты удалены | реальный случай Liberty |
+| Невалидные входы | порт 0/65536/текст, битый base64, HTML | null/пропуск строки | не падать и не мусорить в списке |
+| Share round-trip | Build → ParseUri для 6 протоколов | поля совпадают | экспорт/импорт без потерь |
+
+### 5.2 Xray ConfigBuilder + контракт `xray run -test`
+
+| Кейс | Ожидание | Почему |
+|---|---|---|
+| Reality+Vision / ws-CDN / xhttp(+extra) / mKCP / gRPC / HTTPUpgrade / VMess / Trojan / SS2022 | JSON-поля + exit 0 у `xray run -test` | любая опечатка = ядро не стартует |
+| TUN inbound | socks+tun, bypass-правила, IPv6 | полный туннель |
+| Fragment+noise | `fragment` outbound + `dialerProxy` | DPI-обход |
+| OnlySelected | process→proxy, DNS выбранных через прокси, остальное direct | утечки DNS у выбранных приложений |
+| VLESS без TLS на публичном домене | `xray run -test` ≠ 0, текст «prohibited» | Xray 26.9.30 запрещает; приложение обязано показать ошибку ядра |
+
+Пробелы: grpc/httpupgrade кейсы в контракте — добавлены (`vless-grpc`,
+`vless-httpupgrade`).
+
+### 5.3 sing-box ConfigBuilder (27 кейсов, 17 `sing-box check`)
+
+Ключевое: TUN-база (auto_route, stack, exclude-адреса), все протоколы
+(vless/vmess/trojan/ss/hysteria2/tuic/anytls/ssh/wireguard/shadowtls/naive),
+DNS (direct vs DoH), per-app, RoscomVPN DEFAULT (22 rule-set, порядок
+block→proxy→direct), fragment/record_fragment, TLS spoof, Clash API, негативы
+(xhttp и VLESS Encryption отклоняются).
+
+### 5.4 Hysteria YAML
+
+Proxy-режим (inbound'ы, auth, obfs, port hopping, up/down) и TUN (адреса,
+mtu, autoRoute, исключения). Пробел: валидация конфига бинарём Hysteria 2 —
+вручную (P3, если появится `hysteria check`).
+
+### 5.5 Подписки
+
+| Кейс | Ожидание | Почему |
+|---|---|---|
+| 503 / пусто / HTML | `RequestFailed`/`Empty`/`InvalidContent`, старый список цел | сервер провайдера лежит — ноды не должны пропасть |
+| Токен URL в ошибке | не попадает в текст исключения | утечка ключа подписки в логи |
+| `subscription-userinfo` | трафик/срок, «2 ГБ из 10 ГБ» | отображение лимитов |
+| Уведомления 80% / 3 дня | один раз, флаги сбрасываются при восстановлении | спам-защита |
+| Фильтр/сорт | фильтр по имени, latency nulls last | UX списка |
+| UA/HWID/заголовки | парсер + каталог 38 пресетов | провайдеры блокируют «неправильные» клиенты |
+
+Пробелы: оркестрация per-sub таймера обновления (P2), сценарии
+`SubscriptionRefreshCoordinator` с фильтром (есть базовые).
+
+### 5.6 Хранилище
+
+Версионная схема, миграция legacy → backup, восстановление из последнего
+валидного бэкапа, `.corrupt-*` сохраняется, ровно 3 бэкапа, блокировка записи
+без бэкапов. Пробел: регрессия при добавлении новых полей `AppSettings` (P3:
+кейс «новая версия читает старый файл»).
+
+### 5.7 Обновления
+
+| Кейс | Ожидание | Почему |
+|---|---|---|
+| Манифест: http / чужой host / `host.evil` / не .zip | `InvalidDataException` | MITM и подмена пакета |
+| SHA: 63/65 символов, не-hex, пусто | отказ | целостность пакета |
+| Версия 0.9/мусор | отказ | downgrade-защита |
+| Пустые release notes | подставляется текст по умолчанию | UI не пустует |
+| Скачивание: SHA mismatch | `InvalidDataException`, `.partial` удалён | нет «полуфайлов» |
+| Content-Length > 750 МиБ | отказ до чтения тела | защита от переполнения диска |
+| HTTP 503 при скачивании | ошибка, `.partial` удалён | чистота каталога |
+| Потоковый лимит 750 МиБ | закодирован, но не юнит-тестируется (объём) | защита от отсутствия Content-Length |
+| Updater: zip-slip | `InvalidDataException`, ничего вне staging | запись в системные папки |
+| Updater: откат бэкапа | старая версия восстановлена (E2E вручную) | «кирпич» установки |
+| Updater: wait-pid timeout | сообщение, отказ | обновление поверх работающего клиента |
+
+CLI-контракт updater (`UpdaterArguments`, `InstallPreflight`) и zip-slip
+покрыты `UpdaterCliTests`/`PackageExtractorTests`; полный откат бэкапа при
+установке — E2E вручную.
+
+### 5.8 Служба-помощник
+
+`HelperProtocolTests`: allowlist (ровно 4 ядра, регистронезависимо, файл
+обязан существовать), десериализация запроса, фабрики событий.
+`helper-check`: start/stop xray через pipe, события, отсутствие утечек.
+Осталось вручную: exit-коды install (0/1/2)/uninstall, ACL канала
+(SYSTEM/Administrators Full, AuthenticatedUsers RW), kill-all при обрыве
+сессии (проверено вручную — 7 процессов убиты службой).
+
+### 5.9 Процессы, менеджеры, TUN
+
+| Кейс | Ожидание | Почему |
+|---|---|---|
+| `probe-check`: валидная/битая нода | старт ~300 мс / отказ ~100 мс, без утечек | регрессия deadlock (ConfigureAwait) |
+| Dispose менеджеров с UI-потока | не блокируется дольше bounded-ожиданий | зависание приложения (был реальный баг) |
+| TUN 4 ядра × (connect/DNS/per-app/reconnect/crash/stop) | E2E вручную | полный туннель |
+| Гейт ElyTun | admin ИЛИ (helper включён + служба запущена) — политика покрыта тестом | лишние UAC / отказ без прав |
+| Восстановление режима при старте | сохранённый ElyTun включается через helper без UAC | UX после перезапуска |
+
+### 5.10 Мониторинг
+
+`TrafficMonitorServiceTests` (fake Clash API на loopback): парсинг строк
+`/traffic`, Bearer-токен, пропуск битых строк, отсутствующие поля → 0,
+HTTP 503 без падений, `Stop` завершает цикл.
+
+### 5.11 Прокси Windows и PAC
+
+PAC-сервер: нормализация (рф→punycode), 404, занятый порт → старый сервер жив.
+Recovery: журнал при старте, сохранение пользовательских значений, ручной
+прокси, запрет ручного восстановления поверх PAC-журнала. Пробел: юнит-тесты
+`WindowsProxyService` на fake-реестре (P3).
+
+### 5.12 UI, темы, флаги
+
+Smoke harness: рендер окна/секций, `TRACE_COUNT=0`, скриншоты. Флаги: парсинг
+кода + наличие 250+ PNG. Вручную: 3 темы, HC, reduced motion, transparency,
+DPI 100/125/150, 900×620 и 1080×740, длинные имена, пустые состояния,
+скелетоны, шиты/тосты, трей, Snap Layouts. Структурные регрессии вёрстки:
+`MainWindowLayoutTests` — статус в сайдбар-карточке обязан переноситься
+(Grid с `*`-колонкой, не горизонтальный StackPanel), у всех обрезаемых
+(`TextTrimming`) текстов оболочки есть тултип с полным текстом.
+
+### 5.13 Безопасность
+
+Покрыто: HTTPS-only + host + SHA (манифест), zip-slip, маскирование UUID в
+диагностике, отсутствие токена подписки в ошибках, allowlist helper'а
+(ревью). Вручную: ACL pipe (`services.msc`/утилита), логи без паролей/UUID,
+HWID не утекает в сторонние хосты.
+
+### 5.14 Надёжность и производительность
+
+`probe-check` (утечки/дедлок), `dotnet-dump` при зависании, 1000+ нод в
+списке (виртуализация, скролл), длительный прогон (8+ часов с reconnect),
+потребление памяти при переключении режимов. Пробелы: автоматический
+smoke-прогон 1000 нод, замер памяти (P3).
+
+## 6. Окружения и матрица конфигураций
+
+| Ось | Значения | Что проверяем |
+|---|---|---|
+| ОС | Windows 10 22H2, Windows 11 | Mica/Acrylic fallback, Snap Layouts |
+| Права | без админа, админ | ElyTun гейты, UAC-handoff |
+| Helper | не установлен / установлен+запущен / остановлен | отсутствие лишних UAC |
+| Ядра | все на месте / отсутствуют / битые | preflight, понятные ошибки |
+| Сеть | online / offline / CDN-домены / DNS-fail | подписки, reconnect, пробы |
+| Темы | Light / Dark / High Contrast | токены, контраст |
+| Motion | обычная / reduced / transparency off | отключение анимаций |
+| DPI | 100% / 125% / 150% | обрезка текста, иконки |
+| Культура | ru-RU, en-US | форматы дат/чисел |
+| Нагрузка | 1 нода / 1000 нод | виртуализация, скролл, память |
+
+## 7. Gap-анализ и план внедрения
+
+### P1 — внедрено (первый шаг)
+
+- `UpdateServiceTests` (17): матрица манифеста, SHA, лимит размера, `.partial`.
+  Для этого `UpdateService` получил инъекцию `HttpClient`/каталога загрузок.
+- `XrayConfigContractTests` (2): 11 конфигов через `xray run -test` + негатив
+  VLESS без TLS на публичном домене. Пропускается, если локальный `xray/`
+  отсутствует (в CI контракт Xray не гоняется — папка не в репозитории).
+- `PackageExtractorTests` (12) + `ElyProxy.Updater/PackageExtractor`:
+  явная проверка каждого ZIP-entry (traversal/абсолютные пути) перед
+  распаковкой; updater использует безопасный экстрактор.
+
+### P2 — внедрено (второй шаг)
+
+- `TrafficMonitorServiceTests` (5): fake Clash API на loopback — строки
+  `/traffic`, Bearer, битые строки, 503, `Stop`.
+- `HelperProtocolTests` (16): allowlist, парсинг запроса, события
+  (`InternalsVisibleTo` для `ElyProxy.Helper`).
+- `CoreUpdateServiceInstallTests` (12) + `GeoDataUpdateServiceTests` (5):
+  инъекция `HttpClient`/cores-root/version-probe/target-dir; откат при
+  неработающем ядре, битом SHA и неполном архиве; восстановление geo-файлов.
+- `ElyTunAvailabilityPolicyTests` (6): гейт вынесен в
+  `Services/ElyTunAvailabilityPolicy`, `MainViewModel` делегирует.
+- `UpdaterCliTests` (15): `UpdaterArguments.Parse` + `InstallPreflight.Validate`.
+
+### P3 — внедрено (третий шаг)
+
+- Smoke harness расширен до контракта: токены Light↔Dark, ComboBox foreground
+  в обеих темах, ModeSelector height/синк, alpha оболочки, шиты/тосты;
+  печатает `RENDERED OK` / `CHECKS_FAILED=0`.
+- Pester-тесты релизного скрипта (11): версия csproj, запрет перезаписи,
+  обязательные файлы, ровно 22 rule-set. Валидация вынесена в
+  `tools/ElyProxyUpdateValidation.ps1`, запуск — `Invoke-Pester -Path tools`.
+- Контракт Xray: добавлены кейсы gRPC и HTTPUpgrade.
+- Культуронезависимые даты `Subscription.TrafficSummary`/`LastUpdateStatus`
+  (`InvariantCulture`) + тест на тайском календаре.
+- Порт-гонки в тестах PAC/диагностики: ретраи с новым портом.
+- CI: шаг Pester + publish с проверкой состава (updater/helper/sing-box/22 .srs).
+
+### Остаточный бэклог
+
+- Валидация Hysteria YAML бинарём (если появится `hysteria check`).
+- Юнит-тесты `WindowsProxyService` на fake-реестре (сейчас — политики + E2E вручную).
+- Оркестрация reconnect (сеть/сон) — покрыта только политика лимита.
+- E2E прогоны ElyTun на 4 ядрах — ручной чек-лист.
+
+## 8. Процесс и релизные гейты
+
+**На каждый PR:** L0–L2 + затронутые L3-тесты; CI зелёный (build, 234 xunit,
+11 Pester, publish-layout); новый функционал сопровождается тестом.
+
+**Перед релизом (L4–L9):**
+1. `dotnet test` — 0 падений.
+2. Smoke harness: `TRACE_COUNT=0`, скриншоты без визуальных регрессий.
+3. Ручной чек-лист (раздел 9) по матрице окружений (раздел 6).
+4. Обновление N-1 → N через UI + откат при подменённом ZIP.
+5. Helper: install (один UAC), статус, uninstall; ElyTun без UAC при службе.
+6. `New-ElyProxyUpdate.ps1` для релизной версии (версия в csproj совпадает,
+   артефакты не перезаписываются).
+7. Деплой: ZIP первым, `update.json` последним (см. `tools/README.md`).
+
+**Баг-репорт:** шаги воспроизведения, ожидание/факт, окружение из матрицы,
+лог из журнала приложения (`[sys]`/`[err]`), при зависании — дамп
+(`dotnet-dump collect -p <pid>`).
+
+## 9. Ручной QA-чеклист (перед релизом)
+
+**Режимы**
+- [ ] Off → Lite → Pro → ElyTun → Off: взаимное исключение, статусбар, журнал.
+- [ ] Сохранение режима после перезапуска (в т.ч. ElyTun через helper).
+
+**ElyTun (4 ядра: sing-box, Xray, tun2proxy, Hysteria 2)**
+- [ ] Подключение/отключение, DNS, IPv6-опция, per-app (Bypass/OnlySelected).
+- [ ] Reconnect: смена сети, сон/пробуждение, kill ядра, debounce 10 с.
+- [ ] UAC: без helper — один запрос + elevated relaunch; отмена UAC — соединение восстановлено.
+- [ ] Служба: остановить → UAC снова; запустить → без UAC.
+
+**Служба-помощник**
+- [ ] Установка (один UAC), «Обновить статус», удаление.
+- [ ] Закрытие клиента убивает все ядра службы (диспетчер задач пуст).
+
+**Обновления**
+- [ ] N-1 → N: скачивание, SHA, updater, перезапуск, бэкап-папка.
+- [ ] Подмена ZIP (неверный SHA) — отказ, текущая версия цела.
+- [ ] Обновление ядер с откатом при битом бинаре; geo-данные.
+
+**Подписки**
+- [ ] Добавление/обновление/удаление, UA/HWID/заголовки, интервал.
+- [ ] Пустой/битый ответ не стирает серверы; фильтр/сорт; 80%/3 дня.
+
+**UI**
+- [ ] Light/Dark/HC; reduced motion; transparency; DPI 125/150.
+- [ ] 900×620 и 1080×740; длинные имена; пустые состояния; скелетоны.
+- [ ] Шиты/тосты, журнал (поиск/уровни), трей-меню, single-instance, Snap Layouts.
+- [ ] Флаги стран у всех нод; режим бейджа Flag/Monogram/None.
+
+**Безопасность/восстановление**
+- [ ] В логах нет UUID/паролей/токенов URL.
+- [ ] Kill -9 клиента при активном PAC → прокси Windows восстановлен при старте.
+
+## 10. Известные ограничения и находки
+
+1. **Xray 26.9.30 запрещает VLESS без TLS на публичных доменах** («prohibited
+   unless the server address is a private IP or domain» — фактически только
+   приватный IP/localhost). Зафиксировано негативным контрактным тестом.
+   Для таких нод (mKCP/security=none) Xray-ядро не стартует; приложение
+   показывает ошибку ядра. Возможное улучшение: предупреждение при выборе
+   Xray для такой ноды (P3).
+2. **Контракт Xray не гоняется в CI**: `xray/` — локальный untracked-артефакт;
+   тест сам пропускается без бинаря. sing-box контракт в CI есть.
+3. **Потоковый лимит 750 МиБ** в `DownloadVerifiedPackageAsync` не
+   юнит-тестируется (нужен поток >750 МиБ); покрыт Content-Length-кейс.
+4. **Smoke harness** собирает binding warnings и ассерты контракта (токены,
+   ComboBox, ModeSelector, alpha, шиты/тосты); запускать при закрытом
+   приложении (см. пункт 8).
+5. **Культуры**: даты в `Subscription` форматируются `InvariantCulture` (тест
+   на тайском календаре); сортировка по имени — `CurrentCultureIgnoreCase`
+   (по дизайну).
+6. **Порт-гонки в тестах** PAC/диагностики закрыты ретраями; теоретический
+   флейк возможен только при экстремальной нагрузке на loopback.
+7. Тесты требуют Windows и наличия `sing-box/sing-box.exe` (tracked) и
+   `Assets/` в рабочем дереве; запуск из опубликованной папки невозможен
+   (`FindWorkspaceRoot` ищет `ElyProxy.sln`).
+8. Smoke harness нельзя запускать при работающем ElyProxy: `App.OnStartup`
+   захватывает single-instance mutex и выключает тестовый экземпляр
+   («Application is shutting down» при создании MainWindow). Прогоняйте его
+   при закрытом приложении.

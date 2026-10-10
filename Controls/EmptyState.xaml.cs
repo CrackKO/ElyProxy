@@ -41,6 +41,15 @@ public partial class EmptyState : UserControl
     public EmptyState()
     {
         InitializeComponent();
+        SizeChanged += (_, _) => ApplyCompactLayout();
+    }
+
+    private void ApplyCompactLayout()
+    {
+        bool showGlyph = ActualHeight >= 240.0;
+        bool showDescription = ActualHeight >= 170.0;
+        GlyphRing.Visibility = (showGlyph ? Visibility.Visible : Visibility.Collapsed);
+        DescriptionText.Visibility = (showDescription ? Visibility.Visible : Visibility.Collapsed);
     }
 
     public string Title

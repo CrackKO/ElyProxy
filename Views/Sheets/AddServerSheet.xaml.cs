@@ -29,12 +29,12 @@ public partial class AddServerSheet : UserControl, INotifyPropertyChanged, IShee
         set => SetValue(UriProperty, value);
     }
 
-    public bool IsValid => IsValidVless(Uri);
+    public bool IsValid => IsValidUri(Uri);
 
     public string UriError =>
-        string.IsNullOrWhiteSpace(Uri) || IsValidVless(Uri)
+        string.IsNullOrWhiteSpace(Uri) || IsValidUri(Uri)
             ? string.Empty
-            : "Нужна корректная ссылка vless:// с адресом, портом и UUID.";
+            : "Нужна корректная ссылка vless://, vmess://, trojan://, ss://, hysteria2://, tuic://, anytls:// или ssh://.";
 
     private static void OnValueChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
@@ -43,17 +43,17 @@ public partial class AddServerSheet : UserControl, INotifyPropertyChanged, IShee
         sheet.PropertyChanged?.Invoke(sheet, new PropertyChangedEventArgs(nameof(UriError)));
     }
 
-    private static bool IsValidVless(string value)
+    private static bool IsValidUri(string value)
     {
         var candidate = value?.Trim();
-        if (string.IsNullOrEmpty(candidate) || !candidate.StartsWith("vless://", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrEmpty(candidate))
         {
             return false;
         }
 
         try
         {
-            return Parser.ParseVlessUri(candidate) is not null;
+            return Parser.ParseUri(candidate) is not null;
         }
         catch
         {

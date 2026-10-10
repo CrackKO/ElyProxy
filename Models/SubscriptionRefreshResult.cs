@@ -11,7 +11,8 @@ public enum SubscriptionRefreshStatus
 public sealed record SubscriptionRefreshResult(
     SubscriptionRefreshStatus Status,
     IReadOnlyList<VlessNode> Nodes,
-    string? ErrorMessage = null)
+    string? ErrorMessage = null,
+    SubscriptionUserInfo? UserInfo = null)
 {
     public bool IsSuccess => Status == SubscriptionRefreshStatus.Success;
 

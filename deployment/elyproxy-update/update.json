@@ -1,7 +1,7 @@
 {
-    "version":  "1.3.8",
-    "packageUrl":  "https://elysiumhub.org/updates/elyproxy/ElyProxy-1.3.8-win-x64.zip",
-    "sha256":  "20809C21420E0A66793F02F4558E9C5C0E6D54B731F978EB389528ECF2880D95",
-    "releaseNotes":  "Исправлена комплектация обновления: в архив добавлено полное Xray-ядро (xray.exe, geoip.dat, geosite.dat и wintun.dll). Также включён Proxy Pro.",
+    "version":  "1.4.0",
+    "packageUrl":  "https://elysiumhub.org/updates/elyproxy/ElyProxy-1.4.0-win-x64.zip",
+    "sha256":  "916E67DB1A34338F6B2E728FC143E0B41111406E768F16C508610505DF1D84F9",
+    "releaseNotes":  "Большое обновление.\n• Полный редизайн в стиле Apple: боковая навигация, светлая и тёмная темы, материалы Mica/Acrylic, плавные анимации, шторки и уведомления вместо системных окон.\n• Поддержка протоколов: VLESS (Reality, WS/CDN, gRPC, HTTPUpgrade, xhttp, mKCP), VMess, Trojan, Shadowsocks, Hysteria2, TUIC, AnyTLS, SSH, WireGuard, NaiveProxy, ShadowTLS.\n• Выбор TUN-ядра: sing-box, Xray TUN, tun2proxy, Hysteria 2 TUN; отдельный движок Hysteria 2.\n• Подписки: Clash YAML, JSON-конфиги и массивы полных конфигов, свои User-Agent/HWID/заголовки, трафик и срок подписки с уведомлениями, фильтр и сортировка.\n• Обход DPI: фрагментация TLS, noise-пакеты, подмена ClientHello; обход по выбранным приложениям.\n• Служба-помощник: TUN без запроса прав администратора при каждом подключении.\n• Автообновление ядер и geo-данных с проверкой SHA-256 и откатом; мониторинг скорости и трафика; флаги стран; экспорт серверов (QR, Clash, JSON).\n• Переподключение при смене сети и после сна; ElyTurbo и ElyHard для подбора лучшего сервера.\nИсправлено: зависание при проверке пинга, лишний запрос прав ElyTun при работающей службе-помощнике, обрезка длинных текстов на разных разрешениях.",
     "mandatory":  false
 }

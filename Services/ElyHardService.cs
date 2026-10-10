@@ -131,14 +131,14 @@ public sealed class ElyHardService
 	public async Task<ElyHardNodeResult> CheckNodeAsync(VlessNode node, ElyHardOptions options)
 	{
 		int probePort = GetFreeTcpPort();
-		using XrayManager xray = new XrayManager();
+		XrayTunOptions probeOptions = new XrayTunOptions("ElyProbe", 1500, Array.Empty<string>(), false, Array.Empty<string>(), Array.Empty<string>());
 		ElyHardNodeResult result;
 		try
 		{
 			_ = 2;
 			try
 			{
-				await xray.StartAsync(node, probePort);
+				await using ProbeCoreRunner probe = await ProbeCoreRunner.StartAsync(node, probePort, probeOptions);
 				if (!(await WaitForLocalPortAsync(probePort, options.StartupTimeout)))
 				{
 					result = ElyHardNodeResult.Empty(node, Targets);
@@ -177,7 +177,6 @@ public sealed class ElyHardService
 		}
 		finally
 		{
-			await xray.StopAsync();
 		}
 		return result;
 	}

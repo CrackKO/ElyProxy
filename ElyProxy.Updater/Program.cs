@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.IO.Compression;
 using System.Windows.Forms;
 
 namespace ElyProxy.Updater;
@@ -13,7 +12,7 @@ internal static class Program
     {
         try
         {
-            var options = ParseArguments(args);
+            var options = UpdaterArguments.Parse(args);
             WaitForClientToExit(options.WaitPid);
             Install(options);
             return 0;
@@ -31,15 +30,7 @@ internal static class Program
 
     private static void Install(UpdaterOptions options)
     {
-        var installDirectory = Path.GetFullPath(options.InstallDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        if (string.Equals(installDirectory, Path.GetPathRoot(installDirectory), StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Недопустимая папка установки.");
-        if (!File.Exists(Path.Combine(installDirectory, "ElyProxy.exe")))
-            throw new FileNotFoundException("Не найден ElyProxy.exe в папке установки.");
-
-        var packagePath = Path.GetFullPath(options.PackagePath);
-        if (!File.Exists(packagePath))
-            throw new FileNotFoundException("Пакет обновления не найден.", packagePath);
+        var (installDirectory, packagePath) = InstallPreflight.Validate(options.InstallDirectory, options.PackagePath);
 
         var parent = Directory.GetParent(installDirectory)?.FullName
             ?? throw new InvalidOperationException("Не удалось определить родительскую папку установки.");
@@ -50,7 +41,7 @@ internal static class Program
 
         try
         {
-            ZipFile.ExtractToDirectory(packagePath, staging);
+            PackageExtractor.ExtractVerified(packagePath, staging);
             var stagedExecutable = Path.Combine(staging, "ElyProxy.exe");
             var stagedUpdater = Path.Combine(staging, "updater", "ElyProxy.Updater.exe");
             if (!File.Exists(stagedExecutable) || !File.Exists(stagedUpdater))
@@ -169,29 +160,9 @@ internal static class Program
         }
     }
 
-    private static UpdaterOptions ParseArguments(string[] args)
-    {
-        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        for (var index = 0; index + 1 < args.Length; index += 2)
-            values[args[index]] = args[index + 1];
-
-        if (!values.TryGetValue("--install-dir", out var installDirectory)
-            || !values.TryGetValue("--package", out var package)
-            || !values.TryGetValue("--wait-pid", out var processText)
-            || !int.TryParse(processText, out var processId)
-            || processId <= 0)
-        {
-            throw new ArgumentException("Недопустимые параметры обновления.");
-        }
-
-        return new UpdaterOptions(installDirectory, package, processId);
-    }
-
     private static void TryDelete(string path)
     {
         try { File.Delete(path); }
         catch { }
     }
-
-    private sealed record UpdaterOptions(string InstallDirectory, string PackagePath, int WaitPid);
 }

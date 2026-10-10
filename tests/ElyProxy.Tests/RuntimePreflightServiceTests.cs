@@ -44,6 +44,22 @@ public sealed class RuntimePreflightServiceTests : IDisposable
         Assert.Contains("missing.srs", Assert.Single(result.Checks, check => check.Name == "RoscomVPN DEFAULT").Details);
     }
 
+    [Fact]
+    public void Check_ReportsHelperServiceAsElevationFree()
+    {
+        var result = new RuntimePreflightService().Check(
+            Path.Combine(_directory, "xray.exe"),
+            Path.Combine(_directory, "sing-box.exe"),
+            isAdministrator: false,
+            missingRoutingAssets: [],
+            helperServiceRunning: true);
+
+        var check = Assert.Single(result.Checks, check => check.Name == "Права ElyTun");
+        Assert.True(check.Ready);
+        Assert.DoesNotContain("UAC", check.Details);
+        Assert.Contains("службу-помощник", check.Details);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_directory))

@@ -29,13 +29,15 @@ public sealed class SingBoxProxyManager : IDisposable
 
 	public bool IsRunning => _processManager.IsRunning;
 
+	public string? LastConfigHash { get; private set; }
+
 	public event Action<string>? LogReceived;
 
 	public event Action<bool>? StatusChanged;
 
 	public SingBoxProxyManager(IProcessManager? processManager = null)
 	{
-		_processManager = processManager ?? new ProcessManager();
+		_processManager = processManager ?? new ProcessManagerRouter();
 		_processManager.OutputReceived += OnProcessLine;
 		_processManager.ErrorReceived += OnProcessLine;
 		_processManager.ProcessExited += OnProcessExited;
@@ -43,14 +45,7 @@ public sealed class SingBoxProxyManager : IDisposable
 
 	public string GetSingBoxPath()
 	{
-		string appDir = AppDomain.CurrentDomain.BaseDirectory;
-		string[] candidates = new string[3]
-		{
-			Path.Combine(appDir, "sing-box", "sing-box.exe"),
-			Path.Combine(appDir, "bin", "sing-box", "sing-box.exe"),
-			Path.Combine(appDir, "sing-box.exe")
-		};
-		return candidates.FirstOrDefault(File.Exists) ?? candidates[0];
+		return CoreLocator.Resolve("sing-box", "sing-box.exe", "sing-box", Path.Combine("bin", "sing-box"), string.Empty);
 	}
 
 	public async Task StartAsync(VlessNode node, int proxyPort, XrayTunOptions options)
@@ -73,7 +68,10 @@ public sealed class SingBoxProxyManager : IDisposable
 			}
 			await StopProcessAsync();
 			CleanupConfig();
-			await WriteConfigAsync(_configBuilder.BuildSystemProxy(node, proxyPort, options));
+			string configJson = _configBuilder.BuildSystemProxy(node, proxyPort, options);
+			LastConfigHash = ConfigHash.Compute(configJson);
+		this.LogReceived?.Invoke("[sys] Хеш конфига: " + LastConfigHash);
+			await WriteConfigAsync(configJson);
 			await ValidateConfigurationAsync(singBoxPath, _configPath);
 			_startCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 			string workingDirectory = Path.GetDirectoryName(singBoxPath);
@@ -182,7 +180,7 @@ public sealed class SingBoxProxyManager : IDisposable
 		_stopping = true;
 		try
 		{
-			await _processManager.StopAsync();
+			await _processManager.StopAsync().ConfigureAwait(false);
 		}
 		finally
 		{
