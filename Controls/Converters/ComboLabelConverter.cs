@@ -15,6 +15,7 @@ public sealed class ComboLabelConverter : IValueConverter
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
     {
         null => string.Empty,
+        ElyProxy.Models.VlessNode node => node.DisplayName,
         string text => text,
         ComboBoxItem item => item.Content?.ToString() ?? string.Empty,
         KeyValuePair<string, string> pair => pair.Value,

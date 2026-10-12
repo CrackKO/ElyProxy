@@ -5396,6 +5396,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			foreach (string coreId in CoreUpdateService.CoreIds)
 			{
 				string installed = await CoreVersionService.GetInstalledVersionAsync(coreId);
+                SetSettingsCoreVersion(coreId, installed);
 				try
 				{
 					CoreRelease latest = await _coreUpdateService.GetLatestAsync(coreId);

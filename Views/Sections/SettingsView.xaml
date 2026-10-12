@@ -1,277 +1,561 @@
-<UserControl x:Class="ElyProxy.Views.Sections.SettingsView"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:controls="clr-namespace:ElyProxy.Controls"
-             xmlns:behaviors="clr-namespace:ElyProxy.Controls.Behaviors" Background="{DynamicResource Bg1Brush}">
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:behaviors="clr-namespace:ElyProxy.Controls.Behaviors" xmlns:controls="clr-namespace:ElyProxy.Controls" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="ElyProxy.Views.Sections.SettingsView" Background="{DynamicResource Bg1Brush}">
   <UserControl.Resources>
-    <Style x:Key="SettingsTab" TargetType="Button">
-      <Setter Property="Foreground" Value="{DynamicResource FgSecBrush}"/>
-      <Setter Property="Padding" Value="12,10"/><Setter Property="Margin" Value="0,0,4,6"/>
-      <Setter Property="Background" Value="Transparent"/>
-      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
-        <Border x:Name="TabSurface" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-        <ControlTemplate.Triggers>
-          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="TabSurface" Property="Background" Value="{DynamicResource FillSecondaryBrush}"/></Trigger>
-          <Trigger Property="Tag" Value="Selected"><Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/><Setter TargetName="TabSurface" Property="Background" Value="{DynamicResource AccentMutedBrush}"/></Trigger>
-          <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="TabSurface" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/><Setter TargetName="TabSurface" Property="BorderThickness" Value="1"/></Trigger>
-        </ControlTemplate.Triggers>
-      </ControlTemplate></Setter.Value></Setter>
-    </Style>
     <Style TargetType="GridViewColumnHeader">
-      <Setter Property="Foreground" Value="{DynamicResource FgSecBrush}"/><Setter Property="Background" Value="{DynamicResource Bg3Brush}"/>
-      <Setter Property="Padding" Value="10,8"/>
-      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="GridViewColumnHeader"><Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"><ContentPresenter/></Border></ControlTemplate></Setter.Value></Setter>
+      <Setter Property="Foreground" Value="{DynamicResource FgSecBrush}" />
+      <Setter Property="Background" Value="{DynamicResource Bg3Brush}" />
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="GridViewColumnHeader">
+            <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+              <ContentPresenter />
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
     <Style TargetType="Expander">
-      <Setter Property="Foreground" Value="{DynamicResource FgBrush}"/>
-      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Expander">
-        <StackPanel>
-          <ToggleButton IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" Foreground="{DynamicResource FgBrush}" Background="{DynamicResource CardBrush}" HorizontalContentAlignment="Left" Padding="16,12">
-            <ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Border Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}"><StackPanel Orientation="Horizontal"><TextBlock x:Name="Chevron" Text="›" Margin="0,0,10,0" Foreground="{TemplateBinding Foreground}"/><ContentPresenter/></StackPanel></Border><ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="Chevron" Property="Text" Value="⌄"/></Trigger></ControlTemplate.Triggers></ControlTemplate></ToggleButton.Template>
-            <ContentPresenter Content="{TemplateBinding Header}"/>
-          </ToggleButton>
-          <ContentPresenter x:Name="ExpandedContent" Content="{TemplateBinding Content}" Visibility="Collapsed" Margin="0,10,0,0"/>
-        </StackPanel>
-        <ControlTemplate.Triggers><Trigger Property="IsExpanded" Value="True"><Setter TargetName="ExpandedContent" Property="Visibility" Value="Visible"/></Trigger></ControlTemplate.Triggers>
-      </ControlTemplate></Setter.Value></Setter>
+      <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Expander">
+            <StackPanel>
+              <ToggleButton IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" Foreground="{DynamicResource FgBrush}" Background="{DynamicResource CardBrush}" HorizontalContentAlignment="Left" Padding="16,12">
+                <ToggleButton.Template>
+                  <ControlTemplate TargetType="ToggleButton">
+                    <Border Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                      <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="Chevron" Text="›" Margin="0,0,10,0" Foreground="{TemplateBinding Foreground}" />
+                        <ContentPresenter />
+                      </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                      <Trigger Property="IsChecked" Value="True">
+                        <Setter TargetName="Chevron" Property="Text" Value="⌄" />
+                      </Trigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </ToggleButton.Template>
+                <ContentPresenter Content="{TemplateBinding Header}" />
+              </ToggleButton>
+              <ContentPresenter x:Name="ExpandedContent" Content="{TemplateBinding Content}" Visibility="Collapsed" Margin="0,10,0,0" />
+            </StackPanel>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsExpanded" Value="True">
+                <Setter TargetName="ExpandedContent" Property="Visibility" Value="Visible" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="SettingsCard" TargetType="Border">
+      <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBr}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="Margin" Value="0,0,0,16" />
+    </Style>
+    <Style x:Key="SettingsSectionTitle" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="30" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+    </Style>
+    <Style x:Key="AppleSettingRow" TargetType="Border">
+      <Setter Property="Padding" Value="22,18" />
+    </Style>
+    <Style x:Key="Text.Body" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+    </Style>
+    <Style x:Key="Text.BodyStrong" TargetType="TextBlock" BasedOn="{StaticResource Text.Body}">
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style x:Key="Text.Caption" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="Foreground" Value="{DynamicResource FgSecBrush}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="SettingsTab" TargetType="Button">
+      <Setter Property="Foreground" Value="{DynamicResource FgSecBrush}" />
+      <Setter Property="FontSize" Value="17" />
+      <Setter Property="Padding" Value="13,19" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Grid>
+              <Border x:Name="Hover" Background="Transparent" Padding="{TemplateBinding Padding}">
+                <ContentPresenter VerticalAlignment="Center" />
+              </Border>
+              <Border x:Name="Line" Height="4" CornerRadius="3,3,0,0" Background="Transparent" VerticalAlignment="Bottom" Margin="10,0" />
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="Tag" Value="Selected">
+                <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter TargetName="Line" Property="Background" Value="{DynamicResource AccentBrush}" />
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Hover" Property="Background" Value="{DynamicResource FillSecondaryBrush}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="MinHeight" Value="40" />
+    </Style>
+    <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="MinHeight" Value="40" />
+    </Style>
+    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+      <Setter Property="FontSize" Value="15" />
+    </Style>
+    <Style TargetType="{x:Type controls:SpringToggleSwitch}">
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="FocusVisualStyle" Value="{StaticResource AppleFocusVisual}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="{x:Type controls:SpringToggleSwitch}">
+            <Border x:Name="Track" Width="52" Height="30" CornerRadius="15" Background="{DynamicResource FillBrush}" SnapsToDevicePixels="True">
+              <Border x:Name="Thumb" Width="24" Height="24" CornerRadius="12" Background="{DynamicResource SwitchThumbBrush}" HorizontalAlignment="Left" Margin="3,0,0,0" RenderTransformOrigin="0.5,0.5">
+
+            </Border>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="Track" Property="Background" Value="{DynamicResource AccentBrush}" />
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Track" Property="Opacity" Value="0.88" />
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Track" Property="Opacity" Value="0.4" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+      <Setter Property="TravelDistance" Value="22" />
     </Style>
   </UserControl.Resources>
-  <Grid Margin="26,22,26,18">
-    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <Grid Margin="26,22,26,16">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
     <Grid Margin="0,0,0,20">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="280"/></Grid.ColumnDefinitions>
-      <StackPanel><TextBlock Text="Настройки" Style="{StaticResource Text.LargeTitle}"/><TextBlock Text="Всё необходимое — в своём разделе" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="1,5,0,0"/></StackPanel>
-      <TextBox x:Name="SettingsSearch" Grid.Column="1" VerticalAlignment="Center" controls:Placeholder.Text="Найти настройку…" AutomationProperties.Name="Поиск настроек" TextChanged="Search_TextChanged" />
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="350" />
+      </Grid.ColumnDefinitions>
+      <StackPanel>
+        <TextBlock Text="Настройки" FontSize="40" FontWeight="Bold" Foreground="{DynamicResource FgBrush}" />
+        <TextBlock Text="Всё необходимое — в своём разделе" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="1,5,0,0" Visibility="Collapsed" />
+      </StackPanel>
+      <Grid Grid.Column="1">
+        <TextBox x:Name="SettingsSearch" VerticalAlignment="Center" controls:Placeholder.Text="Найти настройку…" AutomationProperties.Name="Поиск настроек" TextChanged="Search_TextChanged" MinHeight="40" FontSize="15" Padding="38,10,12,10" />
+        <TextBlock Text="⌕" FontSize="27" Foreground="{DynamicResource FgSecBrush}" VerticalAlignment="Center" Margin="12,0,0,0" IsHitTestVisible="False" Panel.ZIndex="1" />
+      </Grid>
     </Grid>
-    <StackPanel Grid.Row="1"><WrapPanel x:Name="SettingsNavigation"><Button Content="Оформление" Tag="AppearanceAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
-<Button Content="Защита подписки" Tag="ProtectionAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
-<Button Content="Запуск" Tag="StartupAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
-<Button Content="Сеть" Tag="NetworkAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
-<Button Content="Обновления" Tag="UpdatesAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
-<Button Content="ElyTun" Tag="TunAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
-<Button Content="Обход DPI" Tag="DpiAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
-<Button Content="Ядра" Tag="CoresAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
-<Button Content="Подписки" Tag="SubscriptionsAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
-<Button Content="Разделение трафика" Tag="RoutingAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" /></WrapPanel>
+    <StackPanel Grid.Row="1">
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <StackPanel x:Name="SettingsNavigation" Orientation="Horizontal">
+          <Button Content="Оформление" Tag="AppearanceAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
+          <Button Content="Защита" Tag="ProtectionAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
+          <Button Content="Запуск" Tag="StartupAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
+          <Button Content="Сеть" Tag="NetworkAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
+          <Button Content="Обновления" Tag="UpdatesAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
+          <Button Content="ElyTun" Tag="TunAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
+          <Button Content="Обход DPI" Tag="DpiAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
+          <Button Content="Ядра" Tag="CoresAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
+          <Button Content="Подписки" Tag="SubscriptionsAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
+          <Button Content="Разделение трафика" Tag="RoutingAnchor" Style="{StaticResource SettingsTab}" Click="JumpToSection_Click" />
+        </StackPanel>
+      </ScrollViewer>
+      <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
       <ListBox x:Name="SearchResults" Visibility="Collapsed" MaxHeight="180" DisplayMemberPath="Title" SelectionChanged="SearchResults_SelectionChanged" Margin="0,4,0,12" />
     </StackPanel>
     <ScrollViewer x:Name="SettingsScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" behaviors:SmoothScroll.IsEnabled="True">
-      <StackPanel x:Name="SettingsPages" MaxWidth="1160" HorizontalAlignment="Stretch" Margin="0,8,16,0"><StackPanel x:Name="AppearancePanel" Visibility="Collapsed"><TextBlock x:Name="AppearanceAnchor" Text="Оформление" Style="{StaticResource Text.SectionHeader}" />
-        <Border Style="{StaticResource AppleInsetGroup}">
-          <StackPanel>
-            <Border Style="{StaticResource AppleSettingRow}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                  <TextBlock Text="Тема" Style="{StaticResource Text.Body}" />
-                  <TextBlock Text="Светлая, тёмная или как в Windows" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                </StackPanel>
-                <ComboBox Grid.Column="1"
-                           Width="250"
-                          HorizontalAlignment="Right"
-                          DisplayMemberPath="Value"
-                          SelectedValuePath="Key"
-                          AutomationProperties.Name="Тема оформления"
-                          ItemsSource="{Binding ThemeModeOptions}"
-                          SelectedValue="{Binding ThemeMode, Mode=TwoWay}" />
-              </Grid>
-            </Border>
-            <Border Style="{StaticResource AppleRowSeparator}" />
-            <Border Style="{StaticResource AppleSettingRow}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                  <TextBlock Text="Анимации" Style="{StaticResource Text.Body}" />
-                  <TextBlock Text="Пружинные переходы; отключаются в режиме экономии" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                </StackPanel>
-                <ComboBox Grid.Column="1"
-                           Width="250"
-                          HorizontalAlignment="Right"
-                          DisplayMemberPath="Value"
-                          SelectedValuePath="Key"
-                          AutomationProperties.Name="Анимации интерфейса"
-                          ItemsSource="{Binding MotionModeOptions}"
-                          SelectedValue="{Binding MotionMode, Mode=TwoWay}" />
-              </Grid>
-            </Border>
-            <Border Style="{StaticResource AppleRowSeparator}" />
-            <Border Style="{StaticResource AppleSettingRow}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                  <TextBlock Text="Аватар сервера" Style="{StaticResource Text.Body}" />
-                  <TextBlock Text="Метка слева от названия в списках серверов и профилей"
-                             Style="{StaticResource Text.Caption}"
-                             Margin="0,2,0,0"
-                             TextWrapping="Wrap" />
-                </StackPanel>
-                <ComboBox Grid.Column="1"
-                           Width="250"
-                          HorizontalAlignment="Right"
-                          DisplayMemberPath="Value"
-                          SelectedValuePath="Key"
-                          AutomationProperties.Name="Аватар сервера"
-                          ItemsSource="{Binding ServerBadgeOptions}"
-                          SelectedValue="{Binding ServerBadgeMode, Mode=TwoWay}" />
-              </Grid>
-            </Border>
-            <Border Style="{StaticResource AppleRowSeparator}" />
-            <Border Style="{StaticResource AppleSettingRow}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                  <TextBlock Text="Показывать журнал" Style="{StaticResource Text.Body}" />
-                  <TextBlock Text="Сворачиваемая панель внизу окна (Ctrl+L)" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                </StackPanel>
-                <controls:SpringToggleSwitch Grid.Column="1"
-                                             HorizontalAlignment="Right"
-                                             VerticalAlignment="Center"
-                                             AutomationProperties.Name="Показывать журнал"
-                                             IsChecked="{Binding ShowLogs, Mode=TwoWay}" />
-              </Grid>
-            </Border>
-          </StackPanel>
-        </Border>
-
-        </StackPanel>
-<StackPanel x:Name="ProtectionPanel" Visibility="Collapsed"><TextBlock x:Name="ProtectionAnchor" Text="Защита подписки" Style="{StaticResource Text.SectionHeader}" Margin="2,0,0,16" />
-        <Border Style="{StaticResource AppleCard}">
-          <Grid>
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-            <StackPanel Margin="0,0,20,0">
-              <StackPanel Orientation="Horizontal">
-                <TextBlock Text="Блокировать Torrent" Style="{StaticResource Text.BodyStrong}" />
-                <controls:InfoHint Text="Проверяет имена запущенных процессов раз в секунду и принудительно завершает известные торрент-клиенты: qBittorrent, µTorrent, BitTorrent, Transmission, Deluge, Tixati, BitComet и другие. Переименованные клиенты и торренты внутри браузера не определяются. Это не сетевой фильтр и не гарантия от блокировки сервисом." />
-              </StackPanel>
-              <TextBlock Text="Закрывает торрент-клиенты сразу и при повторном запуске, даже без подключения к VPN. Загрузки прерываются. Работает, пока ElyProxy открыт."
-                         Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,0" />
-              <TextBlock Text="{Binding TorrentProtectionStatus}" Style="{StaticResource Text.CaptionStrong}" Margin="0,8,0,0" />
-            </StackPanel>
-            <controls:SpringToggleSwitch Grid.Column="1" IsChecked="{Binding BlockTorrent, Mode=TwoWay}" AutomationProperties.Name="Блокировать Torrent" />
-          </Grid>
-        </Border>
-
-
-        </StackPanel>
-<StackPanel x:Name="StartupPanel" Visibility="Collapsed"><TextBlock x:Name="StartupAnchor" Text="Запуск" Style="{StaticResource Text.SectionHeader}" Margin="2,0,0,16" />
-        <Border Style="{StaticResource AppleInsetGroup}">
-          <StackPanel>
-            <Border Style="{StaticResource AppleSettingRow}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="Запускать вместе с Windows" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                <controls:SpringToggleSwitch Grid.Column="1"
-                                             HorizontalAlignment="Right"
-                                             AutomationProperties.Name="Запускать вместе с Windows"
-                                             IsChecked="{Binding AutoStartWithWindows, Mode=TwoWay}" />
-              </Grid>
-            </Border>
-            <Border Style="{StaticResource AppleRowSeparator}" />
-            <Border Style="{StaticResource AppleSettingRow}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="Подключаться к последнему серверу" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                <controls:SpringToggleSwitch Grid.Column="1"
-                                             HorizontalAlignment="Right"
-                                             AutomationProperties.Name="Подключаться к последнему серверу"
-                                             IsChecked="{Binding AutoConnect, Mode=TwoWay}" />
-              </Grid>
-            </Border>
-            <Border Style="{StaticResource AppleRowSeparator}" />
-            <Border Style="{StaticResource AppleSettingRow}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                  <TextBlock Text="Переподключаться при обрыве" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                  <controls:InfoHint Text="Приложение переподключается, когда ядро падает, а также автоматически реагирует на смену сети (Wi-Fi ↔ Ethernet, появление/пропадание сети) и на пробуждение компьютера из сна. Переподключение выполняется один раз в 10 секунд, чтобы не было циклов." />
-                </StackPanel>
-                <controls:SpringToggleSwitch Grid.Column="1"
-                                             HorizontalAlignment="Right"
-                                             AutomationProperties.Name="Переподключаться при обрыве"
-                                             IsChecked="{Binding AutoReconnect, Mode=TwoWay}" />
-              </Grid>
-            </Border>
-          </StackPanel>
-        </Border>
-
-
-        </StackPanel>
-<StackPanel x:Name="NetworkPanel" Visibility="Collapsed"><TextBlock x:Name="NetworkAnchor" Text="Сеть" Style="{StaticResource Text.SectionHeader}" Margin="2,0,0,16" />
-        <Border Style="{StaticResource AppleInsetGroup}">
-          <StackPanel>
-            <Border Style="{StaticResource AppleSettingRow}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                  <TextBlock Text="SOCKS5 порт" Style="{StaticResource Text.Body}" />
-                  <TextBlock Text="Локальный прокси: socks5://127.0.0.1:порт" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                </StackPanel>
-                <TextBox Grid.Column="1"
-                          Width="110"
-                         HorizontalAlignment="Right"
-                         TextAlignment="Center"
-                         AutomationProperties.Name="Порт SOCKS5"
-                         Text="{Binding SocksPort, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-              </Grid>
-            </Border>
-            <Border Style="{StaticResource AppleRowSeparator}" />
-            <Border Style="{StaticResource AppleSettingRow}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                  <TextBlock Text="Тип пинга" Style="{StaticResource Text.Body}" />
-                  <TextBlock Text="Как кнопка «Пинг» проверяет серверы" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                </StackPanel>
-                <ComboBox Grid.Column="1"
-                           Width="250"
-                          HorizontalAlignment="Right"
-                          DisplayMemberPath="Value"
-                          SelectedValuePath="Key"
-                          AutomationProperties.Name="Тип пинга"
-                          ItemsSource="{Binding PingModeOptions}"
-                          SelectedValue="{Binding PingMode, Mode=TwoWay}" />
-              </Grid>
-            </Border>
-            <StackPanel Visibility="{Binding IsProxyGetPingMode, Converter={StaticResource BoolToVis}}">
-              <Border Style="{StaticResource AppleRowSeparator}" />
-              <Border Style="{StaticResource AppleSettingRow}">
+      <StackPanel x:Name="SettingsPages" MaxWidth="1320" HorizontalAlignment="Stretch" Margin="0,0,4,0">
+        <StackPanel x:Name="AppearancePanel" Visibility="Collapsed">
+          <TextBlock x:Name="AppearanceAnchor" Text="Оформление" Style="{StaticResource SettingsSectionTitle}" Margin="0,26,0,5" />
+          <TextBlock Text="Внешний вид и поведение интерфейса." FontSize="15" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" Margin="0,0,0,20" />
+          <Grid Tag="SettingsColumns" SizeChanged="SettingsColumns_SizeChanged">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="1.65*" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <StackPanel Margin="0,0,16,0" Tag="1.65">
+              <Border Style="{StaticResource SettingsCard}">
                 <StackPanel>
-                  <TextBlock Text="URL для Proxy GET" Style="{StaticResource Text.Body}" />
-                  <TextBox Margin="0,8,0,0"
-                           AutomationProperties.Name="URL для Proxy GET"
-                           Text="{Binding ProxyPingUrl, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                  <TextBlock Text="Внешний вид" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Style="{StaticResource AppleSettingRow}">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="250" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="Тема" Style="{StaticResource Text.Body}" />
+                        <TextBlock Text="Светлая, тёмная или как в Windows" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                      </StackPanel>
+                      <ComboBox Grid.Column="1" Width="250" HorizontalAlignment="Right" DisplayMemberPath="Value" SelectedValuePath="Key" AutomationProperties.Name="Тема оформления" ItemsSource="{Binding ThemeModeOptions}" SelectedValue="{Binding ThemeMode, Mode=TwoWay}" FontSize="15" MinHeight="40" />
+                    </Grid>
+                  </Border>
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Style="{StaticResource AppleSettingRow}">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="250" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="Анимации" Style="{StaticResource Text.Body}" />
+                        <TextBlock Text="Пружинные переходы; отключаются в режиме экономии" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                      </StackPanel>
+                      <ComboBox Grid.Column="1" Width="250" HorizontalAlignment="Right" DisplayMemberPath="Value" SelectedValuePath="Key" AutomationProperties.Name="Анимации интерфейса" ItemsSource="{Binding MotionModeOptions}" SelectedValue="{Binding MotionMode, Mode=TwoWay}" FontSize="15" MinHeight="40" />
+                    </Grid>
+                  </Border>
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Style="{StaticResource AppleSettingRow}">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="250" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="Аватар сервера" Style="{StaticResource Text.Body}" />
+                        <TextBlock Text="Метка слева от названия в списках серверов и профилей" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                      </StackPanel>
+                      <ComboBox Grid.Column="1" Width="250" HorizontalAlignment="Right" DisplayMemberPath="Value" SelectedValuePath="Key" AutomationProperties.Name="Аватар сервера" ItemsSource="{Binding ServerBadgeOptions}" SelectedValue="{Binding ServerBadgeMode, Mode=TwoWay}" FontSize="15" MinHeight="40" />
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource SettingsCard}">
+                <StackPanel>
+                  <TextBlock Text="Журнал" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Style="{StaticResource AppleSettingRow}">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="250" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="Показывать журнал" Style="{StaticResource Text.Body}" />
+                        <TextBlock Text="Сворачиваемая панель внизу окна (Ctrl+L)" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                      </StackPanel>
+                      <controls:SpringToggleSwitch Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" AutomationProperties.Name="Показывать журнал" IsChecked="{Binding ShowLogs, Mode=TwoWay}" />
+                    </Grid>
+                  </Border>
                 </StackPanel>
               </Border>
             </StackPanel>
-            <StackPanel Visibility="{Binding IsProxyBasedPingMode, Converter={StaticResource BoolToVis}}">
-              <Border Style="{StaticResource AppleRowSeparator}" />
+            <StackPanel Grid.Column="1">
+              <Border Style="{StaticResource SettingsCard}">
+                <StackPanel>
+                  <TextBlock Text="Предпросмотр" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <StackPanel>
+                    <Border Margin="20" Padding="14" BorderBrush="{DynamicResource BorderBr}" BorderThickness="1" CornerRadius="10">
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="Auto" />
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="32" Height="24" Margin="0,0,12,0" CornerRadius="4">
+                          <Grid>
+                            <TextBlock Text="DE" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource AccentBrush}" />
+                            <Image Source="pack://application:,,,/ElyProxy;component/Assets/Flags/de.png" Stretch="UniformToFill">
+                              <Image.Style>
+                                <Style TargetType="Image">
+                                  <Setter Property="Visibility" Value="Collapsed" />
+                                  <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ServerBadgeMode}" Value="Flag">
+                                      <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                  </Style.Triggers>
+                                </Style>
+                              </Image.Style>
+                            </Image>
+                          </Grid>
+                          <Border.Style>
+                            <Style TargetType="Border">
+                              <Setter Property="Visibility" Value="Visible" />
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding ServerBadgeMode}" Value="None">
+                                  <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </Border.Style>
+                        </Border>
+                        <TextBlock Grid.Column="1" Text="Германия · Frankfurt" FontSize="14" VerticalAlignment="Center" Foreground="{DynamicResource FgBrush}" TextTrimming="CharacterEllipsis" ToolTip="Германия · Frankfurt" />
+                        <Button Content="Подключиться" Style="{StaticResource PrimaryButton}" Margin="10,0,0,0" HorizontalAlignment="Right" Click="PreviewConnect_Click" Grid.Column="2" FontSize="15" MinHeight="40" />
+                      </Grid>
+                    </Border>
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+        <StackPanel x:Name="ProtectionPanel" Visibility="Collapsed">
+          <TextBlock x:Name="ProtectionAnchor" Text="Защита подписки" Style="{StaticResource SettingsSectionTitle}" Margin="0,26,0,5" />
+          <TextBlock Text="Управление торрент-клиентами во время работы ElyProxy." FontSize="15" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" Margin="0,0,0,20" />
+          <Border Style="{StaticResource SettingsCard}">
+            <StackPanel>
+              <Border Style="{StaticResource AppleSettingRow}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Margin="0,0,20,0">
+                    <StackPanel Orientation="Horizontal">
+                      <TextBlock Text="Блокировать Torrent" Style="{StaticResource Text.BodyStrong}" FontSize="22" />
+                      <controls:InfoHint Text="Проверяет имена запущенных процессов раз в секунду и принудительно завершает известные торрент-клиенты: qBittorrent, µTorrent, BitTorrent, Transmission, Deluge, Tixati, BitComet и другие. Переименованные клиенты и торренты внутри браузера не определяются. Это не сетевой фильтр и не гарантия от блокировки сервисом." />
+                    </StackPanel>
+                    <TextBlock Text="Закрывает торрент-клиенты сразу и при повторном запуске, даже без подключения к VPN. Загрузки прерываются. Работает, пока ElyProxy открыт." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                    <TextBlock Text="{Binding TorrentProtectionStatus}" Style="{StaticResource Text.CaptionStrong}" Margin="0,8,0,0" />
+                  </StackPanel>
+                  <controls:SpringToggleSwitch Grid.Column="1" IsChecked="{Binding BlockTorrent, Mode=TwoWay}" AutomationProperties.Name="Блокировать Torrent" />
+                </Grid>
+              </Border>
+              <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+              <Border Padding="22,18">
+                <StackPanel>
+                  <TextBlock Text="Когда включено" FontSize="18" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,7" />
+                  <TextBlock Text="Проверка запущенных процессов каждую секунду. Загрузки прерываются; при повторном запуске клиент закрывается снова." FontSize="14" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+              <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+              <Border Padding="22,18">
+                <StackPanel>
+                  <TextBlock Text="Работает, пока ElyProxy открыт." FontSize="18" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,7" />
+                  <TextBlock Text="Функция действует и при отключённом VPN." FontSize="14" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+              <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+              <Border Padding="22,18">
+                <StackPanel>
+                  <StackPanel>
+                    <TextBlock Text="Что определяется" FontSize="18" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,7" />
+                    <TextBlock Text="Известные торрент-клиенты:" FontSize="14" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <WrapPanel>
+                    <Border BorderBrush="{DynamicResource BorderBr}" BorderThickness="1" CornerRadius="9" Padding="14,8" Margin="0,8,10,0">
+                      <TextBlock Text="qBittorrent" FontSize="14" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" />
+                    </Border>
+                    <Border BorderBrush="{DynamicResource BorderBr}" BorderThickness="1" CornerRadius="9" Padding="14,8" Margin="0,8,10,0">
+                      <TextBlock Text="µTorrent" FontSize="14" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" />
+                    </Border>
+                    <Border BorderBrush="{DynamicResource BorderBr}" BorderThickness="1" CornerRadius="9" Padding="14,8" Margin="0,8,10,0">
+                      <TextBlock Text="BitTorrent" FontSize="14" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" />
+                    </Border>
+                    <Border BorderBrush="{DynamicResource BorderBr}" BorderThickness="1" CornerRadius="9" Padding="14,8" Margin="0,8,10,0">
+                      <TextBlock Text="Transmission" FontSize="14" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" />
+                    </Border>
+                    <Border BorderBrush="{DynamicResource BorderBr}" BorderThickness="1" CornerRadius="9" Padding="14,8" Margin="0,8,10,0">
+                      <TextBlock Text="Deluge" FontSize="14" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" />
+                    </Border>
+                    <Border BorderBrush="{DynamicResource BorderBr}" BorderThickness="1" CornerRadius="9" Padding="14,8" Margin="0,8,10,0">
+                      <TextBlock Text="Tixati" FontSize="14" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" />
+                    </Border>
+                    <Border BorderBrush="{DynamicResource BorderBr}" BorderThickness="1" CornerRadius="9" Padding="14,8" Margin="0,8,10,0">
+                      <TextBlock Text="BitComet" FontSize="14" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" />
+                    </Border>
+                  </WrapPanel>
+                  <TextBlock Text="Переименованные клиенты и торренты в браузере могут не определяться. Это не сетевой фильтр." FontSize="14" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+        <StackPanel x:Name="StartupPanel" Visibility="Collapsed">
+          <TextBlock x:Name="StartupAnchor" Text="Запуск" Style="{StaticResource SettingsSectionTitle}" Margin="0,26,0,5" />
+          <TextBlock Text="Автоматизация подключения и восстановление связи." FontSize="15" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" Margin="0,0,0,20" />
+          <Border Style="{StaticResource SettingsCard}">
+            <StackPanel>
+              <TextBlock Text="При запуске" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+              <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+              <Border Style="{StaticResource AppleSettingRow}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="250" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Margin="0,0,16,0">
+                    <TextBlock Grid.Column="0" Text="Запускать вместе с Windows" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                    <TextBlock Text="Открывать ElyProxy после входа в систему." Style="{StaticResource Text.Caption}" Margin="0,7,0,0" />
+                  </StackPanel>
+                  <controls:SpringToggleSwitch Grid.Column="1" HorizontalAlignment="Right" AutomationProperties.Name="Запускать вместе с Windows" IsChecked="{Binding AutoStartWithWindows, Mode=TwoWay}" />
+                </Grid>
+              </Border>
+              <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+              <Border Style="{StaticResource AppleSettingRow}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="250" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Margin="0,0,16,0">
+                    <TextBlock Grid.Column="0" Text="Подключаться к последнему серверу" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                    <TextBlock Text="Использовать последнее сохранённое подключение." Style="{StaticResource Text.Caption}" Margin="0,7,0,0" />
+                  </StackPanel>
+                  <controls:SpringToggleSwitch Grid.Column="1" HorizontalAlignment="Right" AutomationProperties.Name="Подключаться к последнему серверу" IsChecked="{Binding AutoConnect, Mode=TwoWay}" />
+                </Grid>
+              </Border>
+            </StackPanel>
+          </Border>
+          <Border Style="{StaticResource SettingsCard}">
+            <StackPanel>
+              <TextBlock Text="Восстановление соединения" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+              <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+              <Border Style="{StaticResource AppleSettingRow}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="250" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Margin="0,0,16,0">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                      <TextBlock Text="Переподключаться при обрыве" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                      <controls:InfoHint Text="Приложение переподключается, когда ядро падает, а также автоматически реагирует на смену сети (Wi-Fi ↔ Ethernet, появление/пропадание сети) и на пробуждение компьютера из сна. Переподключение выполняется один раз в 10 секунд, чтобы не было циклов." />
+                    </StackPanel>
+                    <TextBlock Text="Повторное подключение после остановки ядра, смены сети или выхода из сна." Style="{StaticResource Text.Caption}" Margin="0,7,0,0" />
+                  </StackPanel>
+                  <controls:SpringToggleSwitch Grid.Column="1" HorizontalAlignment="Right" AutomationProperties.Name="Переподключаться при обрыве" IsChecked="{Binding AutoReconnect, Mode=TwoWay}" />
+                </Grid>
+              </Border>
+              <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+              <Border Padding="22,18">
+                <TextBlock Text="Проверки ограничены по частоте, чтобы избежать бесконечного переподключения." FontSize="14" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" />
+              </Border>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+        <StackPanel x:Name="NetworkPanel" Visibility="Collapsed">
+          <TextBlock x:Name="NetworkAnchor" Text="Сеть" Style="{StaticResource SettingsSectionTitle}" Margin="0,26,0,5" />
+          <TextBlock Text="Локальный прокси и проверка доступности серверов." FontSize="15" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" Margin="0,0,0,20" />
+          <Border Style="{StaticResource SettingsCard}">
+            <StackPanel>
+              <TextBlock Text="Локальное подключение" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+              <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+              <Border Style="{StaticResource AppleSettingRow}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="350" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                    <TextBlock Text="SOCKS5 порт" Style="{StaticResource Text.Body}" />
+                    <TextBlock Text="Локальный прокси: socks5://127.0.0.1:порт" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                  </StackPanel>
+                  <TextBox Grid.Column="1" Width="350" HorizontalAlignment="Right" TextAlignment="Left" AutomationProperties.Name="Порт SOCKS5" Text="{Binding SocksPort, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" FontSize="15" MinHeight="40" />
+                </Grid>
+              </Border>
+            </StackPanel>
+          </Border>
+          <Border Style="{StaticResource SettingsCard}">
+            <StackPanel>
+              <TextBlock Text="Проверка серверов" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+              <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+              <Border Style="{StaticResource AppleSettingRow}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="350" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                    <TextBlock Text="Тип пинга" Style="{StaticResource Text.Body}" />
+                    <TextBlock Text="Как кнопка «Пинг» проверяет серверы" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1" Width="350" HorizontalAlignment="Right" DisplayMemberPath="Value" SelectedValuePath="Key" AutomationProperties.Name="Тип пинга" ItemsSource="{Binding PingModeOptions}" SelectedValue="{Binding PingMode, Mode=TwoWay}" FontSize="15" MinHeight="40" />
+                </Grid>
+              </Border>
+              <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+              <Border Style="{StaticResource AppleSettingRow}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="350" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel>
+                    <TextBlock Text="URL для Proxy GET" Style="{StaticResource Text.Body}" />
+                  </StackPanel>
+                  <TextBox Margin="0" AutomationProperties.Name="URL для Proxy GET" Text="{Binding ProxyPingUrl, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" FontSize="15" MinHeight="40" Width="350" HorizontalAlignment="Right" TextAlignment="Left" Grid.Column="1" />
+                </Grid>
+              </Border>
+              <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+              <Border Style="{StaticResource AppleSettingRow}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="350" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                    <TextBlock Text="Потоки" Style="{StaticResource Text.Body}" />
+                    <TextBlock Text="Рекомендуется 10: больше потоков — быстрее проверка и выше нагрузка" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                  </StackPanel>
+                  <TextBox Grid.Column="1" Width="350" HorizontalAlignment="Right" TextAlignment="Left" AutomationProperties.Name="Количество потоков проверки" Text="{Binding ProxyPingConcurrency, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" FontSize="15" MinHeight="40" />
+                </Grid>
+              </Border>
+            </StackPanel>
+          </Border>
+          <Border Style="{StaticResource SettingsCard}">
+            <StackPanel>
+              <Border Padding="22,18">
+                <StackPanel>
+                  <TextBlock Text="TCP и Proxy GET" FontSize="18" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,7" />
+                  <TextBlock Text="TCP проверяет соединение с портом. Proxy GET — HTTPS-запрос через сервер. Проверка запускается кнопкой «Проверить задержку» в списке серверов." FontSize="14" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+        <StackPanel x:Name="UpdatesPanel" Visibility="Collapsed">
+          <TextBlock x:Name="UpdatesAnchor" Text="Обновления" Style="{StaticResource SettingsSectionTitle}" Margin="0,26,0,5" />
+          <TextBlock Text="Версия приложения и проверка новых выпусков." FontSize="15" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" Margin="0,0,0,20" />
+          <Border Style="{StaticResource SettingsCard}">
+            <StackPanel>
+              <TextBlock Text="Приложение" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+              <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+              <Grid Margin="22,22">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                  <TextBlock Text="ElyProxy" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource FgBrush}" />
+                  <TextBlock Text="{Binding ApplicationVersion}" FontSize="34" FontWeight="Bold" Foreground="{DynamicResource FgBrush}" Margin="0,10,0,4" />
+                  <TextBlock Text="Тестовая сборка" Foreground="{DynamicResource FgSecBrush}" FontSize="14" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                  <Button Content="Проверить обновления" Command="{Binding CheckForUpdatesCommand}" Style="{StaticResource PrimaryButton}" MinHeight="40" FontSize="15" />
+                  <TextBlock Text="{Binding UpdateStatus}" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" Margin="0,12,0,0" />
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Border>
+          <Border Style="{StaticResource SettingsCard}">
+            <StackPanel>
+              <TextBlock Text="Автообновления" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+              <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
               <Border Style="{StaticResource AppleSettingRow}">
                 <Grid>
                   <Grid.ColumnDefinitions>
@@ -279,633 +563,705 @@
                     <ColumnDefinition Width="250" />
                   </Grid.ColumnDefinitions>
                   <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                    <TextBlock Text="Потоки" Style="{StaticResource Text.Body}" />
-                    <TextBlock Text="Рекомендуется 10: больше потоков — быстрее проверка и выше нагрузка" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                    <TextBlock Text="Автообновления" Style="{StaticResource Text.Body}" />
+                    <TextBlock Text="{Binding AutoUpdateDescription}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
                   </StackPanel>
-                  <TextBox Grid.Column="1"
-                           Width="110"
-                           HorizontalAlignment="Right"
-                           TextAlignment="Center"
-                           AutomationProperties.Name="Количество потоков проверки"
-                           Text="{Binding ProxyPingConcurrency, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                  <controls:SpringToggleSwitch Grid.Column="1" HorizontalAlignment="Right" AutomationProperties.Name="Автообновления" IsChecked="{Binding AutoUpdate, Mode=TwoWay}" />
                 </Grid>
               </Border>
-            </StackPanel>
-          </StackPanel>
-        </Border>
-
-
-        </StackPanel>
-<StackPanel x:Name="UpdatesPanel" Visibility="Collapsed"><TextBlock x:Name="UpdatesAnchor" Text="Обновления" Style="{StaticResource Text.SectionHeader}" Margin="2,0,0,16" />
-        <Border Style="{StaticResource AppleInsetGroup}">
-          <StackPanel>
-            <Border Style="{StaticResource AppleSettingRow}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                  <TextBlock Text="{Binding ApplicationVersion}" Style="{StaticResource Text.Body}" />
-                  <TextBlock Text="{Binding UpdateStatus}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                </StackPanel>
-                <Button Grid.Column="1"
-                        Content="Проверить"
-                        HorizontalAlignment="Right"
-                        Style="{StaticResource SecondaryButton}"
-                        Command="{Binding CheckForUpdatesCommand}"
-                        AutomationProperties.Name="Проверить обновления" />
-              </Grid>
-            </Border>
-            <Border Style="{StaticResource AppleRowSeparator}" />
-            <Border Style="{StaticResource AppleSettingRow}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                  <TextBlock Text="Автообновления" Style="{StaticResource Text.Body}" />
-                  <TextBlock Text="{Binding AutoUpdateDescription}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                </StackPanel>
-                <controls:SpringToggleSwitch Grid.Column="1"
-                                             HorizontalAlignment="Right"
-                                             AutomationProperties.Name="Автообновления"
-                                             IsChecked="{Binding AutoUpdate, Mode=TwoWay}" />
-              </Grid>
-            </Border>
-          </StackPanel>
-        </Border>
-
-
-        </StackPanel>
-<StackPanel x:Name="TunPanel" Visibility="Collapsed"><TextBlock x:Name="TunAnchor" Text="ElyTun" Style="{StaticResource Text.SectionHeader}" Margin="2,0,0,16" />
-        <Border Style="{StaticResource AppleInsetGroup}">
-          <StackPanel>
-          <Border Style="{StaticResource AppleSettingRow}">
-            <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="250" />
-              </Grid.ColumnDefinitions>
-              <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="Туннелировать IPv6" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                  <controls:InfoHint Text="Добавляет IPv6-адрес в TUN-интерфейс. Выключайте, если провайдер или сервер не поддерживает IPv6 — тогда трафик пойдёт только по IPv4 без зависаний на AAAA-запросах." />
-                </StackPanel>
-                <TextBlock Text="Полный TUN-режим; выключите, если провайдер не поддерживает IPv6" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-              </StackPanel>
-              <controls:SpringToggleSwitch Grid.Column="1"
-                                            HorizontalAlignment="Right"
-                                            AutomationProperties.Name="Туннелировать IPv6"
-                                           IsChecked="{Binding ElyTunIpv6Enabled, Mode=TwoWay}" />
-            </Grid>
-          </Border>
-          <Border Style="{StaticResource AppleRowSeparator}" />
-          <Border Style="{StaticResource AppleSettingRow}">
-            <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="250" />
-              </Grid.ColumnDefinitions>
-              <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="Ядро TUN" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                  <controls:InfoHint Text="Какой движок создаёт TUN-туннель. sing-box — универсальный: все протоколы, правила маршрутизации, обход по приложениям. Xray TUN — нативный TUN Xray в одном процессе: VLESS/VMess/Trojan/Shadowsocks, VLESS Encryption, xhttp и mKCP. tun2proxy — TUN поверх локального SOCKS/mixed: максимальная совместимость, но без обхода по приложениям и без собственной маршрутизации по доменам. Hysteria 2 TUN — встроенный TUN ядра Hysteria: только для нод hysteria2, правила ElyTun и профиль RoscomVPN не применяются." />
-                </StackPanel>
-                <TextBlock Text="{Binding TunCoreDescription}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-              </StackPanel>
-              <ComboBox Grid.Column="1"
-                        Width="250"
-                        HorizontalAlignment="Right"
-                        AutomationProperties.Name="Ядро TUN"
-                        SelectedIndex="{Binding TunCoreIndex, Mode=TwoWay}">
-                <ComboBoxItem Content="sing-box" />
-                <ComboBoxItem Content="Xray TUN" />
-                <ComboBoxItem Content="tun2proxy" />
-                <ComboBoxItem Content="Hysteria 2 TUN" />
-              </ComboBox>
-            </Grid>
-          </Border>
-          <Border Style="{StaticResource AppleRowSeparator}" />
-          <Border Style="{StaticResource AppleSettingRow}">
-            <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="250" />
-              </Grid.ColumnDefinitions>
-              <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="Служба-помощник (без UAC)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                  <controls:InfoHint Text="Зачем: чтобы ElyTun включался без запроса прав администратора каждый раз. Как это работает: вы один раз устанавливаете службу ElyProxyHelper (Windows попросит UAC один раз) — дальше TUN-ядра запускает служба от имени системы, и запросов прав больше нет. Как проверить: под переключателем статус должен быть «Служба запущена». Если служба не установлена или остановлена, ElyProxy тихо работает как раньше — с UAC при каждом включении ElyTun. Безопасность: служба принимает только известные ядра ElyProxy (xray, sing-box, tun2proxy, hysteria) и останавливает их при отключении. Удаление — кнопкой «Удалить», тогда права снова будут запрашиваться." />
-                </StackPanel>
-                <TextBlock Text="{Binding HelperServiceDescription}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                <TextBlock Text="{Binding HelperServiceStatus}" Style="{StaticResource Text.Micro}" Margin="0,4,0,0" TextWrapping="Wrap" />
-              </StackPanel>
-              <StackPanel Grid.Column="1" HorizontalAlignment="Right" MaxWidth="250">
-                <controls:SpringToggleSwitch HorizontalAlignment="Right"
-                                              AutomationProperties.Name="TUN через службу-помощник"
-                                              IsChecked="{Binding UseHelperService, Mode=TwoWay}" />
-                <WrapPanel HorizontalAlignment="Right" Margin="0,8,0,0" MaxWidth="250">
-                  <Button Content="Установить"
-                          Style="{StaticResource SecondaryButton}"
-                          IsEnabled="{Binding IsHelperAvailable}"
-                          Margin="0,0,6,6"
-                          Command="{Binding InstallHelperCommand}"
-                          AutomationProperties.Name="Установить службу-помощник" />
-                  <Button Content="Удалить"
-                          Style="{StaticResource GhostButton}"
-                          Margin="0,0,6,6"
-                          Command="{Binding UninstallHelperCommand}"
-                          AutomationProperties.Name="Удалить службу-помощник" />
-                  <Button Content="Обновить статус"
-                          Style="{StaticResource GhostButton}"
-                          Margin="0,0,0,6"
-                          Command="{Binding RefreshHelperStatusCommand}"
-                          AutomationProperties.Name="Обновить статус службы-помощника" />
-                </WrapPanel>
-              </StackPanel>
-            </Grid>
-          </Border>
-          </StackPanel>
-        </Border>
-
-
-        </StackPanel>
-<StackPanel x:Name="DpiPanel" Visibility="Collapsed"><TextBlock x:Name="DpiAnchor" Text="Обход DPI" Style="{StaticResource Text.SectionHeader}" Margin="2,0,0,16" />
-        <Grid x:Name="DpiOverview" SizeChanged="DpiOverview_SizeChanged" Margin="0,0,0,12">
-<Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-<Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-<StackPanel x:Name="DpiProfileCard" Grid.Column="0" Margin="0,0,12,12">
-<Border Style="{StaticResource AppleInsetGroup}"><StackPanel><Border Style="{StaticResource AppleSettingRow}">
-              <StackPanel>
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="Готовые профили" Style="{StaticResource Text.Body}" />
-                  <controls:InfoHint Text="Экспериментальные варианты для TCP TLS. Выбор в списке ничего не меняет: нажмите «Применить профиль». Профиль сохраняется для следующего подключения, отключает шум и spoofing, сохраняет выбранный отпечаток. IP-блокировку, строгий белый список и отключение связи эти настройки не устраняют." />
-                </StackPanel>
-                <TextBlock Text="По умолчанию выключено. Изменения применяются только по вашему выбору." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,10" />
-                <ComboBox ItemsSource="{Binding DpiProfiles}" DisplayMemberPath="Name" SelectedItem="{Binding SelectedDpiProfile}" AutomationProperties.Name="Профиль DPI" />
-                <TextBlock Text="{Binding SelectedDpiProfile.Description}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,8,0,8" />
-                <Button Content="Применить профиль" Command="{Binding ApplyDpiProfileCommand}" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left" />
-              </StackPanel>
-            </Border><Border Style="{StaticResource AppleRowSeparator}"/><Border Style="{StaticResource AppleSettingRow}">
-              <StackPanel>
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="Отпечаток TLS" Style="{StaticResource Text.Body}" />
-                  <controls:InfoHint Text="Меняет форму ClientHello в Xray и sing-box для TLS/REALITY; это не полная имитация браузера и не дополнительное шифрование. По умолчанию используется значение подписки. Сервер, SNI и проверка сертификата не меняются. Сохранится для следующего подключения." />
-                </StackPanel>
-                <ComboBox ItemsSource="{Binding DpiFingerprintOptions}" DisplayMemberPath="Value" SelectedValuePath="Key" SelectedValue="{Binding DpiFingerprint}" AutomationProperties.Name="Отпечаток TLS" Margin="0,8,0,0" />
-              </StackPanel>
-            </Border></StackPanel></Border></StackPanel>
-<Border x:Name="DpiTuningCard" Grid.Column="1" Style="{StaticResource AppleInsetGroup}" VerticalAlignment="Top"><Border Style="{StaticResource AppleSettingRow}">
-              <StackPanel>
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="Подобрать для выбранного сервера" Style="{StaticResource Text.Body}" />
-                  <controls:InfoHint Text="Запускается только этой кнопкой при отключённом VPN. Проверяет HTTPS через временное локальное ядро: два внешних сервиса по два раза на профиль, до четырёх минут. Настройки, маршруты Windows и подписка не изменяются. Выберите ядро, которое используете для подключения: Xray для Proxy Lite/Xray TUN; sing-box для Proxy Pro/sing-box ElyTun. Результат не доказывает наличие DPI и не гарантирует работу других сайтов." />
-                </StackPanel>
-                <ComboBox ItemsSource="{Binding AllNodes}" DisplayMemberPath="DisplayName" SelectedItem="{Binding DpiProbeNode}" AutomationProperties.Name="Сервер для подбора DPI" Margin="0,8,0,8" />
-<TextBlock Text="Если сервер не выбран, проверяется выбранный на главном экране" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
-                <CheckBox Content="Проверять через sing-box (иначе Xray)" IsChecked="{Binding DpiProbeSingBox}" Margin="0,0,0,10" />
-                <WrapPanel>
-                  <Button Content="Начать подбор" Command="{Binding TuneDpiCommand}" Style="{StaticResource SecondaryButton}" Margin="0,0,8,6" />
-                  <Button Content="Остановить" Command="{Binding CancelDpiTuningCommand}" Style="{StaticResource GhostButton}" Margin="0,0,0,6" />
-                </WrapPanel>
-                <ProgressBar IsIndeterminate="True" Height="3" Margin="0,8,0,8" Visibility="{Binding IsDpiTuning, Converter={StaticResource BoolToVis}}" />
-<ListView BorderBrush="{DynamicResource BorderBr}" BorderThickness="1" Background="{DynamicResource CardBrush}" ItemsSource="{Binding DpiTrials}" SelectedItem="{Binding SelectedDpiTrial}" MaxHeight="260" Margin="0,8,0,8" AutomationProperties.Name="Результаты подбора DPI">
- <ListView.View><GridView>
-  <GridViewColumn Header="Профиль" DisplayMemberBinding="{Binding Profile.Name}" Width="210"/>
-  <GridViewColumn Header="Проверки / 4" DisplayMemberBinding="{Binding Successes}" Width="105"/>
-  <GridViewColumn Header="Время, мс" DisplayMemberBinding="{Binding Milliseconds, StringFormat=F0}" Width="95"/>
-  <GridViewColumn Header="Результат" DisplayMemberBinding="{Binding Detail}" Width="260"/>
- </GridView></ListView.View>
-</ListView>
-<TextBlock Text="{Binding DpiTuningStatus}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,8,0,0" />
-              </StackPanel>
-            </Border></Border></Grid>
-        <Expander Header="Расширенные параметры" Margin="0,12,0,0"><Border Style="{StaticResource AppleInsetGroup}">
-          <StackPanel>
-            <Border Style="{StaticResource AppleSettingRow}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Фрагментация TLS" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                    <controls:InfoHint Text="Дробит TLS ClientHello на части. «Стандартный» — фиксированные параметры 100–200 байт и 10–20 мс для Xray; в sing-box используется резервная пауза 10 мс, а размер выбирает ядро. Для подбора используйте кнопку выше. Может замедлить соединение. Hysteria 2 TUN эту настройку не использует." />
-                  </StackPanel>
-                  <TextBlock Text="Дробит TLS ClientHello, чтобы обойти SNI-фильтры. Может замедлить соединение." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                </StackPanel>
-                <ComboBox Grid.Column="1"
-                          Width="250"
-                          HorizontalAlignment="Right"
-                          AutomationProperties.Name="Фрагментация TLS"
-                          SelectedIndex="{Binding FragmentModeIndex, Mode=TwoWay}">
-                  <ComboBoxItem Content="Выключено" />
-                  <ComboBoxItem Content="Стандартный" />
-                  <ComboBoxItem Content="Свой" />
-                </ComboBox>
-              </Grid>
-            </Border>
-            <StackPanel Visibility="{Binding IsCustomFragment, Converter={StaticResource BoolToVis}}">
-              <Border Style="{StaticResource AppleRowSeparator}" />
-              <Border Style="{StaticResource AppleSettingRow}">
+              <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+              <Border Padding="22,18">
                 <StackPanel>
-                  <TextBlock Text="Дробить пакеты" Style="{StaticResource Text.Body}" />
-                  <TextBlock Text="tlshello — рукопожатие TLS; 1-3 — первые записи TCP." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                  <TextBox Margin="0,8,0,0"
-                           AutomationProperties.Name="Дробить пакеты"
-                           Text="{Binding FragmentPackets, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                </StackPanel>
-              </Border>
-              <Border Style="{StaticResource AppleRowSeparator}" />
-              <Border Style="{StaticResource AppleSettingRow}">
-                <StackPanel>
-                  <TextBlock Text="Длина фрагмента" Style="{StaticResource Text.Body}" />
-                  <TextBlock Text="Диапазон в байтах, например 100-200." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                  <TextBox Margin="0,8,0,0"
-                           AutomationProperties.Name="Длина фрагмента"
-                           Text="{Binding FragmentLength, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                </StackPanel>
-              </Border>
-              <Border Style="{StaticResource AppleRowSeparator}" />
-              <Border Style="{StaticResource AppleSettingRow}">
-                <StackPanel>
-                  <TextBlock Text="Интервал, мс" Style="{StaticResource Text.Body}" />
-                  <TextBlock Text="Пауза между фрагментами, например 10-20." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                  <TextBox Margin="0,8,0,0"
-                           AutomationProperties.Name="Интервал фрагментации"
-                           Text="{Binding FragmentInterval, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                  <TextBlock Text="Архив проверяется перед установкой" FontSize="18" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,7" />
+                  <TextBlock Text="Проверка размера и SHA-256 загруженного файла." FontSize="14" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" />
                 </StackPanel>
               </Border>
             </StackPanel>
-            <Border Style="{StaticResource AppleRowSeparator}" />
-            <Border Style="{StaticResource AppleSettingRow}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Дробить TLS-записи (sing-box)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                    <controls:InfoHint Text="Только для sing-box (VLESS/VMess/Trojan). Дробит TLS-рукопожатие на отдельные TLS-записи — это быстрее полной фрагментации. Включайте, если провайдер фильтрует по SNI, но полная фрагментация заметно замедляет соединение. Для Xray настройка не применяется." />
-                  </StackPanel>
-                  <TextBlock Text="Быстрее полной фрагментации; применяется к VLESS/VMess/Trojan." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                </StackPanel>
-                <controls:SpringToggleSwitch Grid.Column="1"
-                                              HorizontalAlignment="Right"
-                                              AutomationProperties.Name="Дробить TLS-записи"
-                                              IsChecked="{Binding FragmentRecord, Mode=TwoWay}" />
-              </Grid>
-            </Border>
-            <Border Style="{StaticResource AppleRowSeparator}" />
-            <Border Style="{StaticResource AppleSettingRow}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Noise-пакеты (Xray)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                    <controls:InfoHint Text="Только для Xray и только при включённой фрагментации. Перед реальными данными отправляются «шумовые» пакеты, чтобы сбить сигнатуры DPI. rand — случайные байты (в поле укажите длину, например 50-150), str — произвольная строка, base64 — данные в base64. Слишком агрессивные значения могут мешать соединению." />
-                  </StackPanel>
-                  <TextBlock Text="Случайные пакеты перед данными; работает при включённой фрагментации." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                </StackPanel>
-                <ComboBox Grid.Column="1"
-                          Width="250"
-                          HorizontalAlignment="Right"
-                          AutomationProperties.Name="Тип noise-пакетов"
-                          SelectedIndex="{Binding NoiseTypeIndex, Mode=TwoWay}">
-                  <ComboBoxItem Content="Выключено" />
-                  <ComboBoxItem Content="rand" />
-                  <ComboBoxItem Content="str" />
-                  <ComboBoxItem Content="base64" />
-                </ComboBox>
-              </Grid>
-            </Border>
-            <StackPanel Visibility="{Binding IsNoiseEnabled, Converter={StaticResource BoolToVis}}">
-              <Border Style="{StaticResource AppleRowSeparator}" />
-              <Border Style="{StaticResource AppleSettingRow}">
-                <StackPanel>
-                  <TextBlock Text="Содержимое пакета" Style="{StaticResource Text.Body}" />
-                  <TextBlock Text="Для rand — длина (50-150), для str — строка, для base64 — данные." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                  <TextBox Margin="0,8,0,0"
-                           AutomationProperties.Name="Содержимое noise-пакета"
-                           Text="{Binding NoisePacket, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                </StackPanel>
-              </Border>
-              <Border Style="{StaticResource AppleRowSeparator}" />
-              <Border Style="{StaticResource AppleSettingRow}">
-                <StackPanel>
-                  <TextBlock Text="Задержка noise, мс" Style="{StaticResource Text.Body}" />
-                  <TextBlock Text="Пауза после пакета, например 10-16." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                  <TextBox Margin="0,8,0,0"
-                           AutomationProperties.Name="Задержка noise"
-                           Text="{Binding NoiseDelay, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                </StackPanel>
-              </Border>
-            </StackPanel>
-            <Border Style="{StaticResource AppleRowSeparator}" />
-            <Border Style="{StaticResource AppleSettingRow}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Подмена ClientHello (spoof)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                    <controls:InfoHint Text="Перед настоящим TLS-рукопожатием отправляется поддельный ClientHello. Экспериментальная техника против некоторых фильтров DPI; строгий белый список IP и отсутствие связи она не устраняет. Работает только с ядром sing-box и требует прав администратора при подключении; для Xray, Hysteria и tun2proxy с Xray-бэкендом настройка не применяется. Может ломать соединение с частью серверов — сначала попробуйте обычную фрагментацию." />
-                  </StackPanel>
-                  <TextBlock Text="Только sing-box; нужен запуск от администратора." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                </StackPanel>
-                <controls:SpringToggleSwitch Grid.Column="1"
-                                              HorizontalAlignment="Right"
-                                              AutomationProperties.Name="Подмена ClientHello"
-                                              IsChecked="{Binding TlsSpoofEnabled, Mode=TwoWay}" />
-              </Grid>
-            </Border>
-            <StackPanel Visibility="{Binding TlsSpoofEnabled, Converter={StaticResource BoolToVis}}">
-              <Border Style="{StaticResource AppleRowSeparator}" />
-              <Border Style="{StaticResource AppleSettingRow}">
-                <StackPanel>
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Разрешённый SNI" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                    <controls:InfoHint Text="Домен, который фильтр считает разрешённым и пропускает без блокировки. Подставьте популярный сервис, доступный у вашего провайдера (например, www.google.com или www.microsoft.com). Чем ближе этот домен к реальному трафику, тем лучше." />
-                  </StackPanel>
-                  <TextBox Margin="0,8,0,0"
-                           controls:Placeholder.Text="www.google.com"
-                           AutomationProperties.Name="Разрешённый SNI для подмены"
-                           Text="{Binding TlsSpoofSni, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                </StackPanel>
-              </Border>
-              <Border Style="{StaticResource AppleRowSeparator}" />
-              <Border Style="{StaticResource AppleSettingRow}">
-                <StackPanel>
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Метод отбрасывания подделки" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                    <controls:InfoHint Text="Как настоящий сервер отбросит поддельный пакет, чтобы он не долетел до него: wrong-sequence (по умолчанию) — неверный номер последовательности; wrong-checksum — плохая контрольная сумма; wrong-ack — неверное подтверждение; wrong-md5 — подпись TCP-MD5; wrong-timestamp — устаревшая метка времени. Если фильтр пропускает первый вариант, попробуйте другой." />
-                  </StackPanel>
-                  <ComboBox Margin="0,8,0,0"
-                            AutomationProperties.Name="Метод подмены ClientHello"
-                            SelectedIndex="{Binding TlsSpoofMethodIndex, Mode=TwoWay}">
-                    <ComboBoxItem Content="wrong-sequence (по умолчанию)" />
-                    <ComboBoxItem Content="wrong-checksum" />
-                    <ComboBoxItem Content="wrong-ack" />
-                    <ComboBoxItem Content="wrong-md5" />
-                    <ComboBoxItem Content="wrong-timestamp" />
-                  </ComboBox>
-                </StackPanel>
-              </Border>
-            </StackPanel>
-          </StackPanel>
-        </Border>
-
-
-        </Expander></StackPanel>
-<StackPanel x:Name="CoresPanel" Visibility="Collapsed"><TextBlock x:Name="CoresAnchor" Text="Ядра" Style="{StaticResource Text.SectionHeader}" Margin="2,0,0,16" />
-        <Border Style="{StaticResource AppleInsetGroup}">
-          <StackPanel>
-            <Border Style="{StaticResource AppleSettingRow}">
-              <StackPanel>
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="Версии и обновление" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                  <controls:InfoHint Text="Скачивает свежие версии Xray, sing-box, tun2proxy и Hysteria 2 прямо из релизов на GitHub, проверяет SHA-256 и устанавливает в %LocalAppData%\ElyProxy\cores. Локальные копии имеют приоритет над встроенными в сборку. Обновление недоступно при активном подключении — сначала отключитесь. Hysteria 2 нужна только если выбран соответствующий движок или TUN-ядро." />
-                </StackPanel>
-                <TextBlock Text="Скачивает свежие Xray, sing-box, tun2proxy и Hysteria 2 с GitHub, проверяет SHA-256 и кладёт в локальную папку ElyProxy." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                <TextBlock Text="{Binding CoreUpdateStatus}"
-                           Style="{StaticResource Text.Micro}"
-                           Margin="0,8,0,0"
-                           TextWrapping="Wrap" />
-                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                  <Button Content="Проверить"
-                          Style="{StaticResource SecondaryButton}"
-                          Command="{Binding CheckCoreUpdatesCommand}"
-                          AutomationProperties.Name="Проверить обновления ядер" />
-                  <Button Content="Обновить"
-                          Style="{StaticResource PrimaryButton}"
-                          Margin="8,0,0,0"
-                          Command="{Binding UpdateCoresCommand}"
-                          AutomationProperties.Name="Обновить ядра" />
-                </StackPanel>
-              </StackPanel>
-            </Border>
-            <Border Style="{StaticResource AppleRowSeparator}" />
-            <Border Style="{StaticResource AppleSettingRow}">
-              <StackPanel>
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="Geo-данные Xray" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                  <controls:InfoHint Text="geoip.dat и geosite.dat — базы для категорий geoip:/geosite: в правилах Xray (RoscomVPN и свои правила). Обновляются отдельно от ядра: источник — Loyalsoldier/v2ray-rules-dat, файлы кладутся рядом с активным xray.exe. Помогает, когда нужные категории устарели; риск — новые базы могут поменять состав категорий, поэтому изменения вступают в силу при следующем подключении. Обновление ядра Xray позже перезапишет эти файлы версией из релиза — тогда geo-данные можно обновить повторно." />
-                </StackPanel>
-                <TextBlock Text="Отдельное обновление geoip.dat и geosite.dat для Xray. Встроенные rule-set'ы RoscomVPN обновляются вместе с приложением." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                <Button Content="Обновить geo-данные"
-                        Style="{StaticResource SecondaryButton}"
-                        HorizontalAlignment="Left"
-                        Margin="0,10,0,0"
-                        Command="{Binding UpdateGeoDataCommand}"
-                        AutomationProperties.Name="Обновить geo-данные Xray" />
-              </StackPanel>
-            </Border>
-            <Border Style="{StaticResource AppleRowSeparator}" />
-            <Border Style="{StaticResource AppleSettingRow}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Движок Hysteria2" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                    <controls:InfoHint Text="Каким ядром обслуживать hysteria2-ноды в Proxy Pro и tun2proxy. sing-box — не требует дополнительных файлов. Hysteria 2 — отдельное ядро: поддерживает Gecko obfs, ECH и mimic, которых нет в sing-box; hysteria.exe скачивается в разделе «Ядра». На ElyTun с ядром sing-box эта настройка не влияет (там Hysteria2 идёт через sing-box)." />
-                  </StackPanel>
-                  <TextBlock Text="{Binding Hysteria2EngineDescription}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                </StackPanel>
-                <ComboBox Grid.Column="1"
-                          Width="250"
-                          HorizontalAlignment="Right"
-                          AutomationProperties.Name="Движок Hysteria2"
-                          SelectedIndex="{Binding Hysteria2EngineIndex, Mode=TwoWay}">
-                  <ComboBoxItem Content="sing-box" />
-                  <ComboBoxItem Content="Hysteria 2" />
-                </ComboBox>
-              </Grid>
-            </Border>
-          </StackPanel>
-        </Border>
-
-
-        </StackPanel>
-<StackPanel x:Name="SubscriptionsPanel" Visibility="Collapsed"><TextBlock x:Name="SubscriptionsAnchor" Text="Подписки" Style="{StaticResource Text.SectionHeader}" Margin="2,0,0,16" />
-        <Border Style="{StaticResource AppleInsetGroup}">
-          <Border Style="{StaticResource AppleSettingRow}">
-            <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="250" />
-              </Grid.ColumnDefinitions>
-              <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="Автообновление" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                <controls:InfoHint Text="Глобальный интервал автообновления подписок. Подписка со своим интервалом (контекстное меню → «Настройки подписки…») обновляется по нему, остальные — по этому значению. «Выключено» отключает автообновление для подписок без своего интервала." />
-              </StackPanel>
-              <ComboBox Grid.Column="1"
-                        Width="250"
-                        HorizontalAlignment="Right"
-                        DisplayMemberPath="Value"
-                        SelectedValuePath="Key"
-                        AutomationProperties.Name="Интервал автообновления подписок"
-                        ItemsSource="{Binding SubscriptionUpdateIntervalOptions}"
-                        SelectedValue="{Binding SubscriptionUpdateIntervalMinutes, Mode=TwoWay}" />
-            </Grid>
           </Border>
-        </Border>
-
-
         </StackPanel>
-<StackPanel x:Name="RoutingPanel" Visibility="Collapsed"><TextBlock x:Name="RoutingAnchor" Text="Разделение трафика" Style="{StaticResource Text.SectionHeader}" Margin="2,0,0,16" />
-        <Border Style="{StaticResource AppleInsetGroup}">
-          <StackPanel>
-            <Border Style="{StaticResource AppleSettingRow}">
-              <StackPanel>
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="Профиль маршрутизации ElyTun" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                  <controls:InfoHint Text="RoscomVPN DEFAULT — встроенный набор rule-set'ов: блок-листы, прокси-домены и прямые домены РФ. Работает только на ядрах sing-box (ElyTun sing-box, Proxy Pro, tun2proxy с sing-box-бэкендом). Для Xray TUN и Xray-бэкенда применяются только «Свои правила» — в журнале появится предупреждение. В режиме «Только выбранные приложения» профиль игнорируется, потому что маршрут определяется списком приложений." />
-                </StackPanel>
-                <RadioButton Content="Свои правила"
-                             Margin="0,10,0,0"
-                             GroupName="ElyTunRoutingPreset"
-                             AutomationProperties.Name="Профиль маршрутизации: свои правила"
-                             IsChecked="{Binding UseCustomRouting, Mode=TwoWay}" />
-                <RadioButton Content="RoscomVPN DEFAULT — встроенный готовый набор"
-                             Margin="0,8,0,0"
-                             GroupName="ElyTunRoutingPreset"
-                             AutomationProperties.Name="Профиль маршрутизации: RoscomVPN DEFAULT"
-                             IsChecked="{Binding UseRoscomVpnDefaultRouting, Mode=TwoWay}" />
-              </StackPanel>
-            </Border>
-            <Border Style="{StaticResource AppleRowSeparator}" />
-            <Border Style="{StaticResource AppleSettingRow}">
-              <StackPanel>
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="Bypass-правила для Proxy Lite, Proxy Pro и ElyTun" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                  <controls:InfoHint Text="Домены, *.домены, IP и CIDR, которые всегда идут напрямую. Работают во всех режимах. В профиле RoscomVPN DEFAULT эти правила добавляются поверх встроенных и имеют приоритет. Для Xray-бэкенда tun2proxy правила применяются к доменам и IP." />
-                </StackPanel>
-                <TextBlock Text="По одному правилу в строке: домен, *.домен, IP или CIDR. Эти адреса идут напрямую."
-                           Style="{StaticResource Text.Caption}"
-                           Margin="0,4,0,0"
-                           TextWrapping="Wrap" />
-                <TextBox AcceptsReturn="True"
-                         TextWrapping="NoWrap"
-                         VerticalScrollBarVisibility="Auto"
-                         Height="120"
-                         Margin="0,10,0,0"
-                         FontFamily="{StaticResource AppMonoFontFamily}"
-                         FontSize="12"
-                         AutomationProperties.Name="Правила разделения трафика"
-                         Text="{Binding SystemProxyRulesText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                <Grid Margin="0,10,0,0">
-                  <TextBlock Text="Proxy Pro применяет те же правила, что и ElyTun, но через системный прокси без TUN."
-                             Style="{StaticResource Text.Micro}"
-                             TextWrapping="Wrap"
-                             MaxWidth="480"
-                             HorizontalAlignment="Left"
-                             VerticalAlignment="Center" />
-                  <Button Content="Сбросить правила"
-                          Style="{StaticResource GhostButton}"
-                          HorizontalAlignment="Right"
-                          Command="{Binding ResetSystemProxyRulesCommand}"
-                          AutomationProperties.Name="Сбросить правила разделения трафика" />
-                </Grid>
-              </StackPanel>
-            </Border>
-            <Border Style="{StaticResource AppleRowSeparator}" />
-            <Border Style="{StaticResource AppleSettingRow}" IsEnabled="{Binding IsPerAppSupported}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="250" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Режим приложений" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                    <controls:InfoHint Text="«Исключать выбранные» — перечисленные .exe идут напрямую, остальное через прокси. «Только выбранные» — наоборот: через прокси идут только они, остальной трафик напрямую, а профиль RoscomVPN и доменные правила не применяются. Ядро tun2proxy не умеет работать по приложениям — для него режим и список будут недоступны." />
-                  </StackPanel>
-                  <TextBlock Text="{Binding PerAppModeDescription}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                </StackPanel>
-                <ComboBox Grid.Column="1"
-                          Width="250"
-                          HorizontalAlignment="Right"
-                          AutomationProperties.Name="Режим обхода по приложениям"
-                          SelectedIndex="{Binding PerAppModeIndex, Mode=TwoWay}">
-                  <ComboBoxItem Content="Исключать выбранные" />
-                  <ComboBoxItem Content="Только выбранные" />
-                </ComboBox>
-              </Grid>
-            </Border>
-            <Border Style="{StaticResource AppleRowSeparator}" />
-            <Border Style="{StaticResource AppleSettingRow}" IsEnabled="{Binding IsPerAppSupported}">
-              <StackPanel>
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="Обход по приложениям" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                  <controls:InfoHint Text="Список .exe для правил по приложениям. В ElyTun (sing-box и Xray TUN) сопоставление идёт по полному пути процесса, поэтому выбирайте файл из папки установки. В Proxy Pro правило срабатывает для процесса, чей трафик пришёл в системный прокси. PAC (Proxy Lite) имя приложения не передаёт, поэтому список там не действует. Ядро tun2proxy не поддерживает per-app — список будет недоступен." />
-                </StackPanel>
-                <TextBlock Text="В ElyTun весь трафик выбранного .exe идёт напрямую, независимо от доменных/IP-правил. В Proxy Pro правило действует на трафик, поступающий в системный прокси. Proxy Lite (PAC) не передаёт имя приложения."
-                           Style="{StaticResource Text.Caption}"
-                           Margin="0,4,0,0"
-                           TextWrapping="Wrap" />
-                <ListView Style="{StaticResource AppleListView}"
-                          ScrollViewer.CanContentScroll="False"
-                          ItemsSource="{Binding ApplicationBypassApplications}"
-                          SelectedItem="{Binding SelectedApplicationBypass, Mode=TwoWay}"
-                          Height="130"
-                          Margin="0,10,0,0"
-                          AutomationProperties.Name="Приложения, обходящие VPN">
-                  <ListView.ItemTemplate>
-                    <DataTemplate>
-                      <StackPanel Margin="2,3">
-                        <TextBlock Text="{Binding Name}"
-                                   Style="{StaticResource Text.BodyStrong}"
-                                   TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding ExecutablePath}"
-                                   Style="{StaticResource Text.Caption}"
-                                   TextTrimming="CharacterEllipsis"
-                                   ToolTip="{Binding ExecutablePath}" />
+        <StackPanel x:Name="TunPanel" Visibility="Collapsed">
+          <TextBlock x:Name="TunAnchor" Text="ElyTun" Style="{StaticResource SettingsSectionTitle}" Margin="0,26,0,5" />
+          <TextBlock Text="Полный туннель для приложений Windows." FontSize="15" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" Margin="0,0,0,20" />
+          <Grid Tag="SettingsColumns" SizeChanged="SettingsColumns_SizeChanged">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="1.65*" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <StackPanel Margin="0,0,16,0" Tag="1.65">
+              <Border Style="{StaticResource SettingsCard}">
+                <StackPanel>
+                  <TextBlock Text="Туннель" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Style="{StaticResource AppleSettingRow}">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="250" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <StackPanel Orientation="Horizontal">
+                          <TextBlock Text="Ядро TUN" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                          <controls:InfoHint Text="Какой движок создаёт TUN-туннель. sing-box — универсальный: все протоколы, правила маршрутизации, обход по приложениям. Xray TUN — нативный TUN Xray в одном процессе: VLESS/VMess/Trojan/Shadowsocks, VLESS Encryption, xhttp и mKCP. tun2proxy — TUN поверх локального SOCKS/mixed: максимальная совместимость, но без обхода по приложениям и без собственной маршрутизации по доменам. Hysteria 2 TUN — встроенный TUN ядра Hysteria: только для нод hysteria2, правила ElyTun и профиль RoscomVPN не применяются." />
+                        </StackPanel>
+                        <TextBlock Text="{Binding TunCoreDescription}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
                       </StackPanel>
-                    </DataTemplate>
-                  </ListView.ItemTemplate>
-                </ListView>
-                <Grid Margin="0,8,0,0">
+                      <ComboBox Grid.Column="1" Width="250" HorizontalAlignment="Right" AutomationProperties.Name="Ядро TUN" SelectedIndex="{Binding TunCoreIndex, Mode=TwoWay}" FontSize="15" MinHeight="40">
+                        <ComboBoxItem Content="sing-box" />
+                        <ComboBoxItem Content="Xray TUN" />
+                        <ComboBoxItem Content="tun2proxy" />
+                        <ComboBoxItem Content="Hysteria 2 TUN" />
+                      </ComboBox>
+                    </Grid>
+                  </Border>
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Style="{StaticResource AppleSettingRow}">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="250" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <StackPanel Orientation="Horizontal">
+                          <TextBlock Text="Туннелировать IPv6" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                          <controls:InfoHint Text="Добавляет IPv6-адрес в TUN-интерфейс. Выключайте, если провайдер или сервер не поддерживает IPv6 — тогда трафик пойдёт только по IPv4 без зависаний на AAAA-запросах." />
+                        </StackPanel>
+                        <TextBlock Text="Полный TUN-режим; выключите, если провайдер не поддерживает IPv6" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                      </StackPanel>
+                      <controls:SpringToggleSwitch Grid.Column="1" HorizontalAlignment="Right" AutomationProperties.Name="Туннелировать IPv6" IsChecked="{Binding ElyTunIpv6Enabled, Mode=TwoWay}" />
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource SettingsCard}">
+                <StackPanel>
+                  <TextBlock Text="Служба-помощник" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Padding="22,18">
+                    <StackPanel>
+                      <StackPanel>
+                        <TextBlock Text="Использовать службу-помощник" FontSize="18" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,7" />
+                        <TextBlock Text="Позволяет включать ElyTun без повторного запроса UAC." FontSize="14" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" />
+                      </StackPanel>
+                      <controls:SpringToggleSwitch HorizontalAlignment="Right" AutomationProperties.Name="TUN через службу-помощник" IsChecked="{Binding UseHelperService, Mode=TwoWay}" />
+                      <TextBlock Text="{Binding HelperServiceDescription}" FontSize="14" TextWrapping="Wrap" Foreground="{DynamicResource FgSecBrush}" Margin="0,12,0,12" />
+                      <WrapPanel>
+                        <Button Content="Установить" Style="{StaticResource PrimaryButton}" IsEnabled="{Binding IsHelperAvailable}" Margin="0,0,10,8" Command="{Binding InstallHelperCommand}" AutomationProperties.Name="Установить службу-помощник" FontSize="15" MinHeight="40" />
+                        <Button Content="Удалить" Style="{StaticResource SecondaryButton}" Margin="0,0,10,8" Command="{Binding UninstallHelperCommand}" AutomationProperties.Name="Удалить службу-помощник" FontSize="15" MinHeight="40" />
+                        <Button Content="Обновить статус" Style="{StaticResource SecondaryButton}" Margin="0,0,10,8" Command="{Binding RefreshHelperStatusCommand}" AutomationProperties.Name="Обновить статус службы-помощника" FontSize="15" MinHeight="40" />
+                      </WrapPanel>
+                      <TextBlock Text="Установка один раз потребует прав администратора." FontSize="14" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+            <StackPanel Grid.Column="1">
+              <Border Style="{StaticResource SettingsCard}">
+                <StackPanel>
+                  <TextBlock Text="Как выбирается ядро" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Padding="22,18">
+                    <StackPanel>
+                      <TextBlock Text="sing-box" FontSize="18" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,7" />
+                      <TextBlock Text="Универсальный. Рекомендуется для большинства случаев." FontSize="14" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Padding="22,18">
+                    <StackPanel>
+                      <TextBlock Text="Xray TUN" FontSize="18" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,7" />
+                      <TextBlock Text="Поддерживает xhttp и VLESS Encryption." FontSize="14" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Padding="22,18">
+                    <StackPanel>
+                      <TextBlock Text="tun2proxy" FontSize="18" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,7" />
+                      <TextBlock Text="TUN поверх SOCKS. Подходит для специфических сценариев." FontSize="14" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Padding="22,18">
+                    <StackPanel>
+                      <TextBlock Text="Hysteria 2 TUN" FontSize="18" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,7" />
+                      <TextBlock Text="Только Hysteria2. Используйте, если нужен именно этот протокол." FontSize="14" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+        <StackPanel x:Name="DpiPanel" Visibility="Collapsed">
+          <TextBlock x:Name="DpiAnchor" Text="Обход DPI" Style="{StaticResource SettingsSectionTitle}" Margin="0,16,0,5" />
+          <TextBlock Text="Дополнительные методы подключения. Включаются только вручную." FontSize="15" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" Margin="0,0,0,20" />
+          <Grid Tag="SettingsColumns" SizeChanged="SettingsColumns_SizeChanged">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="1*" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <StackPanel Margin="0,0,16,0" Tag="1">
+              <Border Style="{StaticResource SettingsCard}">
+                <StackPanel>
+                  <TextBlock Text="Текущие параметры" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Style="{StaticResource AppleSettingRow}">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="250" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <StackPanel Orientation="Horizontal">
+                          <TextBlock Text="Фрагментация TLS" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                          <controls:InfoHint Text="Дробит TLS ClientHello на части. «Стандартный» — фиксированные параметры 100–200 байт и 10–20 мс для Xray; в sing-box используется резервная пауза 10 мс, а размер выбирает ядро. Для подбора используйте кнопку выше. Может замедлить соединение. Hysteria 2 TUN эту настройку не использует." />
+                        </StackPanel>
+                        <TextBlock Text="Дробит TLS ClientHello, чтобы обойти SNI-фильтры. Может замедлить соединение." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                      </StackPanel>
+                      <ComboBox Grid.Column="1" Width="250" HorizontalAlignment="Right" AutomationProperties.Name="Фрагментация TLS" SelectedIndex="{Binding FragmentModeIndex, Mode=TwoWay}" FontSize="15" MinHeight="40">
+                        <ComboBoxItem Content="Выключено" />
+                        <ComboBoxItem Content="Стандартный" />
+                        <ComboBoxItem Content="Свой" />
+                      </ComboBox>
+                    </Grid>
+                  </Border>
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Style="{StaticResource AppleSettingRow}">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="250" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <StackPanel Orientation="Horizontal">
+                          <TextBlock Text="Дробить TLS-записи (sing-box)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                          <controls:InfoHint Text="Только для sing-box (VLESS/VMess/Trojan). Дробит TLS-рукопожатие на отдельные TLS-записи — это быстрее полной фрагментации. Включайте, если провайдер фильтрует по SNI, но полная фрагментация заметно замедляет соединение. Для Xray настройка не применяется." />
+                        </StackPanel>
+                        <TextBlock Text="Быстрее полной фрагментации; применяется к VLESS/VMess/Trojan." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                      </StackPanel>
+                      <controls:SpringToggleSwitch Grid.Column="1" HorizontalAlignment="Right" AutomationProperties.Name="Дробить TLS-записи" IsChecked="{Binding FragmentRecord, Mode=TwoWay}" />
+                    </Grid>
+                  </Border>
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Padding="22,18">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="220" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel Margin="0,0,16,0">
+                        <TextBlock Text="Отпечаток TLS" Style="{StaticResource Text.Body}" />
+                        <TextBlock Text="Клиентский TLS-отпечаток (ClientHello)." Style="{StaticResource Text.Caption}" Margin="0,6,0,0" />
+                      </StackPanel>
+                      <ComboBox ItemsSource="{Binding DpiFingerprintOptions}" DisplayMemberPath="Value" SelectedValuePath="Key" SelectedValue="{Binding DpiFingerprint}" AutomationProperties.Name="Отпечаток TLS" Margin="0" Grid.Column="1" Width="220" FontSize="15" MinHeight="40" />
+                    </Grid>
+                  </Border>
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Padding="22,18">
+                    <Expander Header="Дополнительно" Margin="0,12,0,0" FontSize="17">
+                      <Border Style="{StaticResource AppleInsetGroup}">
+                        <StackPanel>
+                          <StackPanel Visibility="{Binding IsCustomFragment, Converter={StaticResource BoolToVis}}">
+                            <Border Style="{StaticResource AppleRowSeparator}" />
+                            <Border Style="{StaticResource AppleSettingRow}">
+                              <StackPanel>
+                                <TextBlock Text="Дробить пакеты" Style="{StaticResource Text.Body}" />
+                                <TextBlock Text="tlshello — рукопожатие TLS; 1-3 — первые записи TCP." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                <TextBox Margin="0,8,0,0" AutomationProperties.Name="Дробить пакеты" Text="{Binding FragmentPackets, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" FontSize="15" MinHeight="40" />
+                              </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource AppleRowSeparator}" />
+                            <Border Style="{StaticResource AppleSettingRow}">
+                              <StackPanel>
+                                <TextBlock Text="Длина фрагмента" Style="{StaticResource Text.Body}" />
+                                <TextBlock Text="Диапазон в байтах, например 100-200." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                <TextBox Margin="0,8,0,0" AutomationProperties.Name="Длина фрагмента" Text="{Binding FragmentLength, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" FontSize="15" MinHeight="40" />
+                              </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource AppleRowSeparator}" />
+                            <Border Style="{StaticResource AppleSettingRow}">
+                              <StackPanel>
+                                <TextBlock Text="Интервал, мс" Style="{StaticResource Text.Body}" />
+                                <TextBlock Text="Пауза между фрагментами, например 10-20." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                <TextBox Margin="0,8,0,0" AutomationProperties.Name="Интервал фрагментации" Text="{Binding FragmentInterval, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" FontSize="15" MinHeight="40" />
+                              </StackPanel>
+                            </Border>
+                          </StackPanel>
+                          <Border Style="{StaticResource AppleRowSeparator}" />
+                          <Border Style="{StaticResource AppleRowSeparator}" />
+                          <Border Style="{StaticResource AppleSettingRow}">
+                            <Grid>
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="250" />
+                              </Grid.ColumnDefinitions>
+                              <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                <StackPanel Orientation="Horizontal">
+                                  <TextBlock Text="Noise-пакеты (Xray)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                                  <controls:InfoHint Text="Только для Xray и только при включённой фрагментации. Перед реальными данными отправляются «шумовые» пакеты, чтобы сбить сигнатуры DPI. rand — случайные байты (в поле укажите длину, например 50-150), str — произвольная строка, base64 — данные в base64. Слишком агрессивные значения могут мешать соединению." />
+                                </StackPanel>
+                                <TextBlock Text="Случайные пакеты перед данными; работает при включённой фрагментации." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                              </StackPanel>
+                              <ComboBox Grid.Column="1" Width="250" HorizontalAlignment="Right" AutomationProperties.Name="Тип noise-пакетов" SelectedIndex="{Binding NoiseTypeIndex, Mode=TwoWay}" FontSize="15" MinHeight="40">
+                                <ComboBoxItem Content="Выключено" />
+                                <ComboBoxItem Content="rand" />
+                                <ComboBoxItem Content="str" />
+                                <ComboBoxItem Content="base64" />
+                              </ComboBox>
+                            </Grid>
+                          </Border>
+                          <StackPanel Visibility="{Binding IsNoiseEnabled, Converter={StaticResource BoolToVis}}">
+                            <Border Style="{StaticResource AppleRowSeparator}" />
+                            <Border Style="{StaticResource AppleSettingRow}">
+                              <StackPanel>
+                                <TextBlock Text="Содержимое пакета" Style="{StaticResource Text.Body}" />
+                                <TextBlock Text="Для rand — длина (50-150), для str — строка, для base64 — данные." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                <TextBox Margin="0,8,0,0" AutomationProperties.Name="Содержимое noise-пакета" Text="{Binding NoisePacket, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" FontSize="15" MinHeight="40" />
+                              </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource AppleRowSeparator}" />
+                            <Border Style="{StaticResource AppleSettingRow}">
+                              <StackPanel>
+                                <TextBlock Text="Задержка noise, мс" Style="{StaticResource Text.Body}" />
+                                <TextBlock Text="Пауза после пакета, например 10-16." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                <TextBox Margin="0,8,0,0" AutomationProperties.Name="Задержка noise" Text="{Binding NoiseDelay, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" FontSize="15" MinHeight="40" />
+                              </StackPanel>
+                            </Border>
+                          </StackPanel>
+                          <Border Style="{StaticResource AppleRowSeparator}" />
+                          <Border Style="{StaticResource AppleSettingRow}">
+                            <Grid>
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="250" />
+                              </Grid.ColumnDefinitions>
+                              <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                <StackPanel Orientation="Horizontal">
+                                  <TextBlock Text="Подмена ClientHello (spoof)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                                  <controls:InfoHint Text="Перед настоящим TLS-рукопожатием отправляется поддельный ClientHello. Экспериментальная техника против некоторых фильтров DPI; строгий белый список IP и отсутствие связи она не устраняет. Работает только с ядром sing-box и требует прав администратора при подключении; для Xray, Hysteria и tun2proxy с Xray-бэкендом настройка не применяется. Может ломать соединение с частью серверов — сначала попробуйте обычную фрагментацию." />
+                                </StackPanel>
+                                <TextBlock Text="Только sing-box; нужен запуск от администратора." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                              </StackPanel>
+                              <controls:SpringToggleSwitch Grid.Column="1" HorizontalAlignment="Right" AutomationProperties.Name="Подмена ClientHello" IsChecked="{Binding TlsSpoofEnabled, Mode=TwoWay}" />
+                            </Grid>
+                          </Border>
+                          <StackPanel Visibility="{Binding TlsSpoofEnabled, Converter={StaticResource BoolToVis}}">
+                            <Border Style="{StaticResource AppleRowSeparator}" />
+                            <Border Style="{StaticResource AppleSettingRow}">
+                              <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                  <TextBlock Text="Разрешённый SNI" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                                  <controls:InfoHint Text="Домен, который фильтр считает разрешённым и пропускает без блокировки. Подставьте популярный сервис, доступный у вашего провайдера (например, www.google.com или www.microsoft.com). Чем ближе этот домен к реальному трафику, тем лучше." />
+                                </StackPanel>
+                                <TextBox Margin="0,8,0,0" controls:Placeholder.Text="www.google.com" AutomationProperties.Name="Разрешённый SNI для подмены" Text="{Binding TlsSpoofSni, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" FontSize="15" MinHeight="40" />
+                              </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource AppleRowSeparator}" />
+                            <Border Style="{StaticResource AppleSettingRow}">
+                              <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                  <TextBlock Text="Метод отбрасывания подделки" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                                  <controls:InfoHint Text="Как настоящий сервер отбросит поддельный пакет, чтобы он не долетел до него: wrong-sequence (по умолчанию) — неверный номер последовательности; wrong-checksum — плохая контрольная сумма; wrong-ack — неверное подтверждение; wrong-md5 — подпись TCP-MD5; wrong-timestamp — устаревшая метка времени. Если фильтр пропускает первый вариант, попробуйте другой." />
+                                </StackPanel>
+                                <ComboBox Margin="0,8,0,0" AutomationProperties.Name="Метод подмены ClientHello" SelectedIndex="{Binding TlsSpoofMethodIndex, Mode=TwoWay}" FontSize="15" MinHeight="40">
+                                  <ComboBoxItem Content="wrong-sequence (по умолчанию)" />
+                                  <ComboBoxItem Content="wrong-checksum" />
+                                  <ComboBoxItem Content="wrong-ack" />
+                                  <ComboBoxItem Content="wrong-md5" />
+                                  <ComboBoxItem Content="wrong-timestamp" />
+                                </ComboBox>
+                              </StackPanel>
+                            </Border>
+                          </StackPanel>
+                        </StackPanel>
+                      </Border>
+                    </Expander>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+            <StackPanel Grid.Column="1">
+              <Border Style="{StaticResource SettingsCard}">
+                <StackPanel>
+                  <TextBlock Text="Готовые профили" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Padding="20,12">
+                    <StackPanel>
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox ItemsSource="{Binding DpiProfiles}" DisplayMemberPath="Name" SelectedItem="{Binding SelectedDpiProfile}" AutomationProperties.Name="Профиль DPI" FontSize="15" MinHeight="40" />
+                        <Button Grid.Column="1" Content="Применить профиль" Command="{Binding ApplyDpiProfileCommand}" Style="{StaticResource PrimaryButton}" Margin="14,0,0,0" FontSize="15" MinHeight="40" />
+                      </Grid>
+                      <TextBlock Text="{Binding SelectedDpiProfile.Description}" FontSize="14" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" Margin="0,10,0,0" />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource SettingsCard}">
+                <StackPanel>
+                  <TextBlock Text="Подбор для сервера" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Style="{StaticResource AppleSettingRow}" Padding="20,14">
+                    <StackPanel>
+                      <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="1.3*" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox ItemsSource="{Binding AllNodes}" DisplayMemberPath="DisplayName" SelectedItem="{Binding DpiProbeNode}" AutomationProperties.Name="Сервер для подбора DPI" Margin="0,0,12,0" FontSize="15" MinHeight="40" />
+                        <ComboBox SelectedIndex="{Binding DpiProbeCoreIndex, Mode=TwoWay}" AutomationProperties.Name="Ядро для подбора DPI" Margin="0" Grid.Column="1" FontSize="15" MinHeight="40">
+                          <ComboBoxItem Content="Xray" />
+                          <ComboBoxItem Content="sing-box" />
+                        </ComboBox>
+                      </Grid>
+                      <TextBlock Text="{Binding DpiTuningSummary}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,0,0,8" ToolTip="{Binding DpiTuningStatus}" />
+                      <ProgressBar IsIndeterminate="True" Height="3" Margin="0,8,0,8" Visibility="{Binding IsDpiTuning, Converter={StaticResource BoolToVis}}" />
+                      <ListView BorderBrush="{DynamicResource BorderBr}" BorderThickness="1" Background="{DynamicResource CardBrush}" ItemsSource="{Binding DpiTrials}" SelectedItem="{Binding SelectedDpiTrial}" MaxHeight="154" Margin="0,4,0,0" AutomationProperties.Name="Результаты подбора DPI" MinHeight="36" Foreground="{DynamicResource FgBrush}" ScrollViewer.CanContentScroll="False" FontSize="14">
+                        <ListView.View>
+                          <GridView>
+                            <GridViewColumn Header="Профиль" Width="210">
+                              <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                  <TextBlock Text="{Binding Profile.Name}" Foreground="{DynamicResource FgBrush}" FontSize="14" TextTrimming="CharacterEllipsis" ToolTip="{Binding Profile.Name}" />
+                                </DataTemplate>
+                              </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Проверки / 4" Width="105">
+                              <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                  <TextBlock Text="{Binding Successes}" Foreground="{DynamicResource FgBrush}" FontSize="14" TextTrimming="CharacterEllipsis" ToolTip="{Binding Successes}" />
+                                </DataTemplate>
+                              </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Время, мс" Width="95">
+                              <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                  <TextBlock Text="{Binding Milliseconds, StringFormat=F0}" Foreground="{DynamicResource FgBrush}" FontSize="14" TextTrimming="CharacterEllipsis" ToolTip="{Binding Milliseconds, StringFormat=F0}" />
+                                </DataTemplate>
+                              </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                          </GridView>
+                        </ListView.View>
+                        <ListView.ItemContainerStyle>
+                          <Style TargetType="ListViewItem">
+                            <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Template">
+                              <Setter.Value>
+                                <ControlTemplate TargetType="ListViewItem">
+                                  <Border x:Name="RowSurface" Background="{TemplateBinding Background}" BorderBrush="{DynamicResource BorderBr}" BorderThickness="0,0,0,1" Padding="8,7">
+                                    <GridViewRowPresenter Content="{TemplateBinding Content}" Columns="{Binding View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}" />
+                                  </Border>
+                                  <ControlTemplate.Triggers>
+                                    <Trigger Property="IsSelected" Value="True">
+                                      <Setter TargetName="RowSurface" Property="Background" Value="{DynamicResource SelectionBrush}" />
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                      <Setter TargetName="RowSurface" Property="Background" Value="{DynamicResource AccentMutedBrush}" />
+                                    </Trigger>
+                                  </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                              </Setter.Value>
+                            </Setter>
+                          </Style>
+                        </ListView.ItemContainerStyle>
+                      </ListView>
+                      <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button Content="Проверить снова" Command="{Binding TuneDpiCommand}" Style="{StaticResource SecondaryButton}" Margin="0,0,12,0" FontSize="15" MinHeight="40" />
+                        <Button Content="Применить результат" Command="{Binding ApplyDpiTrialCommand}" Style="{StaticResource PrimaryButton}" Margin="0" Grid.Column="1" FontSize="15" MinHeight="40" />
+                      </Grid>
+                      <Button Content="Остановить" Command="{Binding CancelDpiTuningCommand}" Style="{StaticResource GhostButton}" Margin="0,0,0,6" Visibility="{Binding IsDpiTuning, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+        <StackPanel x:Name="CoresPanel" Visibility="Collapsed">
+          <TextBlock x:Name="CoresAnchor" Text="Ядра" Style="{StaticResource SettingsSectionTitle}" Margin="0,26,0,5" />
+          <TextBlock Text="Компоненты подключения и geo-данные." FontSize="15" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" Margin="0,0,0,20" />
+          <Border Style="{StaticResource SettingsCard}">
+            <StackPanel>
+              <Grid Margin="22,16">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Установленные компоненты" FontSize="23" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{DynamicResource FgBrush}" />
+                <WrapPanel Grid.Column="1">
+                  <Button Content="Проверить версии" Command="{Binding CheckCoreUpdatesCommand}" Style="{StaticResource SecondaryButton}" FontSize="15" Margin="0,0,12,0" />
+                  <Button Content="Обновить ядра" Command="{Binding UpdateCoresCommand}" Style="{StaticResource PrimaryButton}" FontSize="15" />
+                </WrapPanel>
+              </Grid>
+              <Border Background="{DynamicResource Bg3Brush}" Margin="22,0" Padding="12,10">
+                <Grid>
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
                   </Grid.ColumnDefinitions>
-                  <TextBlock Grid.Column="0"
-                             Text="Изменения сохраняются сразу. При активном VPN отключите и подключите его снова."
-                             Style="{StaticResource Text.Micro}"
-                             TextWrapping="Wrap"
-                             MaxWidth="440"
-                             VerticalAlignment="Center" />
-                  <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Content="Удалить"
-                            Style="{StaticResource GhostButton}"
-                            Command="{Binding RemoveApplicationBypassCommand}"
-                            AutomationProperties.Name="Удалить выбранное приложение из обхода" />
-                    <Button Content="Добавить приложение…"
-                            Style="{StaticResource SecondaryButton}"
-                            Margin="6,0,0,0"
-                            Command="{Binding AddApplicationBypassCommand}"
-                            AutomationProperties.Name="Добавить приложение для обхода VPN" />
-                  </StackPanel>
+                  <TextBlock Text="Компонент" Foreground="{DynamicResource FgBrush}" />
+                  <TextBlock Grid.Column="1" Text="Установлено" Foreground="{DynamicResource FgBrush}" />
+                  <TextBlock Grid.Column="2" Text="Состояние" Foreground="{DynamicResource FgBrush}" />
                 </Grid>
-              </StackPanel>
-            </Border>
-          </StackPanel>
-        </Border>
-
-</StackPanel></StackPanel>
+              </Border>
+              <ItemsControl ItemsSource="{Binding SettingsCoreVersions}" Margin="22,8,22,16">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border BorderBrush="{DynamicResource BorderBr}" BorderThickness="0,0,0,1" Padding="12,12">
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding Name}" FontSize="16" Foreground="{DynamicResource FgBrush}" />
+                        <TextBlock Grid.Column="1" Text="{Binding Version}" FontSize="16" Foreground="{DynamicResource FgBrush}" />
+                        <TextBlock Grid.Column="2" Text="{Binding Status}" FontSize="14" Foreground="{DynamicResource FgSecBrush}" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Text="{Binding CoreUpdateStatus}" Style="{StaticResource Text.Caption}" Margin="22,0,22,18" />
+            </StackPanel>
+          </Border>
+          <Grid Tag="SettingsColumns" SizeChanged="SettingsColumns_SizeChanged">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="1*" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <StackPanel Margin="0,0,16,0" Tag="1">
+              <Border Style="{StaticResource SettingsCard}">
+                <StackPanel>
+                  <TextBlock Text="Geo-данные Xray" FontSize="23" FontWeight="SemiBold" Margin="22,16,22,16" Foreground="{DynamicResource FgBrush}" />
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Style="{StaticResource AppleSettingRow}">
+                    <StackPanel>
+                      <StackPanel Orientation="Horizontal">
+                        <controls:InfoHint Text="geoip.dat и geosite.dat — базы для категорий geoip:/geosite: в правилах Xray (RoscomVPN и свои правила). Обновляются отдельно от ядра: источник — Loyalsoldier/v2ray-rules-dat, файлы кладутся рядом с активным xray.exe. Помогает, когда нужные категории устарели; риск — новые базы могут поменять состав категорий, поэтому изменения вступают в силу при следующем подключении. Обновление ядра Xray позже перезапишет эти файлы версией из релиза — тогда geo-данные можно обновить повторно." />
+                      </StackPanel>
+                      <TextBlock Text="Отдельное обновление geoip.dat и geosite.dat для Xray. Встроенные rule-set'ы RoscomVPN обновляются вместе с приложением." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                      <Button Content="Обновить geo-данные" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left" Margin="0,10,0,0" Command="{Binding UpdateGeoDataCommand}" AutomationProperties.Name="Обновить geo-данные Xray" FontSize="15" MinHeight="40" />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+            <StackPanel Grid.Column="1">
+              <Border Style="{StaticResource SettingsCard}">
+                <StackPanel>
+                  <TextBlock Text="Движок Hysteria2" FontSize="23" FontWeight="SemiBold" Margin="22,16,22,16" Foreground="{DynamicResource FgBrush}" />
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Style="{StaticResource AppleSettingRow}">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="250" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <StackPanel Orientation="Horizontal">
+                          <controls:InfoHint Text="Каким ядром обслуживать hysteria2-ноды в Proxy Pro и tun2proxy. sing-box — не требует дополнительных файлов. Hysteria 2 — отдельное ядро: поддерживает Gecko obfs, ECH и mimic, которых нет в sing-box; hysteria.exe скачивается в разделе «Ядра». На ElyTun с ядром sing-box эта настройка не влияет (там Hysteria2 идёт через sing-box)." />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Hysteria2EngineDescription}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                      </StackPanel>
+                      <ComboBox Grid.Column="1" Width="250" HorizontalAlignment="Right" AutomationProperties.Name="Движок Hysteria2" SelectedIndex="{Binding Hysteria2EngineIndex, Mode=TwoWay}" FontSize="15" MinHeight="40">
+                        <ComboBoxItem Content="sing-box" />
+                        <ComboBoxItem Content="Hysteria 2" />
+                      </ComboBox>
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+        <StackPanel x:Name="SubscriptionsPanel" Visibility="Collapsed">
+          <TextBlock x:Name="SubscriptionsAnchor" Text="Подписки" Style="{StaticResource SettingsSectionTitle}" Margin="0,26,0,5" />
+          <TextBlock Text="Общие параметры обновления списков серверов." FontSize="15" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" Margin="0,0,0,20" />
+          <Border Style="{StaticResource SettingsCard}">
+            <StackPanel>
+              <TextBlock Text="Обновление подписок" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+              <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+              <Border Style="{StaticResource AppleSettingRow}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="250" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Автообновление" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                    <controls:InfoHint Text="Глобальный интервал автообновления подписок. Подписка со своим интервалом (контекстное меню → «Настройки подписки…») обновляется по нему, остальные — по этому значению. «Выключено» отключает автообновление для подписок без своего интервала." />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1" Width="250" HorizontalAlignment="Right" DisplayMemberPath="Value" SelectedValuePath="Key" AutomationProperties.Name="Интервал автообновления подписок" ItemsSource="{Binding SubscriptionUpdateIntervalOptions}" SelectedValue="{Binding SubscriptionUpdateIntervalMinutes, Mode=TwoWay}" FontSize="15" MinHeight="40" />
+                </Grid>
+              </Border>
+              <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+              <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+              <Grid Margin="22,18">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="310" />
+                </Grid.ColumnDefinitions>
+                <Border Padding="0" Margin="0,0,22,0">
+                  <StackPanel>
+                    <TextBlock Text="Индивидуальные настройки" FontSize="18" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,7" />
+                    <TextBlock Text="Свой интервал, User-Agent, заголовки и фильтр задаются отдельно для каждой подписки." FontSize="14" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+                <Button Content="Открыть список подписок →" Click="OpenSubscriptions_Click" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Stretch" Margin="0" FontSize="15" MinHeight="40" Grid.Column="1" VerticalAlignment="Center" />
+              </Grid>
+            </StackPanel>
+          </Border>
+          <Border Style="{StaticResource SettingsCard}">
+            <StackPanel>
+              <Border Padding="22,18">
+                <StackPanel>
+                  <TextBlock Text="Приоритет собственного интервала" FontSize="18" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,7" />
+                  <TextBlock Text="Если у подписки задан свой интервал, глобальный параметр его не заменяет." FontSize="14" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+        <StackPanel x:Name="RoutingPanel" Visibility="Collapsed">
+          <TextBlock x:Name="RoutingAnchor" Text="Разделение трафика" Style="{StaticResource SettingsSectionTitle}" Margin="0,26,0,5" />
+          <TextBlock Text="Выберите, какие адреса и приложения идут напрямую." FontSize="15" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" Margin="0,0,0,20" />
+          <Grid Tag="SettingsColumns" SizeChanged="SettingsColumns_SizeChanged">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="1*" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <StackPanel Margin="0,0,16,0" Tag="1">
+              <Border Style="{StaticResource SettingsCard}">
+                <StackPanel>
+                  <TextBlock Text="Профиль маршрутизации" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Style="{StaticResource AppleSettingRow}">
+                    <StackPanel>
+                      <StackPanel Orientation="Horizontal">
+                        <controls:InfoHint Text="RoscomVPN DEFAULT — встроенный набор rule-set'ов: блок-листы, прокси-домены и прямые домены РФ. Работает только на ядрах sing-box (ElyTun sing-box, Proxy Pro, tun2proxy с sing-box-бэкендом). Для Xray TUN и Xray-бэкенда применяются только «Свои правила» — в журнале появится предупреждение. В режиме «Только выбранные приложения» профиль игнорируется, потому что маршрут определяется списком приложений." />
+                      </StackPanel>
+                      <RadioButton Content="Свои правила" Margin="0,10,0,0" GroupName="ElyTunRoutingPreset" AutomationProperties.Name="Профиль маршрутизации: свои правила" IsChecked="{Binding UseCustomRouting, Mode=TwoWay}" />
+                      <RadioButton Content="RoscomVPN DEFAULT — встроенный готовый набор" Margin="0,8,0,0" GroupName="ElyTunRoutingPreset" AutomationProperties.Name="Профиль маршрутизации: RoscomVPN DEFAULT" IsChecked="{Binding UseRoscomVpnDefaultRouting, Mode=TwoWay}" />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource SettingsCard}">
+                <StackPanel>
+                  <TextBlock Text="Адреса напрямую" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Style="{StaticResource AppleSettingRow}">
+                    <StackPanel>
+                      <StackPanel Orientation="Horizontal">
+                        <controls:InfoHint Text="Домены, *.домены, IP и CIDR, которые всегда идут напрямую. Работают во всех режимах. В профиле RoscomVPN DEFAULT эти правила добавляются поверх встроенных и имеют приоритет. Для Xray-бэкенда tun2proxy правила применяются к доменам и IP." />
+                      </StackPanel>
+                      <TextBlock Text="По одному правилу в строке: домен, *.домен, IP или CIDR. Эти адреса идут напрямую." Style="{StaticResource Text.Caption}" Margin="0,4,0,0" TextWrapping="Wrap" />
+                      <TextBox AcceptsReturn="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" Height="120" Margin="0,10,0,0" FontFamily="{StaticResource AppMonoFontFamily}" FontSize="15" AutomationProperties.Name="Правила разделения трафика" Text="{Binding SystemProxyRulesText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" MinHeight="40" />
+                      <Grid Margin="0,10,0,0">
+                        <TextBlock Text="Proxy Pro применяет те же правила, что и ElyTun, но через системный прокси без TUN." Style="{StaticResource Text.Micro}" TextWrapping="Wrap" MaxWidth="480" HorizontalAlignment="Left" VerticalAlignment="Center" Visibility="Collapsed" />
+                        <Button Content="Сбросить правила" Style="{StaticResource GhostButton}" HorizontalAlignment="Right" Command="{Binding ResetSystemProxyRulesCommand}" AutomationProperties.Name="Сбросить правила разделения трафика" />
+                      </Grid>
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+            <StackPanel Grid.Column="1">
+              <Border Style="{StaticResource SettingsCard}">
+                <StackPanel>
+                  <TextBlock Text="Приложения" FontSize="23" Foreground="{DynamicResource FgBrush}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="22,16,22,16" />
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Style="{StaticResource AppleSettingRow}" IsEnabled="{Binding IsPerAppSupported}">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="250" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <StackPanel Orientation="Horizontal">
+                          <TextBlock Text="Режим приложений" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                          <controls:InfoHint Text="«Исключать выбранные» — перечисленные .exe идут напрямую, остальное через прокси. «Только выбранные» — наоборот: через прокси идут только они, остальной трафик напрямую, а профиль RoscomVPN и доменные правила не применяются. Ядро tun2proxy не умеет работать по приложениям — для него режим и список будут недоступны." />
+                        </StackPanel>
+                        <TextBlock Text="{Binding PerAppModeDescription}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                      </StackPanel>
+                      <ComboBox Grid.Column="1" Width="250" HorizontalAlignment="Right" AutomationProperties.Name="Режим обхода по приложениям" SelectedIndex="{Binding PerAppModeIndex, Mode=TwoWay}" FontSize="15" MinHeight="40">
+                        <ComboBoxItem Content="Исключать выбранные" />
+                        <ComboBoxItem Content="Только выбранные" />
+                      </ComboBox>
+                    </Grid>
+                  </Border>
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <Border Style="{StaticResource AppleSettingRow}" IsEnabled="{Binding IsPerAppSupported}">
+                    <StackPanel>
+                      <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Обход по приложениям" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+                        <controls:InfoHint Text="Список .exe для правил по приложениям. В ElyTun (sing-box и Xray TUN) сопоставление идёт по полному пути процесса, поэтому выбирайте файл из папки установки. В Proxy Pro правило срабатывает для процесса, чей трафик пришёл в системный прокси. PAC (Proxy Lite) имя приложения не передаёт, поэтому список там не действует. Ядро tun2proxy не поддерживает per-app — список будет недоступен." />
+                      </StackPanel>
+                      <TextBlock Text="В ElyTun весь трафик выбранного .exe идёт напрямую, независимо от доменных/IP-правил. В Proxy Pro правило действует на трафик, поступающий в системный прокси. Proxy Lite (PAC) не передаёт имя приложения." Style="{StaticResource Text.Caption}" Margin="0,4,0,0" TextWrapping="Wrap" />
+                      <ListView Style="{StaticResource AppleListView}" ScrollViewer.CanContentScroll="False" ItemsSource="{Binding ApplicationBypassApplications}" SelectedItem="{Binding SelectedApplicationBypass, Mode=TwoWay}" Height="130" Margin="0,10,0,0" AutomationProperties.Name="Приложения, обходящие VPN">
+                        <ListView.ItemTemplate>
+                          <DataTemplate>
+                            <StackPanel Margin="2,3">
+                              <TextBlock Text="{Binding Name}" Style="{StaticResource Text.BodyStrong}" TextTrimming="CharacterEllipsis" />
+                              <TextBlock Text="{Binding ExecutablePath}" Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis" ToolTip="{Binding ExecutablePath}" />
+                            </StackPanel>
+                          </DataTemplate>
+                        </ListView.ItemTemplate>
+                      </ListView>
+                      <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Изменения сохраняются сразу. При активном VPN отключите и подключите его снова." Style="{StaticResource Text.Micro}" TextWrapping="Wrap" MaxWidth="440" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                          <Button Content="Удалить" Style="{StaticResource GhostButton}" Command="{Binding RemoveApplicationBypassCommand}" AutomationProperties.Name="Удалить выбранное приложение из обхода" />
+                          <Button Content="Добавить приложение…" Style="{StaticResource SecondaryButton}" Margin="6,0,0,0" Command="{Binding AddApplicationBypassCommand}" AutomationProperties.Name="Добавить приложение для обхода VPN" FontSize="15" MinHeight="40" />
+                        </StackPanel>
+                      </Grid>
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Grid>
+          <Border Style="{StaticResource SettingsCard}">
+            <StackPanel>
+              <Border Padding="22,18">
+                <TextBlock Text="Изменения сохраняются сразу. Для применения переподключите VPN." FontSize="14" Foreground="{DynamicResource FgSecBrush}" TextWrapping="Wrap" />
+              </Border>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </StackPanel>
     </ScrollViewer>
-    <TextBlock Grid.Row="3" Text="Настройки сохраняются автоматически" Style="{StaticResource Text.Micro}" Margin="2,16,0,0"/>
+    <TextBlock Grid.Row="3" Text="Настройки сохраняются автоматически" Style="{StaticResource Text.Micro}" Margin="2,16,0,0" />
   </Grid>
 </UserControl>

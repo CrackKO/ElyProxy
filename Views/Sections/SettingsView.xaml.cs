@@ -35,6 +35,8 @@ public partial class SettingsView : UserControl
                 panel.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
         }
         SettingsScroll.ScrollToTop();
+        if (section == "CoresAnchor" && DataContext is ElyProxy.ViewModels.MainViewModel viewModel)
+            _ = viewModel.RefreshSettingsCoreVersionsAsync();
     }
 
     private void JumpToSection_Click(object sender, RoutedEventArgs e)
@@ -42,13 +44,28 @@ public partial class SettingsView : UserControl
         if (sender is Button button && _tabs.TryGetValue(button, out var section)) NavigateToSection(section);
     }
 
-    private void DpiOverview_SizeChanged(object sender, SizeChangedEventArgs e)
+    private void SettingsColumns_SizeChanged(object sender, SizeChangedEventArgs e)
     {
+        if (sender is not Grid grid || grid.Children.Count < 2) return;
         bool wide = e.NewSize.Width >= 940;
-        DpiOverview.ColumnDefinitions[1].Width = wide ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        Grid.SetColumn(DpiTuningCard, wide ? 1 : 0);
-        Grid.SetRow(DpiTuningCard, wide ? 0 : 1);
-        DpiProfileCard.Margin = wide ? new Thickness(0, 0, 16, 0) : new Thickness(0, 0, 0, 12);
+        var left = (FrameworkElement)grid.Children[0];
+        var right = (FrameworkElement)grid.Children[1];
+        double ratio = double.TryParse(left.Tag?.ToString(), System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? parsed : 1;
+        grid.ColumnDefinitions[0].Width = new GridLength(wide ? ratio : 1, GridUnitType.Star);
+        grid.ColumnDefinitions[1].Width = wide ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        Grid.SetColumn(right, wide ? 1 : 0);
+        Grid.SetRow(right, wide ? 0 : 1);
+        left.Margin = wide ? new Thickness(0, 0, 16, 0) : new Thickness(0);
+    }
+
+    private void PreviewConnect_Click(object sender, RoutedEventArgs e) =>
+        ElyProxy.Services.DialogService.Current.Notify("Предпросмотр", "Так выглядит кнопка подключения в выбранной теме.");
+
+    private void OpenSubscriptions_Click(object sender, RoutedEventArgs e)
+    {
+        if (Window.GetWindow(this)?.FindName("NavList") is ListBox navigation)
+            navigation.SelectedIndex = 1;
     }
 
     private void Search_TextChanged(object sender, TextChangedEventArgs e)

@@ -14,7 +14,7 @@ public partial class MainViewModel
     private CancellationTokenSource? _dpiTuningCancellation;
     private bool _dpiProbeSingBox;
     private AsyncRelayCommand? _tuneDpiCommand;
-    private RelayCommand? _applyDpiCommand, _cancelDpiCommand;
+    private RelayCommand? _applyDpiCommand, _cancelDpiCommand, _applyDpiTrialCommand;
 
     public System.Collections.ObjectModel.ObservableCollection<DpiTrial> DpiTrials { get; } = new();
     public bool IsDpiTuning => _dpiTuningCancellation != null;
@@ -31,6 +31,7 @@ public partial class MainViewModel
         {
             if (SetProperty(ref _selectedDpiTrial, value, nameof(SelectedDpiTrial)) && value != null)
                 SelectedDpiProfile = value.Profile;
+            CommandManager.InvalidateRequerySuggested();
         }
     }
     private DpiTrial? _selectedDpiTrial;
@@ -40,6 +41,17 @@ public partial class MainViewModel
         get => _selectedDpiProfile;
         set { if (value != null) SetProperty(ref _selectedDpiProfile, value, nameof(SelectedDpiProfile)); }
     }
+    public int DpiProbeCoreIndex
+    {
+        get => DpiProbeSingBox ? 1 : 0;
+        set { DpiProbeSingBox = value == 1; OnPropertyChanged(nameof(DpiProbeCoreIndex)); }
+    }
+    public ICommand ApplyDpiTrialCommand => _applyDpiTrialCommand ??= new RelayCommand(() =>
+    {
+        if (SelectedDpiTrial == null) return;
+        SelectedDpiProfile = SelectedDpiTrial.Profile;
+        ApplyDpiProfile();
+    }, () => SelectedDpiTrial?.Successes == 4 && _dpiTuningCancellation == null);
     public bool DpiProbeSingBox
     {
         get => _dpiProbeSingBox;
@@ -63,10 +75,13 @@ public partial class MainViewModel
                 _ = SaveSettingsAsync();
         }
     }
+    public string DpiTuningSummary => IsDpiTuning ? "Проверка выполняется…" :
+        DpiTrials.Count > 0 ? $"Проверка завершена · {DpiTrials.Count} профилей. Выберите результат для применения." :
+        "Проверка запускается вручную при отключённом VPN.";
     public string DpiTuningStatus
     {
         get => _dpiTuningStatus;
-        private set => SetProperty(ref _dpiTuningStatus, value, nameof(DpiTuningStatus));
+        private set { SetProperty(ref _dpiTuningStatus, value, nameof(DpiTuningStatus)); OnPropertyChanged(nameof(DpiTuningSummary)); }
     }
     public ICommand TuneDpiCommand => _tuneDpiCommand ??= new AsyncRelayCommand(TuneDpiAsync,
         () => !IsConnected && !IsLoading && (DpiProbeNode != null || SelectedNode != null) && _dpiTuningCancellation == null);
@@ -116,7 +131,7 @@ public partial class MainViewModel
         _dpiTuningCancellation = cancellation;
         DpiTrials.Clear();
         SelectedDpiTrial = null;
-        OnPropertyChanged(nameof(IsDpiTuning));
+        OnPropertyChanged(nameof(IsDpiTuning)); OnPropertyChanged(nameof(DpiTuningSummary));
         CommandManager.InvalidateRequerySuggested();
         string report = $"{node.DisplayName} · {(singBox ? "sing-box" : "Xray")}\n";
         try
@@ -133,6 +148,6 @@ public partial class MainViewModel
         }
         catch (OperationCanceledException) { DpiTuningStatus = report + "Проверка остановлена или истекли 4 минуты. Настройки не изменены."; }
         catch (Exception ex) { DpiTuningStatus = "Ошибка проверки: " + ex.Message; }
-        finally { _dpiTuningCancellation = null; OnPropertyChanged(nameof(IsDpiTuning)); CommandManager.InvalidateRequerySuggested(); }
+        finally { _dpiTuningCancellation = null; OnPropertyChanged(nameof(IsDpiTuning)); OnPropertyChanged(nameof(DpiTuningSummary)); CommandManager.InvalidateRequerySuggested(); }
     }
 }
