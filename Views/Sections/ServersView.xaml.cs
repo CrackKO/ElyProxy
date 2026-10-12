@@ -66,7 +66,7 @@ public partial class ServersView : UserControl
     private void VmChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is "ServerLibrary" or "ThemeMode") _restoreScroll = true;
-        if (e.PropertyName is "ServerLibrary" or "ConnectedNodeName" or "ThemeMode" or "IsConnected") ScheduleRefresh();
+        if (e.PropertyName is "ServerLibrary" or "ConnectedNodeName" or "ThemeMode" or "IsConnected" or "IsLoading") { _restoreScroll = true; ScheduleRefresh(); }
         if (e.PropertyName == "SelectedNode" && !_rebuilding && _rowsView != null)
             ServerList.SelectedItem = _rowsView.Cast<ServerRow>().FirstOrDefault(r => ReferenceEquals(r.Node, ViewModel?.SelectedNode));
     }
@@ -320,6 +320,17 @@ public partial class ServersView : UserControl
         e.Handled = true;
     }
 
+    private void RowConnect_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not Button { DataContext: ServerRow row } || ViewModel is not { } vm || vm.IsLoading) return;
+        var isActive = vm.IsConnected && vm.ConnectionPanelNode is { } active
+            && MainViewModel.LibraryKey(active) == MainViewModel.LibraryKey(row.Node);
+        vm.SelectedNode = row.Node;
+        var command = isActive ? vm.DisconnectCommand : vm.ConnectCommand;
+        if (command.CanExecute(null)) command.Execute(null);
+    }
+
     private void ConnectSelected()
     {
         if (ViewModel is { } vm && vm.ConnectCommand.CanExecute(null)) vm.ConnectCommand.Execute(null);
@@ -337,10 +348,17 @@ public partial class ServersView : UserControl
         public string Address => $"{Node.Address} : {Node.Port}";
         public string FavoriteGlyph { get; }
         public bool IsActive { get; }
+        public bool IsWorking { get; }
+        public string ActionGlyph => IsActive ? "■" : "▶";
+        public string ActionLabel => $"{(IsWorking ? "Подключение / отключение" : IsActive ? "Отключиться" : "Подключиться")} · {Name}";
+        public string LatencyBand => Node.Latency is < 0 || Node.PingDetails.StartsWith("0/", StringComparison.Ordinal) ? "High"
+            : Node.Latency is null ? "Unknown" : Node.Latency <= 100 ? "Good" : Node.Latency <= 200 ? "Medium" : "High";
+        public string LatencyHint => $"{Node.LatencyDisplay}\nДо 100 мс — низкая задержка; 101–200 мс — средняя; выше 200 мс — высокая.";
         public bool IsFavorite => FavoriteGlyph == "★";
         public string Name => MainViewModel.ServerDisplayName(Node.DisplayName);
         public ServerRow(VlessNode node, Subscription? subscription, MainViewModel vm, int order)
         {
+            IsWorking = vm.IsLoading && ReferenceEquals(vm.SelectedNode, node);
             Order = order;
             Node = node;
             IsActive = vm.IsConnected && vm.ConnectionPanelNode is { } active && MainViewModel.LibraryKey(active) == MainViewModel.LibraryKey(node);

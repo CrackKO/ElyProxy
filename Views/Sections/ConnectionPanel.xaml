@@ -41,10 +41,7 @@
             <Run Text="{Binding UploadSpeedText, Mode=OneWay}"/>
           </TextBlock>
         </StackPanel>
-        <Grid Grid.Column="3" VerticalAlignment="Center">
-          <Button Content="Подключиться" MinWidth="142" Style="{StaticResource PrimaryButton}" Command="{Binding ConnectCommand}" Visibility="{Binding IsConnected, Converter={StaticResource InverseBoolToVis}}"/>
-          <Button Content="Отключиться" MinWidth="142" Style="{StaticResource PrimaryButton}" Command="{Binding DisconnectCommand}" Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}"/>
-        </Grid>
+
       </Grid>
       <Grid Grid.Row="1">
         <Grid.ColumnDefinitions>
