@@ -34,6 +34,10 @@ internal static class Program
 		string command = (args.Length > 0 ? args[0].ToLowerInvariant() : string.Empty);
 		switch (command)
 		{
+		case "zapret-enable":
+		case "zapret-restore":
+			Environment.ExitCode = ZapretCompatibility.Run(command == "zapret-restore");
+			return;
 		case "install":
 			Environment.ExitCode = Install(
 				args.Length > 1 ? args[1] : null,

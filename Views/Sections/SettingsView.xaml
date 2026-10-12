@@ -658,6 +658,27 @@
                   </Border>
                 </StackPanel>
               </Border>
+              <Border Style="{StaticResource SettingsCard}">
+                <StackPanel>
+                  <Grid Margin="22,16,22,16">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Совместимость с Zapret" FontSize="23" Foreground="{DynamicResource FgBrush}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <controls:InfoHint Grid.Column="1" Text="Ограничивает службу Zapret физическими сетевыми адаптерами, чтобы она не изменяла пакеты внутри ElyTun. Действует для всех TUN-ядер. Исходные настройки сохраняются для отмены. Потребуются права администратора и краткий перезапуск Zapret. Для Zapret, запущенного через .bat без службы, нужна ручная настройка." />
+                  </Grid>
+                  <Border Height="1" Margin="22,0" Background="{DynamicResource BorderBr}" />
+                  <StackPanel Margin="22,18">
+                    <TextBlock Text="Zapret продолжит работать для прямых подключений, а трафик ElyTun будет обрабатываться VPN." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                    <WrapPanel Margin="0,14,0,4">
+                      <Button Content="Настроить совместимость" Style="{StaticResource PrimaryButton}" Command="{Binding ConfigureZapretCommand}" Margin="0,0,10,8" AutomationProperties.Name="Настроить совместимость ElyTun с Zapret" />
+                      <Button Content="Отменить настройку" Style="{StaticResource SecondaryButton}" Command="{Binding RestoreZapretCommand}" Margin="0,0,0,8" AutomationProperties.Name="Восстановить исходные настройки Zapret" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding ZapretCompatibilityStatus}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
             </StackPanel>
             <StackPanel Grid.Column="1">
               <Border Style="{StaticResource SettingsCard}">
