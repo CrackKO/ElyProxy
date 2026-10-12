@@ -5764,6 +5764,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			CommandManager.InvalidateRequerySuggested();
 			RefreshAllNodes();
 			AppendLog($"[sys] Загружено: {Subscriptions.Count} подписок, {AllNodes.Count} серверов, {Profiles.Count} профилей");
+            var identityNodes = AllNodes.ToArray();
+            _favoriteServers = new(ServerLibraryIdentity.Migrate(_favoriteServers, identityNodes), StringComparer.Ordinal);
+            _recentServers = ServerLibraryIdentity.Migrate(_recentServers, identityNodes).Take(30).ToList();
+            // Persist generated identities before a later favorite save can refer to them.
+            if (_canSaveSubscriptions) await _storageService.SaveSubscriptionsAsync(Subscriptions);
+            await SaveSettingsAsync();
+            OnPropertyChanged("ServerLibrary");
 			SelectLastConnectedNode();
 			if (_launchElyTunOnStartup)
 			{

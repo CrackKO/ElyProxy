@@ -16,6 +16,24 @@ public partial class MainViewModel
     private AsyncRelayCommand? _tuneDpiCommand;
     private RelayCommand? _applyDpiCommand, _cancelDpiCommand;
 
+    public System.Collections.ObjectModel.ObservableCollection<DpiTrial> DpiTrials { get; } = new();
+    public bool IsDpiTuning => _dpiTuningCancellation != null;
+    private VlessNode? _dpiProbeNode;
+    public VlessNode? DpiProbeNode
+    {
+        get => _dpiProbeNode;
+        set { if (SetProperty(ref _dpiProbeNode, value, nameof(DpiProbeNode))) CommandManager.InvalidateRequerySuggested(); }
+    }
+    public DpiTrial? SelectedDpiTrial
+    {
+        get => _selectedDpiTrial;
+        set
+        {
+            if (SetProperty(ref _selectedDpiTrial, value, nameof(SelectedDpiTrial)) && value != null)
+                SelectedDpiProfile = value.Profile;
+        }
+    }
+    private DpiTrial? _selectedDpiTrial;
     public IReadOnlyList<DpiProfile> DpiProfiles => DpiProfileCatalog.All;
     public DpiProfile SelectedDpiProfile
     {
@@ -51,7 +69,7 @@ public partial class MainViewModel
         private set => SetProperty(ref _dpiTuningStatus, value, nameof(DpiTuningStatus));
     }
     public ICommand TuneDpiCommand => _tuneDpiCommand ??= new AsyncRelayCommand(TuneDpiAsync,
-        () => !IsConnected && !IsLoading && SelectedNode != null && _dpiTuningCancellation == null);
+        () => !IsConnected && !IsLoading && (DpiProbeNode != null || SelectedNode != null) && _dpiTuningCancellation == null);
     public ICommand ApplyDpiProfileCommand => _applyDpiCommand ??= new RelayCommand(ApplyDpiProfile,
         () => _dpiTuningCancellation == null);
     public ICommand CancelDpiTuningCommand => _cancelDpiCommand ??= new RelayCommand(
@@ -80,7 +98,7 @@ public partial class MainViewModel
 
     private async Task TuneDpiAsync()
     {
-        var node = SelectedNode;
+        var node = DpiProbeNode ?? SelectedNode;
         if (node == null || IsConnected || IsLoading) return;
         bool singBox = DpiProbeSingBox;
         // These candidates only affect TCP TLS, not QUIC, plain TCP or other protocols.
@@ -96,13 +114,18 @@ public partial class MainViewModel
         }
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(4));
         _dpiTuningCancellation = cancellation;
+        DpiTrials.Clear();
+        SelectedDpiTrial = null;
+        OnPropertyChanged(nameof(IsDpiTuning));
         CommandManager.InvalidateRequerySuggested();
         string report = $"{node.DisplayName} · {(singBox ? "sing-box" : "Xray")}\n";
         try
         {
             var progress = new Progress<string>(line => { DpiTuningStatus = report + line; if (!line.EndsWith("…")) report += line + "\n"; });
             var trials = await new DpiTuningService().RunAsync(node, singBox, BuildProbeOptions(), progress, cancellation.Token);
+            foreach (var trial in trials) DpiTrials.Add(trial);
             var best = DpiTuningService.Recommend(trials);
+            SelectedDpiTrial = best;
             if (best != null) SelectedDpiProfile = best.Profile;
             DpiTuningStatus = report + (best == null
                 ? "Ни один профиль не прошёл 4/4 проверки. Это не доказывает DPI: проверьте сервер, DNS и доступность сети. Настройки сохранены без изменений."
@@ -110,6 +133,6 @@ public partial class MainViewModel
         }
         catch (OperationCanceledException) { DpiTuningStatus = report + "Проверка остановлена или истекли 4 минуты. Настройки не изменены."; }
         catch (Exception ex) { DpiTuningStatus = "Ошибка проверки: " + ex.Message; }
-        finally { _dpiTuningCancellation = null; CommandManager.InvalidateRequerySuggested(); }
+        finally { _dpiTuningCancellation = null; OnPropertyChanged(nameof(IsDpiTuning)); CommandManager.InvalidateRequerySuggested(); }
     }
 }

@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using System.Windows.Media;
 using ElyProxy.Models;
 using ElyProxy.Services;
@@ -12,10 +10,7 @@ public partial class MainViewModel
     private List<string> _recentServers = new();
 
     // Only opaque hashes are persisted, never credentials or subscription URLs.
-    public static string LibraryKey(VlessNode node) => Convert.ToHexString(SHA256.HashData(
-        Encoding.UTF8.GetBytes(Newtonsoft.Json.JsonConvert.SerializeObject(new
-        { node.Protocol, node.UUID, node.Address, node.Port, node.Network, node.Security, node.SNI, node.PublicKey, node.ShortId, node.Username, node.Password, node.Method,
-          Extra = node.Extra.OrderBy(entry => entry.Key, StringComparer.Ordinal).ToArray() }))));
+    public static string LibraryKey(VlessNode node) => ServerLibraryIdentity.Key(node);
 
     public bool IsFavorite(VlessNode node) => _favoriteServers.Contains(LibraryKey(node));
     public int RecentIndex(VlessNode node) => _recentServers.IndexOf(LibraryKey(node));

@@ -2,6 +2,9 @@ namespace ElyProxy.Models;
 
 public class VlessNode
 {
+    // Stable per-entry identity; subscription refresh reconciles it with previous entries.
+    public string LibraryId { get; set; } = Guid.NewGuid().ToString("N");
+
 	public string Name { get; set; } = string.Empty;
 
 	/// <summary>Proxy protocol: vless, vmess, trojan, shadowsocks, hysteria2, tuic, socks, http.</summary>

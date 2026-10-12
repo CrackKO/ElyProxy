@@ -40,6 +40,7 @@ public sealed class SubscriptionRefreshCoordinator
             };
         }
 
+        ServerLibraryIdentity.Reconcile(subscription.Nodes, filtered);
         return result with { Nodes = filtered };
     }
 
