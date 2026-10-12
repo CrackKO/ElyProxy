@@ -107,6 +107,11 @@ public class ConfigBuilder
 			_ => throw new NotSupportedException($"Протокол {node.ProtocolDisplay} не поддерживается ядром Xray. Выберите ядро sing-box.")
 		};
 		JArray outbounds = new JArray();
+		if (!string.IsNullOrWhiteSpace(options?.DpiFingerprint) && proxy["streamSettings"] is JObject fingerprintStream)
+		{
+			foreach (string key in new[] { "tlsSettings", "realitySettings" })
+				if (fingerprintStream[key] is JObject tls) tls["fingerprint"] = options.DpiFingerprint;
+		}
 		outbounds.Add(proxy);
 		if (options is { FragmentEnabled: true })
 		{

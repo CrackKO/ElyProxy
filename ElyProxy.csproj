@@ -7,9 +7,9 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>ElyProxy</RootNamespace>
     <AssemblyName>ElyProxy</AssemblyName>
-    <Version>1.4.3</Version>
-    <AssemblyVersion>1.4.3.0</AssemblyVersion>
-    <FileVersion>1.4.3.0</FileVersion>
+    <Version>1.4.4-dev</Version>
+    <AssemblyVersion>1.4.4.0</AssemblyVersion>
+    <FileVersion>1.4.4.0</FileVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>

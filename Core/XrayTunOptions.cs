@@ -25,4 +25,5 @@ public sealed record XrayTunOptions(
 	string ClashApiSecret = "",
 	bool TlsSpoofEnabled = false,
 	string TlsSpoofSni = "",
-	string TlsSpoofMethod = "wrong-sequence");
+	string TlsSpoofMethod = "wrong-sequence",
+	string DpiFingerprint = "");

@@ -58,6 +58,8 @@ public class AppSettings
 
 	public bool FragmentRecord { get; set; }
 
+    public string DpiFingerprint { get; set; } = "";
+
 	public PerAppMode PerAppMode { get; set; } = PerAppMode.Bypass;
 
 	public string NoiseType { get; set; } = string.Empty;

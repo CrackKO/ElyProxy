@@ -983,7 +983,7 @@ public sealed class SingBoxConfigBuilder
 			["utls"] = new JObject
 			{
 				["enabled"] = true,
-				["fingerprint"] = (string.IsNullOrWhiteSpace(node.Fingerprint) ? "chrome" : node.Fingerprint)
+				["fingerprint"] = (!string.IsNullOrWhiteSpace(options.DpiFingerprint) ? options.DpiFingerprint : (string.IsNullOrWhiteSpace(node.Fingerprint) ? "chrome" : node.Fingerprint))
 			}
 		};
 		if (node.AllowInsecure)
@@ -1003,11 +1003,8 @@ public sealed class SingBoxConfigBuilder
 		{
 			tls["fragment"] = true;
 			tls["fragment_fallback_delay"] = FragmentFallbackDelay(options.FragmentInterval);
-			if (options.RecordFragment)
-			{
-				tls["record_fragment"] = true;
-			}
 		}
+		if (options.RecordFragment) tls["record_fragment"] = true;
 		if (security == "tls" && options is { TlsSpoofEnabled: true } && !string.IsNullOrWhiteSpace(options.TlsSpoofSni))
 		{
 			tls["spoof"] = options.TlsSpoofSni;

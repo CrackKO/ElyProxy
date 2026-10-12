@@ -405,6 +405,48 @@
 
         <!-- ================= DPI ================= -->
         <TextBlock x:Name="DpiAnchor" Text="Обход DPI" Style="{StaticResource Text.SectionHeader}" Margin="2,20,0,8" />
+        <Border Style="{StaticResource AppleInsetGroup}" Margin="0,0,0,12">
+          <StackPanel>
+            <Border Style="{StaticResource AppleSettingRow}">
+              <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="Готовые профили" Style="{StaticResource Text.Body}" />
+                  <controls:InfoHint Text="Экспериментальные варианты для TCP TLS. Выбор в списке ничего не меняет: нажмите «Применить профиль». Профиль сохраняется для следующего подключения, отключает шум и spoofing, сохраняет выбранный отпечаток. IP-блокировку, строгий белый список и отключение связи эти настройки не устраняют." />
+                </StackPanel>
+                <TextBlock Text="По умолчанию выключено. Изменения применяются только по вашему выбору." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,10" />
+                <ComboBox ItemsSource="{Binding DpiProfiles}" DisplayMemberPath="Name" SelectedItem="{Binding SelectedDpiProfile}" AutomationProperties.Name="Профиль DPI" />
+                <TextBlock Text="{Binding SelectedDpiProfile.Description}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,8,0,8" />
+                <Button Content="Применить профиль" Command="{Binding ApplyDpiProfileCommand}" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left" />
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}">
+              <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="Подобрать для выбранного сервера" Style="{StaticResource Text.Body}" />
+                  <controls:InfoHint Text="Запускается только этой кнопкой при отключённом VPN. Проверяет HTTPS через временное локальное ядро: два внешних сервиса по два раза на профиль, до четырёх минут. Настройки, маршруты Windows и подписка не изменяются. Выберите ядро, которое используете для подключения: Xray для Proxy Lite/Xray TUN; sing-box для Proxy Pro/sing-box ElyTun. Результат не доказывает наличие DPI и не гарантирует работу других сайтов." />
+                </StackPanel>
+                <TextBlock Text="{Binding SelectedNode.DisplayName, TargetNullValue=Сначала выберите сервер}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,8" />
+                <CheckBox Content="Проверять через sing-box (иначе Xray)" IsChecked="{Binding DpiProbeSingBox}" Margin="0,0,0,10" />
+                <WrapPanel>
+                  <Button Content="Начать подбор" Command="{Binding TuneDpiCommand}" Style="{StaticResource SecondaryButton}" Margin="0,0,8,6" />
+                  <Button Content="Остановить" Command="{Binding CancelDpiTuningCommand}" Style="{StaticResource GhostButton}" Margin="0,0,0,6" />
+                </WrapPanel>
+                <TextBlock Text="{Binding DpiTuningStatus}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,8,0,0" />
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource AppleRowSeparator}" />
+            <Border Style="{StaticResource AppleSettingRow}">
+              <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="Отпечаток TLS" Style="{StaticResource Text.Body}" />
+                  <controls:InfoHint Text="Меняет форму ClientHello в Xray и sing-box для TLS/REALITY; это не полная имитация браузера и не дополнительное шифрование. По умолчанию используется значение подписки. Сервер, SNI и проверка сертификата не меняются. Сохранится для следующего подключения." />
+                </StackPanel>
+                <ComboBox ItemsSource="{Binding DpiFingerprintOptions}" DisplayMemberPath="Value" SelectedValuePath="Key" SelectedValue="{Binding DpiFingerprint}" AutomationProperties.Name="Отпечаток TLS" Margin="0,8,0,0" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Border>
         <Border Style="{StaticResource AppleInsetGroup}">
           <StackPanel>
             <Border Style="{StaticResource AppleSettingRow}">
@@ -416,7 +458,7 @@
                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
                   <StackPanel Orientation="Horizontal">
                     <TextBlock Text="Фрагментация TLS" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
-                    <controls:InfoHint Text="Дробит TLS ClientHello на части, чтобы обойти фильтрацию по SNI. Режим «Авто» подходит большинству. Фрагментация может замедлить соединение и изредка ломать отдельные сайты — если что-то перестало открываться, выключите её. Работает для Xray (через dialerProxy) и sing-box (tls.fragment); ядро Hysteria 2 TUN фрагментацию не использует." />
+                    <controls:InfoHint Text="Дробит TLS ClientHello на части. «Стандартный» — фиксированные параметры 100–200 байт и 10–20 мс для Xray; в sing-box используется резервная пауза 10 мс, а размер выбирает ядро. Для подбора используйте кнопку выше. Может замедлить соединение. Hysteria 2 TUN эту настройку не использует." />
                   </StackPanel>
                   <TextBlock Text="Дробит TLS ClientHello, чтобы обойти SNI-фильтры. Может замедлить соединение." Style="{StaticResource Text.Caption}" Margin="0,2,0,0" TextWrapping="Wrap" />
                 </StackPanel>
@@ -426,7 +468,7 @@
                           AutomationProperties.Name="Фрагментация TLS"
                           SelectedIndex="{Binding FragmentModeIndex, Mode=TwoWay}">
                   <ComboBoxItem Content="Выключено" />
-                  <ComboBoxItem Content="Авто" />
+                  <ComboBoxItem Content="Стандартный" />
                   <ComboBoxItem Content="Свой" />
                 </ComboBox>
               </Grid>

@@ -1790,7 +1790,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		RemoveSubscriptionCommand = new AsyncRelayCommand(() => RunSubscriptionMutationAsync(RemoveSubscriptionAsync), () => SelectedSubscription != null && !IsLoading);
 		UpdateSubscriptionCommand = new AsyncRelayCommand(() => RunSubscriptionMutationAsync(UpdateSelectedSubscriptionAsync), () => SelectedSubscription != null && !IsLoading);
 		UpdateAllSubscriptionsCommand = new AsyncRelayCommand(() => RunSubscriptionMutationAsync(UpdateAllSubscriptionsAsync), () => Subscriptions.Count > 0 && !IsLoading);
-		ConnectCommand = new AsyncRelayCommand(ConnectAsync, () => SelectedNode != null && !IsLoading);
+		ConnectCommand = new AsyncRelayCommand(ConnectAsync, () => SelectedNode != null && !IsLoading && _dpiTuningCancellation == null);
 		DisconnectCommand = new AsyncRelayCommand(DisconnectAsync, () => IsConnected && !IsLoading);
 		ConnectFromProfileCommand = new AsyncRelayCommand(ConnectFromProfileAsync, () => SelectedProfileNode != null && !IsLoading);
 		PingAllCommand = new AsyncRelayCommand(PingAllAsync, () => AllNodes.Count > 0 && !IsLoading);
@@ -2277,6 +2277,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private async Task ConnectToNodeCoreAsync(VlessNode? node)
 	{
+        if (_dpiTuningCancellation != null)
+        {
+            DialogService.Current.Notify("Подбор DPI", "Сначала остановите подбор DPI в настройках.");
+            return;
+        }
 		if (node == null)
 		{
 			return;
@@ -3453,7 +3458,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private XrayTunOptions? BuildXrayOutboundOptionsOrNull()
 	{
-		if (FragmentMode == FragmentModeKind.Off && _perAppMode != PerAppModeKind.OnlySelected && GetApplicationBypassPaths().Count == 0)
+		if (FragmentMode == FragmentModeKind.Off && string.IsNullOrEmpty(DpiFingerprint) && _perAppMode != PerAppModeKind.OnlySelected && GetApplicationBypassPaths().Count == 0)
 		{
 			return null;
 		}
@@ -3476,13 +3481,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			PerAppMode = _perAppMode,
 			TlsSpoofEnabled = _tlsSpoofEnabled,
 			TlsSpoofSni = (_tlsSpoofEnabled ? TlsSpoofSni.Trim() : string.Empty),
-			TlsSpoofMethod = _tlsSpoofMethod
+			TlsSpoofMethod = _tlsSpoofMethod,
+            DpiFingerprint = DpiFingerprint
 		};
 	}
 
 	private XrayTunOptions BuildProbeOptions()
 	{
-		return WithFragmentSettings(new XrayTunOptions("ElyProbe", 1500, GetElyTunDnsServers(), false, Array.Empty<string>(), Array.Empty<string>(), RoutingPreset.Custom, Array.Empty<string>()));
+		return WithFragmentSettings(new XrayTunOptions("ElyProbe", 1500, GetElyTunDnsServers(), false, Array.Empty<string>(), Array.Empty<string>(), RoutingPreset.Custom, Array.Empty<string>())) with
+        {
+            // Probe traffic must traverse the server even in OnlySelected routing mode.
+            PerAppMode = PerAppModeKind.Bypass,
+            BypassProcessPaths = Array.Empty<string>()
+        };
 	}
 
 	private (string Packets, string Length, string Interval) ResolveFragmentValues()	{
@@ -5656,6 +5667,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			FragmentLength = (string.IsNullOrWhiteSpace(settings.FragmentLength) ? "100-200" : settings.FragmentLength);
 			FragmentInterval = (string.IsNullOrWhiteSpace(settings.FragmentInterval) ? "10-20" : settings.FragmentInterval);
 			FragmentRecord = settings.FragmentRecord;
+            DpiFingerprint = settings.DpiFingerprint;
 			PerAppMode = (Enum.IsDefined(settings.PerAppMode) ? settings.PerAppMode : PerAppModeKind.Bypass);
 			TlsSpoofEnabled = settings.TlsSpoofEnabled;
 			TlsSpoofSni = (settings.TlsSpoofSni ?? string.Empty);
@@ -5907,6 +5919,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				FragmentLength = FragmentLength,
 				FragmentInterval = FragmentInterval,
 				FragmentRecord = FragmentRecord,
+                DpiFingerprint = DpiFingerprint,
 				PerAppMode = PerAppMode,
 				TlsSpoofEnabled = TlsSpoofEnabled,
 				TlsSpoofSni = TlsSpoofSni,
@@ -5939,6 +5952,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	public void Dispose()
 	{
+        _dpiTuningCancellation?.Cancel();
 		_isDisposed = true;
 		try { _elyTunConnectivityCancellation?.Cancel(); } catch (ObjectDisposedException) { }
 		_torrentBlocker?.Dispose();
