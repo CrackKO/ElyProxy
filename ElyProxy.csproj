@@ -7,7 +7,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>ElyProxy</RootNamespace>
     <AssemblyName>ElyProxy</AssemblyName>
-    <Version>1.4.4-dev</Version>
+    <Version>1.4.4</Version>
     <AssemblyVersion>1.4.4.0</AssemblyVersion>
     <FileVersion>1.4.4.0</FileVersion>
     <Nullable>enable</Nullable>
