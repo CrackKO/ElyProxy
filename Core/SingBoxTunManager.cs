@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -56,9 +56,9 @@ public sealed class SingBoxTunManager : IDisposable
 		return CoreLocator.Resolve("sing-box", "sing-box.exe", "sing-box", Path.Combine("bin", "sing-box"), string.Empty);
 	}
 
-	public async Task StartAsync(VlessNode node, int socksPort, XrayTunOptions tunOptions)
+	public async Task StartAsync(VlessNode node, int socksPort, XrayTunOptions tunOptions, CancellationToken cancellationToken = default)
 	{
-		await _lifecycleLock.WaitAsync();
+		await _lifecycleLock.WaitAsync(cancellationToken);
 		try
 		{
 			string singBoxPath = GetSingBoxPath();
@@ -93,9 +93,10 @@ public sealed class SingBoxTunManager : IDisposable
 				this.LogReceived?.Invoke($"[sys] ElyTun: auto route, {effectiveTunOptions.InterfaceName}, MTU {effectiveTunOptions.Mtu}");
 				this.LogReceived?.Invoke((effectiveTunOptions.RoutingPreset == RoutingPreset.RoscomVpnDefault) ? "[sys] ElyTun DNS: RoscomVPN DEFAULT (Yandex direct, Google DoH через прокси)" : ("[sys] ElyTun DNS: bypass → " + (effectiveTunOptions.DnsServers.FirstOrDefault() ?? "авто") + ", остальное → DoH через прокси"));
 				string workingDirectory = Path.GetDirectoryName(singBoxPath);
-				await _processManager.StartAsync(singBoxPath, "run -c \"" + _configPath + "\"", workingDirectory, stopExisting: false);
+				await _processManager.StartCancellableAsync(singBoxPath, "run -c \"" + _configPath + "\"", workingDirectory, stopExisting: false, cancellationToken: cancellationToken);
 				await EnsureStartedAsync(startCancellation.Token);
-				this.StatusChanged?.Invoke(obj: true);
+				cancellationToken.ThrowIfCancellationRequested();
+			this.StatusChanged?.Invoke(obj: true);
 			}
 			catch
 			{

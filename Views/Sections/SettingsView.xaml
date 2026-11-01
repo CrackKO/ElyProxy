@@ -627,7 +627,7 @@
                         <ComboBoxItem Content="Xray TUN" />
                         <ComboBoxItem Content="tun2proxy" />
                         <ComboBoxItem Content="Hysteria 2 TUN" />
-                        <ComboBoxItem Content="Auto" />
+                        <ComboBoxItem Content="Автоматически (рекомендуется)" />
                       </ComboBox>
                     </Grid>
                   </Border>
@@ -735,9 +735,9 @@
           <StackPanel Margin="0,12,0,12">
             <TextBlock Text="Ядро для SOCKS, Proxy Lite и Proxy Pro" Style="{StaticResource Text.Body}" />
             <ComboBox SelectedIndex="{Binding ProxyCoreIndex, Mode=TwoWay}" AutomationProperties.Name="Ядро прокси" Margin="0,8,0,8">
-              <ComboBoxItem Content="Auto" /><ComboBoxItem Content="sing-box" /><ComboBoxItem Content="Xray" /><ComboBoxItem Content="По режиму: Lite → Xray, Pro → sing-box" />
+              <ComboBoxItem Content="Автоматически (рекомендуется)" /><ComboBoxItem Content="sing-box" /><ComboBoxItem Content="Xray" /><ComboBoxItem Content="По режиму: Lite → Xray, Pro → sing-box" /><ComboBoxItem Content="Hysteria 2" />
             </ComboBox>
-            <TextBlock Text="Этот выбор влияет на локальный SOCKS, Proxy Lite (PAC) и Proxy Pro (системный прокси). Для ElyTun ядро выбирается отдельно в разделе ElyTun. Auto предпочитает совместимое ядро; ручной выбор не меняет режим подключения." TextWrapping="Wrap" Style="{StaticResource Text.Caption}" Margin="0,0,0,8" />
+            <TextBlock Text="Этот выбор влияет на локальный SOCKS, Proxy Lite (PAC) и Proxy Pro (системный прокси). Для ElyTun ядро выбирается отдельно в разделе ElyTun. Автоматический выбор учитывает совместимость, историю и резервные ядра; ручной выбор не меняет режим подключения." TextWrapping="Wrap" Style="{StaticResource Text.Caption}" Margin="0,0,0,8" />
             <TextBlock Text="{Binding ResolvedCoreDescription}" TextWrapping="Wrap" Style="{StaticResource Text.Caption}" />
             <Button Content="Применить настройки соединения" Command="{Binding ApplyConnectionSettingsCommand}" Margin="0,8,0,0" />
           </StackPanel>

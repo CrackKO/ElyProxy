@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -48,9 +48,9 @@ public sealed class SingBoxProxyManager : IDisposable
 		return CoreLocator.Resolve("sing-box", "sing-box.exe", "sing-box", Path.Combine("bin", "sing-box"), string.Empty);
 	}
 
-	public async Task StartAsync(VlessNode node, int proxyPort, XrayTunOptions options)
+	public async Task StartAsync(VlessNode node, int proxyPort, XrayTunOptions options, CancellationToken cancellationToken = default)
 	{
-		await _lifecycleLock.WaitAsync();
+		await _lifecycleLock.WaitAsync(cancellationToken);
 		try
 		{
 			string singBoxPath = GetSingBoxPath();
@@ -75,8 +75,8 @@ public sealed class SingBoxProxyManager : IDisposable
 			await ValidateConfigurationAsync(singBoxPath, _configPath);
 			_startCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 			string workingDirectory = Path.GetDirectoryName(singBoxPath);
-			await _processManager.StartAsync(singBoxPath, "run -c \"" + _configPath + "\"", workingDirectory, stopExisting: false);
-			if (await Task.WhenAny(_startCompletion.Task, Task.Delay(StartupProbeDelay)) == _startCompletion.Task)
+			await _processManager.StartCancellableAsync(singBoxPath, "run -c \"" + _configPath + "\"", workingDirectory, stopExisting: false, cancellationToken: cancellationToken);
+			if (await Task.WhenAny(_startCompletion.Task, Task.Delay(StartupProbeDelay, cancellationToken)) == _startCompletion.Task)
 			{
 				await _startCompletion.Task;
 			}
@@ -85,6 +85,7 @@ public sealed class SingBoxProxyManager : IDisposable
 				throw new InvalidOperationException("sing-box завершился сразу после запуска Proxy Pro.");
 			}
 			_startCompletion = null;
+			cancellationToken.ThrowIfCancellationRequested();
 			this.StatusChanged?.Invoke(obj: true);
 			this.LogReceived?.Invoke($"[sys] Proxy Pro: локальный HTTP/SOCKS {proxyPort}, TUN не используется");
 		}

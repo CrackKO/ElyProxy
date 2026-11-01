@@ -346,6 +346,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		{
 			if (SetProperty(ref _selectedNode, value, "SelectedNode"))
 			{
+                if (_engineAttempt != null) { CancelEngineAttempt(); Interlocked.Increment(ref _connectionGeneration); }
                 if (!_isLoadingSettings && DpiProbeNode == null) LoadDpiEditor();
 				NotifyConnectionPanel();
 				CommandManager.InvalidateRequerySuggested();
@@ -1075,7 +1076,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		{
 			return _tunCore switch
 			{
-				TunCoreKind.Auto => "Auto — совместимое ядро без сетевого перебора; при равных возможностях sing-box.",
+				TunCoreKind.Auto => "Автоматически — выбор по совместимости и истории; при ошибке запуска используется резервное ядро.",
 				TunCoreKind.Xray => "Xray TUN — нативный TUN самого Xray (один процесс). VLESS, VMess, Trojan, Shadowsocks, SOCKS.",
 				TunCoreKind.Tun2Proxy => "tun2proxy — TUN-адаптер поверх локального SOCKS-порта; работает со всеми протоколами обоих ядер.",
 				TunCoreKind.Hysteria => "Hysteria 2 TUN — встроенный TUN ядра Hysteria (только для нод hysteria2; autoRoute, правила ElyTun не применяются).",
@@ -2025,6 +2026,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			return;
 		}
 
+		CancelEngineAttempt();
 		_runtimeChanges.Cancel();
 		int requestGeneration = Interlocked.Increment(ref _connectionGeneration);
 		await _coreLifecycleLock.WaitAsync();
@@ -2319,6 +2321,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 	private async Task DisconnectAsync()
 	{
         CancelServerProbe();
+		CancelEngineAttempt();
 		_runtimeChanges.Cancel();
 		Interlocked.Increment(ref _connectionGeneration);
 		await _coreLifecycleLock.WaitAsync();
@@ -4004,7 +4007,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 	}
 
-	private async Task StartSelectedCoreAsync(VlessNode node)
+	private async Task StartSelectedCoreOnceAsync(VlessNode node, CancellationToken cancellationToken = default)
 	{
 		if (ElyTunEnabled)
 		{
@@ -4014,7 +4017,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			case TunCoreKind.Xray:
 				WarnAboutRoutingPreset("Xray TUN", presetSupported: false);
 				WarnIfSpoofUnsupported("Xray TUN");
-				await _xrayManager.StartAsync(node, SocksPort, options);
+				await _xrayManager.StartAsync(node, SocksPort, options, cancellationToken: cancellationToken);
 				ActiveConfigHash = _xrayManager.LastConfigHash ?? string.Empty;
 				break;
 			case TunCoreKind.Tun2Proxy:
@@ -4023,12 +4026,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			case TunCoreKind.Hysteria:
 				WarnAboutRoutingPreset("Hysteria 2 TUN", presetSupported: false);
 				WarnIfSpoofUnsupported("Hysteria 2 TUN");
-				await _hysteriaManager.StartTunAsync(node, options);
+				await _hysteriaManager.StartTunAsync(node, options, cancellationToken);
 				ActiveConfigHash = _hysteriaManager.LastConfigHash ?? string.Empty;
 				break;
 			default:
 				WarnAboutRoutingPreset("sing-box", presetSupported: true);
-				await _singBoxTunManager.StartAsync(node, SocksPort, WithClashApi(options));
+				await _singBoxTunManager.StartAsync(node, SocksPort, WithClashApi(options), cancellationToken);
 				ActiveConfigHash = _singBoxTunManager.LastConfigHash ?? string.Empty;
 				StartTrafficMonitor();
 				break;
@@ -4041,7 +4044,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				WarnAboutRoutingPreset("Hysteria 2", presetSupported: false);
 				WarnIfSpoofUnsupported("Hysteria 2");
 				int hysteriaHttpPort = GetFreeTcpPort();
-				await _hysteriaManager.StartAsync(node, SocksPort, hysteriaHttpPort);
+				await _hysteriaManager.StartAsync(node, SocksPort, hysteriaHttpPort, cancellationToken);
 				ActiveConfigHash = _hysteriaManager.LastConfigHash ?? string.Empty;
 				AppendLog("[sys] Proxy Pro: ядро Hysteria 2");
 			}
@@ -4049,7 +4052,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			{
 				WarnAboutRoutingPreset("sing-box", presetSupported: true);
 				XrayTunOptions options2 = _preparedOptions ?? BuildProxyProOptionsOrNull() ?? throw new InvalidOperationException("Параметры Proxy Pro не подготовлены.");
-				await _singBoxProxyManager.StartAsync(node, SocksPort, WithClashApi(options2));
+				await _singBoxProxyManager.StartAsync(node, SocksPort, WithClashApi(options2), cancellationToken);
 				ActiveConfigHash = _singBoxProxyManager.LastConfigHash ?? string.Empty;
 				StartTrafficMonitor();
 			}
@@ -4061,11 +4064,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			XrayTunOptions? fragmentOptions = _preparedOptions ?? BuildXrayOutboundOptionsOrNull();
 			if (fragmentOptions != null)
 			{
-				await _xrayManager.StartAsync(node, SocksPort, fragmentOptions, includeTunInbound: false);
+				await _xrayManager.StartAsync(node, SocksPort, fragmentOptions, includeTunInbound: false, cancellationToken: cancellationToken);
 			}
 			else
 			{
-				await _xrayManager.StartAsync(node, SocksPort);
+				await _xrayManager.StartAsync(node, SocksPort, cancellationToken: cancellationToken);
 			}
 			ActiveConfigHash = _xrayManager.LastConfigHash ?? string.Empty;
 		}
@@ -4195,6 +4198,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private bool RequiresHysteriaCore(VlessNode? node)
 	{
+		if (_resolvedPlan != null) return _resolvedPlan.Core == ProxyCoreKind.Hysteria;
 		if (!UsesHysteriaCore(node))
 		{
 			return false;
@@ -5265,7 +5269,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			ProxyProEnabled = !elevatedElyTunLaunch && settings.ProxyProEnabled;
 			ElyTunEnabled = elevatedElyTunLaunch || (!ProxyProEnabled && settings.ElyTunEnabled && (isAdministrator || helperReady));
 			ElyTunIpv6Enabled = settings.ElyTunIpv6Enabled;
-			_proxyCoreSelection = settings.ProxyCore;
+			_proxyCoreSelection = CoreSettingsMigration.ResolveLegacyProxy(settings);
 			OnPropertyChanged(nameof(ProxyCoreIndex));
 			TunCore = (Enum.IsDefined(settings.TunCore) ? settings.TunCore : TunCoreKind.SingBox);
 			Hysteria2Engine = (Enum.IsDefined(settings.Hysteria2Engine) ? settings.Hysteria2Engine : Hysteria2Engine.SingBox);
@@ -5611,3 +5615,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		GC.SuppressFinalize(this);
 	}
 }
+
+
+

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -38,7 +38,7 @@ public class XrayManager : IDisposable
 		return CoreLocator.Resolve("xray", "xray.exe", "xray", Path.Combine("bin", "xray"), string.Empty);
 	}
 
-	public async Task StartAsync(VlessNode node, int socksPort = 1080, XrayTunOptions? tunOptions = null, bool includeTunInbound = true)
+	public async Task StartAsync(VlessNode node, int socksPort = 1080, XrayTunOptions? tunOptions = null, bool includeTunInbound = true, CancellationToken cancellationToken = default)
 	{
 		string xrayPath = GetXrayPath();
 		if (!File.Exists(xrayPath))
@@ -49,7 +49,7 @@ public class XrayManager : IDisposable
 		await StopBeforeStartAsync();
 		if (usesTun)
 		{
-			await Task.Delay(TimeSpan.FromSeconds(1.0));
+			await Task.Delay(TimeSpan.FromSeconds(1.0), cancellationToken);
 		}
 		string configJson = _configBuilder.Build(node, socksPort, tunOptions, includeTunInbound);
 		LastConfigHash = ConfigHash.Compute(configJson);
@@ -70,9 +70,10 @@ public class XrayManager : IDisposable
 			this.LogReceived?.Invoke("[sys] Обход DPI: фрагментация TLS включена" + (string.IsNullOrWhiteSpace(tunOptions.NoiseType) ? "" : ", noise " + tunOptions.NoiseType));
 		}
 		string xrayDir = Path.GetDirectoryName(xrayPath);
-		await _processManager.StartAsync(xrayPath, "run -config \"" + _configPath + "\"", xrayDir, stopExisting: false);
-		await EnsureStartedAsync(usesTun ? TimeSpan.FromSeconds(25.0) : TimeSpan.FromSeconds(5.0));
-		this.StatusChanged?.Invoke(obj: true);
+		await _processManager.StartCancellableAsync(xrayPath, "run -config \"" + _configPath + "\"", xrayDir, stopExisting: false, cancellationToken: cancellationToken);
+		await EnsureStartedAsync(usesTun ? TimeSpan.FromSeconds(25.0) : TimeSpan.FromSeconds(5.0)).WaitAsync(cancellationToken);
+		cancellationToken.ThrowIfCancellationRequested();
+			this.StatusChanged?.Invoke(obj: true);
 	}
 
 	public async Task StartSocksAsync(SocksNode node, int socksPort = 1080)

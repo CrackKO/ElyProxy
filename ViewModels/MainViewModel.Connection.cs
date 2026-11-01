@@ -1,4 +1,4 @@
-using ElyProxy.Core;
+﻿using ElyProxy.Core;
 using ElyProxy.Models;
 using PerAppModeKind = ElyProxy.Models.PerAppMode;
 using ElyProxy.Services;
@@ -95,17 +95,17 @@ public partial class MainViewModel
     private TaskCompletionSource? _dpiTuningFinished;
     public int ProxyCoreIndex
     {
-        get => _proxyCoreSelection.HasValue ? (int)_proxyCoreSelection.Value : 3;
+        get => _proxyCoreSelection == ProxyCoreKind.Hysteria ? 4 : _proxyCoreSelection.HasValue ? (int)_proxyCoreSelection.Value : 3;
         set
         {
-            _proxyCoreSelection = value is >= 0 and <= 2 ? (ProxyCoreKind)value : null;
+            _proxyCoreSelection = value == 4 ? ProxyCoreKind.Hysteria : value is >= 0 and <= 2 ? (ProxyCoreKind)value : null;
             OnPropertyChanged(nameof(ProxyCoreIndex));
             if (!_isLoadingSettings) MarkConnectionSettingsPending();
         }
     }
     private TunCoreKind EffectiveTunCore => TunCore == TunCoreKind.Auto
-        ? _resolvedPlan?.Core == ProxyCoreKind.Xray ? TunCoreKind.Xray : TunCoreKind.SingBox : TunCore;
-    private bool UsesSingBoxProxy => _resolvedPlan?.Core == ProxyCoreKind.SingBox || (_resolvedPlan == null && ProxyProEnabled);
+        ? _resolvedPlan?.Core == ProxyCoreKind.Hysteria ? TunCoreKind.Hysteria : _resolvedPlan?.Core == ProxyCoreKind.Xray ? TunCoreKind.Xray : TunCoreKind.SingBox : TunCore;
+    private bool UsesSingBoxProxy => _resolvedPlan?.Core is ProxyCoreKind.SingBox or ProxyCoreKind.Hysteria || (_resolvedPlan == null && ProxyProEnabled);
     public string ResolvedCoreDescription => _resolvedPlan?.Reason ?? "Ядро будет определено перед подключением";
     public bool HasPendingConnectionSettings
     {
@@ -136,7 +136,7 @@ public partial class MainViewModel
         if (ElyTunEnabled && TunCore == TunCoreKind.Hysteria)
         {
             if (node.Protocol is not ("hysteria2" or "hy2")) throw new NotSupportedException("Hysteria TUN поддерживает только Hysteria2");
-            _resolvedPlan = new(ProxyCoreKind.Auto, "Ядро выбрано вручную: Hysteria 2");
+            _resolvedPlan = new(ProxyCoreKind.Hysteria, "Ядро выбрано вручную: Hysteria 2");
             return;
         }
         _resolvedPlan = ResolveCoreForNode(node);
@@ -156,9 +156,19 @@ public partial class MainViewModel
             TunCoreKind.SingBox => ProxyCoreKind.SingBox,
             _ => ProxyCoreKind.Auto
         } : _proxyCoreSelection ?? (ProxyProEnabled ? ProxyCoreKind.SingBox : ProxyCoreKind.Xray);
-        return CoreSelectionPolicy.Resolve(node, requested,
+        bool requireXray = xrayDpi && !singBoxDpi;
+        bool requireSingBox = singBoxDpi && !xrayDpi || RoutingPreset == RoutingPreset.RoscomVpnDefault && _perAppMode != PerAppModeKind.OnlySelected;
+        bool allowHysteria = !xrayDpi && !singBoxDpi && GetApplicationBypassPaths().Count == 0 && !requireSingBox;
+        if (!EngineAuto && RequiresHysteriaCore(node)) requested = ProxyCoreKind.Hysteria;
+        _engineCandidates = CoreCandidateSelector.Evaluate(node, requested,
             File.Exists(_singBoxProxyManager.GetSingBoxPath()), File.Exists(_xrayManager.GetXrayPath()),
-            requiresXray: xrayDpi && !singBoxDpi, requiresSingBox: singBoxDpi && !xrayDpi || RoutingPreset == RoutingPreset.RoscomVpnDefault && _perAppMode != PerAppModeKind.OnlySelected);
+            requireXray, requireSingBox, _coreHistory, EngineMode,
+            File.Exists(_hysteriaManager.GetHysteriaPath()), allowHysteria);
+        foreach (var candidate in _engineCandidates)
+            AppendLog($"[EngineManager] {candidate.Core}: {(candidate.Compatible ? $"score={candidate.Score}" : candidate.Rejection)}");
+        var selected = _engineCandidates.FirstOrDefault(c => c.Compatible)
+            ?? throw new NotSupportedException(string.Join("; ", _engineCandidates.Select(c => c.Rejection)));
+        return new(selected.Core, $"Ядро: {selected.Core}" + (EngineAuto ? " (Авто)" : ""));
     }
 
     private async Task ValidatePreparedConnectionAsync(VlessNode node)
@@ -188,6 +198,7 @@ public partial class MainViewModel
                 throw new NotSupportedException("Встроенные DPI-профили не поддерживаются ядром Hysteria. Выберите sing-box.");
             return;
         }
+        if (_resolvedPlan?.Core == ProxyCoreKind.Hysteria) return;
         bool singBox = ElyTunEnabled ? EffectiveTunCore == TunCoreKind.SingBox || EffectiveTunCore == TunCoreKind.Tun2Proxy && _resolvedPlan?.Core == ProxyCoreKind.SingBox : UsesSingBoxProxy;
         string json = singBox ? ElyTunEnabled && EffectiveTunCore != TunCoreKind.Tun2Proxy
             ? new SingBoxConfigBuilder().BuildTun(node, SocksPort, _preparedOptions)
@@ -196,7 +207,7 @@ public partial class MainViewModel
         await CoreConfigurationValidator.ValidateAsync(singBox ? _singBoxProxyManager.GetSingBoxPath() : _xrayManager.GetXrayPath(), json, singBox);
     }
 
-    private async Task CheckPreparedPathAsync()
+    private async Task CheckPreparedPathAsync(CancellationToken cancellationToken = default)
     {
         using var handler = new System.Net.Http.SocketsHttpHandler
         {
@@ -211,7 +222,7 @@ public partial class MainViewModel
             handler.ConnectCallback = (context, token) => ConnectionReadiness.ConnectThroughTunAsync(name, context.DnsEndPoint, token);
         }
         using var http = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
-        var result = await new ElyTunConnectivityService(http).CheckAsync();
+        var result = await new ElyTunConnectivityService(http).CheckAsync(cancellationToken);
         if (!result.Reachable) throw new IOException("Передача HTTPS через выбранную сессию не подтверждена. " + result.Details);
         AppendLog("[sys] Сетевая сессия проверена: " + result.Details);
     }
@@ -219,6 +230,7 @@ public partial class MainViewModel
     public async Task ShutdownAsync()
     {
         if (_shutdownComplete) return;
+        CancelEngineAttempt();
         _coreLifecycleLock.BeginShutdown();
         _runtimeChanges.Cancel();
         Interlocked.Increment(ref _connectionGeneration);
@@ -243,3 +255,6 @@ public partial class MainViewModel
         finally { _coreLifecycleLock.Release(); }
     }
 }
+
+
+

@@ -13,7 +13,7 @@ public static class CoreHostLaunch
 {
     public static ProcessStartInfo Create(string helper, string file, string args, string? directory)
     {
-        var info = new ProcessStartInfo(helper) { UseShellExecute = false, CreateNoWindow = true,
+        var info = new ProcessStartInfo(helper) { UseShellExecute = false, CreateNoWindow = false, WindowStyle = ProcessWindowStyle.Hidden,
             RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true,
             StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8 };
         info.ArgumentList.Add("core-host");
@@ -23,3 +23,4 @@ public static class CoreHostLaunch
     public static bool IsCore(string file) => new[] { "xray.exe", "sing-box.exe", "tun2proxy-bin.exe", "hysteria.exe" }
         .Contains(Path.GetFileName(file), StringComparer.OrdinalIgnoreCase);
 }
+

@@ -38,7 +38,7 @@ public sealed class StorageService
         SaveAsync("profiles.json", profiles.ToList());
 
     public Task<StorageLoadResult<AppSettings>> LoadSettingsAsync() =>
-        LoadAsync("settings.json", static () => new AppSettings { ProxyCore = ElyProxy.Core.ProxyCoreKind.Auto, TunCore = TunCoreKind.Auto });
+        LoadAsync("settings.json", CoreSettingsMigration.NewInstallation);
 
     public Task SaveSettingsAsync(AppSettings settings) =>
         SaveAsync("settings.json", settings);
@@ -258,3 +258,4 @@ public sealed class StorageService
         public T? Data { get; set; }
     }
 }
+

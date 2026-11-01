@@ -15,7 +15,7 @@ internal static class CoreHost
         var launch = JsonSerializer.Deserialize<CoreLaunch>(Encoding.UTF8.GetString(Convert.FromBase64String(encoded)))
             ?? throw new InvalidDataException("Missing core launch.");
         if (!HelperProtocol.IsAllowedExecutable(launch.File)) throw new InvalidDataException("Invalid core.");
-        // Capture redirected streams BEFORE AllocConsole replaces native standard handles.
+        // Capture redirected IPC before allocating the isolated console. The launcher supplies SW_HIDE.
         using var input = new StreamReader(Console.OpenStandardInput(), Encoding.UTF8);
         using var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
         using var error = new StreamWriter(Console.OpenStandardError(), new UTF8Encoding(false)) { AutoFlush = true };
@@ -77,3 +77,5 @@ internal static class CoreHost
     [DllImport("kernel32.dll")] private static extern bool GenerateConsoleCtrlEvent(uint signal, uint group);
     [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr window, int command);
 }
+
+

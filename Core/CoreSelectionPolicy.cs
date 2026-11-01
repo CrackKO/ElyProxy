@@ -2,7 +2,7 @@ using ElyProxy.Models;
 
 namespace ElyProxy.Core;
 
-public enum ProxyCoreKind { Auto, SingBox, Xray }
+public enum ProxyCoreKind { Auto, SingBox, Xray, Hysteria }
 public sealed record ResolvedConnectionPlan(ProxyCoreKind Core, string Reason);
 
 /// <summary>Pure, deterministic selection. Does not probe the network or change settings.</summary>
@@ -22,19 +22,16 @@ public static class CoreSelectionPolicy
     public static ResolvedConnectionPlan Resolve(VlessNode node, ProxyCoreKind requested,
         bool singBoxInstalled, bool xrayInstalled, bool requiresXray = false, bool requiresSingBox = false)
     {
-        string? Limitation(ProxyCoreKind core) => core == ProxyCoreKind.SingBox
-            ? !singBoxInstalled ? "sing-box не установлен" : requiresXray ? "Настройки требуют Xray" : ProxyProtocolSupport.DescribeSingBoxLimitation(node)
-            : !xrayInstalled ? "Xray не установлен" : requiresSingBox ? "Настройки требуют sing-box" : ProxyProtocolSupport.DescribeXrayLimitation(node);
-        var candidates = requested == ProxyCoreKind.Auto
-            ? new[] { ProxyCoreKind.SingBox, ProxyCoreKind.Xray } : new[] { requested };
+        var candidates = CoreCandidateSelector.Evaluate(node, requested, singBoxInstalled, xrayInstalled, requiresXray, requiresSingBox);
         var reasons = new List<string>();
-        foreach (var core in candidates)
+        foreach (var candidate in candidates)
         {
-            string? limitation = Limitation(core);
-            if (limitation == null) return new(core, requested == ProxyCoreKind.Auto
-                ? $"Auto: {(core == ProxyCoreKind.SingBox ? "sing-box" : "Xray")} — совместим с сервером и настройками" : "Ядро выбрано вручную");
-            reasons.Add(limitation);
+            if (candidate.Compatible) return new(candidate.Core, requested == ProxyCoreKind.Auto
+                ? $"Auto: {candidate.Core} — совместим с сервером и настройками; score={candidate.Score}" : "Ядро выбрано вручную");
+            reasons.Add(candidate.Rejection!);
         }
         throw new NotSupportedException(string.Join("; ", reasons.Distinct()));
     }
 }
+
+

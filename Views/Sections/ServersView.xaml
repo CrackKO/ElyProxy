@@ -243,8 +243,6 @@
       <StackPanel Grid.Column="1" Orientation="Horizontal">
         <Button Content="Проверить задержку" ToolTip="Проверить все серверы, включая скрытые фильтрами" Style="{StaticResource SecondaryButton}" Command="{Binding PingAllCommand}" Margin="0,0,6,0"/>
         <Button Content="Остановить проверку" Command="{Binding CancelServerProbeCommand}" Visibility="{Binding IsServerProbing, Converter={StaticResource BoolToVis}}" Margin="0,0,6,0" Style="{StaticResource SecondaryButton}" />
-          <Button Content="Отчёт проверки" Command="{Binding CopyServerProbeReportCommand}" Margin="0,0,6,0" Style="{StaticResource SecondaryButton}" />
-          <Button Content="Диагностика" Style="{StaticResource SecondaryButton}" Command="{Binding RunConnectionDiagnosticsCommand}"/>
       </StackPanel>
     </Grid>
     <Border Grid.Row="4" x:Name="PinnedServer" CornerRadius="12" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource BorderBr}" BorderThickness="1" Padding="12,10" Margin="0,0,0,10" Visibility="Collapsed">

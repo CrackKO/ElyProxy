@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -43,23 +43,23 @@ public sealed class HysteriaManager : IDisposable
 		return CoreLocator.Resolve("hysteria", "hysteria.exe", "hysteria", Path.Combine("bin", "hysteria"), string.Empty);
 	}
 
-	public Task StartAsync(VlessNode node, int socksPort, int httpPort = 0)
+	public Task StartAsync(VlessNode node, int socksPort, int httpPort = 0, CancellationToken cancellationToken = default)
 	{
 		return StartCoreAsync(
 			() => _configBuilder.Build(node, socksPort, httpPort),
-			$"[sys] Hysteria 2: SOCKS5 127.0.0.1:{socksPort}" + (httpPort > 0 ? $", HTTP 127.0.0.1:{httpPort}" : string.Empty));
+			$"[sys] Hysteria 2: SOCKS5 127.0.0.1:{socksPort}" + (httpPort > 0 ? $", HTTP 127.0.0.1:{httpPort}" : string.Empty), cancellationToken);
 	}
 
-	public Task StartTunAsync(VlessNode node, XrayTunOptions options)
+	public Task StartTunAsync(VlessNode node, XrayTunOptions options, CancellationToken cancellationToken = default)
 	{
 		return StartCoreAsync(
 			() => _configBuilder.BuildTun(node, options),
-			$"[sys] Hysteria 2 TUN: {options.InterfaceName}, MTU {options.Mtu}");
+			$"[sys] Hysteria 2 TUN: {options.InterfaceName}, MTU {options.Mtu}", cancellationToken);
 	}
 
-	private async Task StartCoreAsync(Func<string> buildConfig, string description)
+	private async Task StartCoreAsync(Func<string> buildConfig, string description, CancellationToken cancellationToken)
 	{
-		await _lifecycleLock.WaitAsync();
+		await _lifecycleLock.WaitAsync(cancellationToken);
 		try
 		{
 			string hysteriaPath = GetHysteriaPath();
@@ -77,8 +77,8 @@ public sealed class HysteriaManager : IDisposable
 			this.LogReceived?.Invoke("[sys] TUN core: Hysteria 2 (" + hysteriaPath + ")");
 			this.LogReceived?.Invoke(description);
 			string workingDirectory = Path.GetDirectoryName(hysteriaPath);
-			await _processManager.StartAsync(hysteriaPath, "client -c \"" + _configPath + "\"", workingDirectory, stopExisting: false);
-			if (await Task.WhenAny(_startCompletion.Task, Task.Delay(StartupProbeDelay)) == _startCompletion.Task)
+			await _processManager.StartCancellableAsync(hysteriaPath, "client -c \"" + _configPath + "\"", workingDirectory, stopExisting: false, cancellationToken: cancellationToken);
+			if (await Task.WhenAny(_startCompletion.Task, Task.Delay(StartupProbeDelay, cancellationToken)) == _startCompletion.Task)
 			{
 				await _startCompletion.Task;
 			}
@@ -87,6 +87,7 @@ public sealed class HysteriaManager : IDisposable
 				throw new InvalidOperationException("Hysteria 2 завершился сразу после запуска. Проверьте лог выше.");
 			}
 			_startCompletion = null;
+			cancellationToken.ThrowIfCancellationRequested();
 			this.StatusChanged?.Invoke(obj: true);
 		}
 		catch

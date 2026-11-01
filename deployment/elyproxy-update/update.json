@@ -1,7 +1,7 @@
 {
-  "version": "1.4.5",
-  "packageUrl": "https://elysiumhub.org/updates/elyproxy/ElyProxy-1.4.5-win-x64.zip",
-  "sha256": "CBB72EF21C8B93F5F6BC14E59F9B3FDD762373A522846F296A16DA3B37DA8983",
-  "releaseNotes": "Стабилизация соединений и переключения режимов, Auto-выбор ядра, раздельные DPI-профили, обновлённые проверки ElyTurbo/ElyHard и фоновая диагностика сетевых ошибок.",
+  "version": "1.4.6",
+  "packageUrl": "https://elysiumhub.org/updates/elyproxy/ElyProxy-1.4.6-win-x64.zip",
+  "sha256": "E5B6314792F0DEE91460F73C21C6DA99BC159FE224F2957698B74EAC9A0B88B7",
+  "releaseNotes": "Автоматический выбор сетевого ядра с историей и fallback; улучшены отмена подключения и проверка соединения; информация о ядре перенесена в строку состояния; изменён скрытый запуск core-host для Windows 11.",
   "mandatory": false
 }
