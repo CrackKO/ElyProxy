@@ -11,6 +11,16 @@ public static class HelperServiceInstaller
 {
 	public const string ServiceName = "ElyProxyHelper";
 
+	/// <summary>
+	/// Private copy of the service payload. The service must not run from the
+	/// ElyProxy installation folder: while it runs, its files are locked and
+	/// the updater cannot replace them.
+	/// </summary>
+	public static string ServiceDirectory => Path.Combine(
+		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+		"ElyProxy",
+		"service");
+
 	public static string GetHelperPath()
 	{
 		string appDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -63,8 +73,58 @@ public static class HelperServiceInstaller
 		{
 			throw new FileNotFoundException("ElyProxy.Helper.exe не найден. Переустановите ElyProxy.", helperPath);
 		}
-		await RunElevatedAsync(helperPath, "install");
+
+		// Run the install from a temp copy so the elevated process can refresh
+		// the service payload (source -> %LocalAppData%\ElyProxy\service) after
+		// stopping the old instance, without locking itself in the process.
+		string sourceDirectory = Path.GetDirectoryName(helperPath)
+			?? throw new InvalidOperationException("Не удалось определить папку службы-помощника.");
+		string staging = Path.Combine(Path.GetTempPath(), "ElyProxy.Helper-" + Guid.NewGuid().ToString("N"));
+		CopyPayload(sourceDirectory, staging);
+		try
+		{
+			string stagedHelper = Path.Combine(staging, "ElyProxy.Helper.exe");
+			if (!File.Exists(stagedHelper))
+			{
+				throw new FileNotFoundException("ElyProxy.Helper.exe не найден. Переустановите ElyProxy.", stagedHelper);
+			}
+
+			await RunElevatedAsync(stagedHelper, $"install \"{staging}\" \"{ServiceDirectory}\"");
+		}
+		finally
+		{
+			try
+			{
+				if (Directory.Exists(staging))
+				{
+					Directory.Delete(staging, recursive: true);
+				}
+			}
+			catch
+			{
+			}
+		}
+
 		return await WaitForRunningAsync(TimeSpan.FromSeconds(20.0));
+	}
+
+	private static void CopyPayload(string sourceDirectory, string destination)
+	{
+		Directory.CreateDirectory(destination);
+		foreach (string file in Directory.EnumerateFiles(sourceDirectory))
+		{
+			string target = Path.Combine(destination, Path.GetFileName(file));
+			try
+			{
+				File.Copy(file, target, overwrite: true);
+			}
+			catch (IOException)
+			{
+			}
+			catch (UnauthorizedAccessException)
+			{
+			}
+		}
 	}
 
 	public static async Task<bool> UninstallAsync()

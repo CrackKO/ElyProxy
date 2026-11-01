@@ -85,12 +85,12 @@ public static class ProxyProtocolSupport
 
 	private static bool SupportsXrayTransport(VlessNode node)
 	{
-		return true;
+		return (node.Network ?? "tcp").ToLowerInvariant() is "tcp" or "raw" or "ws" or "grpc" or "h2" or "http" or "httpupgrade" or "xhttp" or "splithttp" or "kcp" or "mkcp" or "quic";
 	}
 
 	private static bool SupportsSingBoxTransport(VlessNode node)
 	{
 		string network = (node.Network ?? "tcp").ToLowerInvariant();
-		return network is not ("xhttp" or "splithttp" or "kcp" or "mkcp");
+		return network is "tcp" or "raw" or "ws" or "grpc" or "h2" or "http" or "httpupgrade" or "quic";
 	}
 }

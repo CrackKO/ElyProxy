@@ -10,7 +10,7 @@ namespace ElyProxy.Services;
 
 public class ParserService
 {
-	private static readonly string[] SupportedSchemes = new string[10] { "vless://", "vmess://", "trojan://", "ss://", "hysteria2://", "hy2://", "tuic://", "socks://", "naive://", "naive+https://" };
+	private static readonly string[] SupportedSchemes = new string[11] { "vless://", "vmess://", "trojan://", "ss://", "hysteria2://", "hy2://", "tuic://", "socks://", "socks5://", "naive://", "naive+https://" };
 
 	public List<VlessNode> ParseSubscriptionContent(string content)
 	{
@@ -89,7 +89,7 @@ public class ParserService
 		{
 			return ParseTuicUri(value);
 		}
-		if (value.StartsWith("socks://", StringComparison.OrdinalIgnoreCase))
+		if (value.StartsWith("socks://", StringComparison.OrdinalIgnoreCase) || value.StartsWith("socks5://", StringComparison.OrdinalIgnoreCase))
 		{
 			return ParseSocksUri(value);
 		}
@@ -124,12 +124,8 @@ public class ParserService
 			}
 			SplitQuery(ref body, out NameValueCollection query);
 			int atIdx = body.LastIndexOf('@');
-			if (atIdx < 0)
-			{
-				return null;
-			}
-			string userInfo = Uri.UnescapeDataString(body.Substring(0, atIdx));
-			string hostPort = body.Substring(atIdx + 1);
+			string userInfo = atIdx >= 0 ? body.Substring(0, atIdx) : string.Empty;
+			string hostPort = atIdx >= 0 ? body.Substring(atIdx + 1) : body;
 			if (!TryParseHostPort(hostPort, out string address, out int port))
 			{
 				return null;
@@ -141,8 +137,8 @@ public class ParserService
 				Name = name,
 				Address = address,
 				Port = port,
-				Username = ((colon >= 0) ? userInfo.Substring(0, colon) : userInfo),
-				Password = ((colon >= 0) ? userInfo.Substring(colon + 1) : string.Empty),
+				Username = Uri.UnescapeDataString((colon >= 0) ? userInfo.Substring(0, colon) : userInfo),
+				Password = Uri.UnescapeDataString((colon >= 0) ? userInfo.Substring(colon + 1) : string.Empty),
 				Security = (tls ? "tls" : "none"),
 				Network = "tcp",
 				SNI = (query["sni"] ?? string.Empty),
@@ -595,13 +591,14 @@ public class ParserService
 	{
 		try
 		{
-			if (!TrySplitUri(uri, "socks://", out string body, out string name))
+			string scheme = uri.StartsWith("socks5://", StringComparison.OrdinalIgnoreCase) ? "socks5://" : "socks://";
+			if (!TrySplitUri(uri, scheme, out string body, out string name))
 			{
 				return null;
 			}
 			SplitQuery(ref body, out NameValueCollection query);
 			int atIdx = body.LastIndexOf('@');
-			string userInfo = ((atIdx >= 0) ? Uri.UnescapeDataString(body.Substring(0, atIdx)) : string.Empty);
+			string userInfo = ((atIdx >= 0) ? body.Substring(0, atIdx) : string.Empty);
 			string hostPort = ((atIdx >= 0) ? body.Substring(atIdx + 1) : body);
 			if (!TryParseHostPort(hostPort, out string address, out int port))
 			{
@@ -614,8 +611,8 @@ public class ParserService
 				Name = name,
 				Address = address,
 				Port = port,
-				Username = ((colon >= 0) ? userInfo.Substring(0, colon) : userInfo),
-				Password = ((colon >= 0) ? userInfo.Substring(colon + 1) : string.Empty),
+				Username = Uri.UnescapeDataString((colon >= 0) ? userInfo.Substring(0, colon) : userInfo),
+				Password = Uri.UnescapeDataString((colon >= 0) ? userInfo.Substring(colon + 1) : string.Empty),
 				Security = "none"
 			};
 		}

@@ -11,6 +11,8 @@ public class ProcessManager : IProcessManager
 {
 	private Process? _process;
 
+	private TaskCompletionSource<bool>? _hostReady;
+
 	private readonly SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
 
 	public bool IsRunning
@@ -47,7 +49,7 @@ public class ProcessManager : IProcessManager
 	{
 		if (stopExisting)
 		{
-			await StopAsync();
+			await StopAsync().ConfigureAwait(false);
 		}
 		ProcessStartInfo psi = new ProcessStartInfo
 		{
@@ -61,9 +63,14 @@ public class ProcessManager : IProcessManager
 			StandardOutputEncoding = Encoding.UTF8,
 			StandardErrorEncoding = Encoding.UTF8
 		};
+        var helper = ElyProxy.Services.HelperServiceInstaller.GetHelperPath();
+        if (CoreHostLaunch.IsCore(executablePath) && File.Exists(helper))
+            psi = CoreHostLaunch.Create(helper, executablePath, arguments, workingDirectory);
 		await _lock.WaitAsync().ConfigureAwait(false);
 		try
 		{
+            if (IsRunning) throw new InvalidOperationException("Предыдущее ядро ещё работает; повторный запуск запрещён.");
+            _hostReady = psi.RedirectStandardInput ? new(TaskCreationOptions.RunContinuationsAsynchronously) : null;
 			_process = new Process
 			{
 				StartInfo = psi,
@@ -73,9 +80,13 @@ public class ProcessManager : IProcessManager
 			_process.ErrorDataReceived += OnError;
 			_process.Exited += OnExited;
 			_process.Start();
+			ProcessJob.Assign(_process);
+			ElyProxy.Services.LifecycleLog.Write("process", $"start {Path.GetFileName(executablePath)} host PID {_process.Id}");
+            ErrorReceived?.Invoke($"[sys] Запуск ядра {Path.GetFileName(executablePath)}, PID {_process.Id}, local");
 			ProcessStartedForProcess?.Invoke(_process.Id);
 			_process.BeginOutputReadLine();
 			_process.BeginErrorReadLine();
+            if (_hostReady != null) await _hostReady.Task.WaitAsync(TimeSpan.FromSeconds(25)).ConfigureAwait(false);
 		}
 		finally
 		{
@@ -83,67 +94,41 @@ public class ProcessManager : IProcessManager
 		}
 	}
 
-	public async Task StopAsync()
-	{
-		if (!await _lock.WaitAsync(TimeSpan.FromSeconds(2.0)).ConfigureAwait(false))
-		{
-			ForceKill();
-			return;
-		}
-		try
-		{
-			if (_process == null)
-			{
-				return;
-			}
-			try
-			{
-				if (!_process.HasExited)
-				{
-					_process.Kill(entireProcessTree: true);
-					await _process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5.0)).ConfigureAwait(false);
-				}
-			}
-			catch (TimeoutException)
-			{
-			}
-			catch
-			{
-			}
-			finally
-			{
-				_process.OutputDataReceived -= OnOutput;
-				_process.ErrorDataReceived -= OnError;
-				_process.Exited -= OnExited;
-				_process.Dispose();
-				_process = null;
-			}
-		}
-		finally
-		{
-			_lock.Release();
-		}
-	}
-
-	private void ForceKill()
-	{
-		try
-		{
-			Process? process = _process;
-			if (process != null && !process.HasExited)
-			{
-				process.Kill(entireProcessTree: true);
-			}
-		}
-		catch
-		{
-		}
-	}
+    public async Task StopAsync()
+    {
+        if (!await _lock.WaitAsync(TimeSpan.FromSeconds(20)).ConfigureAwait(false))
+            throw new TimeoutException("Остановка ядра не выполнена: процесс занят другой операцией.");
+        try
+        {
+            var process = _process;
+            if (process == null) return;
+            // Keep the handle on any failure: callers must not start a second core.
+            try { await OwnedProcessStopper.StopAsync(process).ConfigureAwait(false); }
+            catch
+            {
+                if (process.HasExited)
+                {
+                    process.OutputDataReceived -= OnOutput; process.ErrorDataReceived -= OnError; process.Exited -= OnExited;
+                    process.Dispose(); _process = null;
+                }
+                throw;
+            }
+            process.OutputDataReceived -= OnOutput;
+            process.ErrorDataReceived -= OnError;
+            process.Exited -= OnExited;
+            ElyProxy.Services.LifecycleLog.Write("process", $"stopped PID {process.Id}, exit {process.ExitCode}");
+            process.Dispose();
+            _process = null;
+        }
+        finally { _lock.Release(); }
+    }
 
 	private void OnOutput(object sender, DataReceivedEventArgs e)
 	{
 		if (e.Data != null)
 		{
+            if (e.Data == "[elyproxy-host-ready]") { _hostReady?.TrySetResult(true); return; }
+			ElyProxy.Services.LifecycleLog.Write("core.stdout", $"pid={GetProcessId(sender)} {e.Data}");
 			this.OutputReceived?.Invoke(e.Data);
 			int processId = GetProcessId(sender);
 			if (processId != 0)
@@ -157,6 +142,7 @@ public class ProcessManager : IProcessManager
 	{
 		if (e.Data != null)
 		{
+			ElyProxy.Services.LifecycleLog.Write("core.stderr", $"pid={GetProcessId(sender)} {e.Data}");
 			this.ErrorReceived?.Invoke(e.Data);
 			int processId = GetProcessId(sender);
 			if (processId != 0)
@@ -168,6 +154,7 @@ public class ProcessManager : IProcessManager
 
 	private void OnExited(object? sender, EventArgs e)
 	{
+		_hostReady?.TrySetException(new IOException("Ядро завершилось до готовности сетевой сессии."));
 		int exitCode = -1;
 		int processId = GetProcessId(sender);
 		try
@@ -177,6 +164,7 @@ public class ProcessManager : IProcessManager
 		catch
 		{
 		}
+		ElyProxy.Services.LifecycleLog.Write("process.exited", $"pid={processId} code={exitCode}");
 		this.ProcessExited?.Invoke(exitCode);
 		if (processId != 0)
 		{

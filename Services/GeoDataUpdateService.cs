@@ -28,7 +28,7 @@ public sealed class GeoDataUpdateService : IDisposable
 	private readonly string? _targetDirectoryOverride;
 
 	public GeoDataUpdateService()
-		: this(new HttpClient { Timeout = TimeSpan.FromSeconds(60) })
+		: this(new HttpClient(new DiagnosticHttpHandler("geo-updates")) { Timeout = TimeSpan.FromSeconds(60) })
 	{
 	}
 

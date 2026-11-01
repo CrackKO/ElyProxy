@@ -60,8 +60,8 @@
 
   <Style x:Key="SidebarNavItem" TargetType="{x:Type ListBoxItem}">
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-    <Setter Property="Padding" Value="11,8" />
-    <Setter Property="Margin" Value="0,1" />
+    <Setter Property="Padding" Value="14,12" />
+    <Setter Property="Margin" Value="0,3" />
     <Setter Property="Foreground" Value="{DynamicResource FgSecBrush}" />
     <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
     <Setter Property="FontSize" Value="14" />

@@ -24,18 +24,19 @@ public partial class MainWindow : Window
     private bool _navigationReady;
     private string _rawLog = string.Empty;
 
-    public MainWindow()
+    public MainWindow() : this(null) { }
+
+    public MainWindow(MainViewModel? previewViewModel)
     {
         InitializeComponent();
 
-        _viewModel = new MainViewModel(App.LaunchElyTunOnStartup, App.ElyTunHandoffParentProcessId);
+        _viewModel = previewViewModel ?? new MainViewModel(App.LaunchElyTunOnStartup, App.ElyTunHandoffParentProcessId);
         DataContext = _viewModel;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
-        InitTrayIcon();
+        if (previewViewModel == null) InitTrayIcon();
         InitShortcuts();
 
-        ThemeService.Current.Attach(this);
         DialogService.Current.Attach(SheetHost, ToastHost);
 
         SourceInitialized += (_, _) => WindowChromeHelper.Configure(this, MaximizeButton);
@@ -71,6 +72,11 @@ public partial class MainWindow : Window
 
     private void InitShortcuts()
     {
+        InputBindings.Add(new KeyBinding(new RelayCommand(() =>
+        {
+            NavList.SelectedIndex = 0;
+            (_sections[0] as ServersView)?.FocusSearch();
+        }), Key.F, ModifierKeys.Control));
         for (var index = 0; index < 4; index++)
         {
             var target = index;
@@ -139,6 +145,15 @@ public partial class MainWindow : Window
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // Some view-model properties can change on background threads (for
+        // example LogText while a core prints to its log). WPF controls must
+        // only be touched from the dispatcher, so hop over when needed.
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.InvokeAsync(() => OnViewModelPropertyChanged(sender, e));
+            return;
+        }
+
         if (e.PropertyName == nameof(MainViewModel.ShowLogs))
         {
             ApplyLogDrawerState(animate: true);
@@ -203,7 +218,7 @@ public partial class MainWindow : Window
     private void ApplyLogDrawerState(bool animate)
     {
         var open = _viewModel.ShowLogs;
-        var height = open ? LogDrawerHeight : 0;
+        var height = open ? Math.Min(LogDrawerHeight, Math.Max(80, (ActualHeight - 650) * 0.4 + 80)) : 0;
         var opacity = open ? 1.0 : 0.0;
 
         LogDrawerContent.IsHitTestVisible = open;
@@ -345,7 +360,7 @@ public partial class MainWindow : Window
                 _trayIcon.Visible = false;
             }
 
-            Application.Current.Shutdown();
+            Close();
         };
         menu.Closed += (_, _) => _trayMenu = null;
 
@@ -366,8 +381,28 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ shutdown
 
-    private void Window_Closing(object sender, CancelEventArgs e)
+    private bool _closingReady;
+    private bool _closingBusy;
+    private async void Window_Closing(object sender, CancelEventArgs e)
     {
+        if (!_closingReady)
+        {
+            e.Cancel = true;
+            if (_closingBusy) return;
+            _closingBusy = true;
+            try
+            {
+                await _viewModel.ShutdownAsync();
+                _closingReady = true;
+                Close();
+            }
+            catch (Exception ex)
+            {
+                await ElyProxy.Services.DialogService.Current.AlertAsync("Очистка не подтверждена", ex.GetBaseException().Message + "\nПовторите выход для повторной попытки.");
+            }
+            finally { _closingBusy = false; }
+            return;
+        }
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
 
         if (_trayIcon is not null)

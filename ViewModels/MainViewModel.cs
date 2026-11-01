@@ -29,64 +29,6 @@ namespace ElyProxy.ViewModels;
 
 public partial class MainViewModel : ViewModelBase, IDisposable
 {
-	private sealed record ElyTurboTarget(string Name, string Url);
-
-	private sealed record ElyTurboServiceResult(string Name, int? LatencyMs)
-	{
-		public bool IsSuccess => LatencyMs.HasValue;
-	}
-
-	private sealed class ElyTurboNodeResult
-	{
-		public VlessNode Node { get; }
-
-		public IReadOnlyList<ElyTurboServiceResult> Services { get; }
-
-		public int TotalCount => Services.Count;
-
-		public int SuccessCount => Services.Count((ElyTurboServiceResult service) => service.IsSuccess);
-
-		public int? AverageLatencyMs
-		{
-			get
-			{
-				if (SuccessCount <= 0)
-				{
-					return null;
-				}
-				return (int)Math.Round(Services.Where((ElyTurboServiceResult service) => service.LatencyMs.HasValue).Average((ElyTurboServiceResult service) => service.LatencyMs.Value));
-			}
-		}
-
-		public int? FastestLatencyMs
-		{
-			get
-			{
-				int fastest = (from service in Services
-					where service.LatencyMs.HasValue
-					select service.LatencyMs.Value).DefaultIfEmpty().Min();
-				if (fastest <= 0)
-				{
-					return null;
-				}
-				return fastest;
-			}
-		}
-
-		public ElyTurboNodeResult(VlessNode node, IReadOnlyList<ElyTurboServiceResult> services)
-		{
-			Node = node;
-			Services = services;
-		}
-
-		public static ElyTurboNodeResult Empty(VlessNode node, int serviceCount)
-		{
-			List<ElyTurboServiceResult> services = (from target in ElyTurboTargets.Take(serviceCount)
-				select new ElyTurboServiceResult(target.Name, null)).ToList();
-			return new ElyTurboNodeResult(node, services);
-		}
-	}
-
 	private const string DefaultProxyPingUrl = "https://youtube.com";
 
 	private const string LegacyProxyPingUrl = "http://cp.cloudflare.com/generate_204";
@@ -247,7 +189,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private readonly Dispatcher _dispatcher;
 
-	private readonly SemaphoreSlim _coreLifecycleLock = new SemaphoreSlim(1, 1);
+	private readonly ConnectionCoordinator _coreLifecycleLock = new();
 
 	private readonly SemaphoreSlim _subscriptionMutationLock = new SemaphoreSlim(1, 1);
 
@@ -309,7 +251,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private bool _autoReconnect;
 
-	private bool _showLogs = true;
+	private bool _showLogs;
 
 	private bool _autoUpdate;
 
@@ -365,15 +307,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private int _socksPort = 1080;
 
-	private static readonly ElyTurboTarget[] ElyTurboTargets = new ElyTurboTarget[6]
-	{
-		new ElyTurboTarget("Discord", "https://discord.com/api/v9/experiments"),
-		new ElyTurboTarget("Telegram", "https://telegram.org"),
-		new ElyTurboTarget("YouTube", "https://www.youtube.com/generate_204"),
-		new ElyTurboTarget("Spotify", "https://open.spotify.com"),
-		new ElyTurboTarget("GitHub", "https://github.com"),
-		new ElyTurboTarget("Gmail", "https://mail.google.com/mail/generate_204")
-	};
+
 
 	public ObservableCollection<VlessNode> AllNodes { get; }
 
@@ -412,6 +346,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		{
 			if (SetProperty(ref _selectedNode, value, "SelectedNode"))
 			{
+                if (!_isLoadingSettings && DpiProbeNode == null) LoadDpiEditor();
+				NotifyConnectionPanel();
 				CommandManager.InvalidateRequerySuggested();
 			}
 		}
@@ -580,6 +516,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		set
 		{
 			SetProperty(ref _connectedNodeName, value, "ConnectedNodeName");
+			NotifyConnectionPanel();
 		}
 	}
 
@@ -636,6 +573,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		{
 			if (SetProperty(ref _isConnected, value, "IsConnected"))
 			{
+				SessionStartedAt = value ? DateTime.UtcNow : null;
+				NotifyConnectionPanel();
 				CommandManager.InvalidateRequerySuggested();
 			}
 		}
@@ -744,7 +683,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 	}
 
-	public string ApplicationVersion => "Версия " + UpdateService.CurrentVersion.ToString(3);
+	public string ApplicationVersion => "Версия " + UpdateService.CurrentVersion.ToString(3)
+        + ((typeof(MainViewModel).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Contains("-dev", StringComparison.OrdinalIgnoreCase) ?? false) ? " · DEV" : string.Empty);
 
 	public string UpdateStatus
 	{
@@ -1108,7 +1048,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 					}
 					else
 					{
-						SaveSettingsAsync();
+                        MarkConnectionSettingsPending();
 					}
 				}
 			}
@@ -1123,7 +1063,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 		set
 		{
-			if (value >= 0 && value <= 3)
+			if (value >= 0 && value <= 4)
 			{
 				TunCore = (TunCoreKind)value;
 			}
@@ -1135,6 +1075,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		{
 			return _tunCore switch
 			{
+				TunCoreKind.Auto => "Auto — совместимое ядро без сетевого перебора; при равных возможностях sing-box.",
 				TunCoreKind.Xray => "Xray TUN — нативный TUN самого Xray (один процесс). VLESS, VMess, Trojan, Shadowsocks, SOCKS.",
 				TunCoreKind.Tun2Proxy => "tun2proxy — TUN-адаптер поверх локального SOCKS-порта; работает со всеми протоколами обоих ядер.",
 				TunCoreKind.Hysteria => "Hysteria 2 TUN — встроенный TUN ядра Hysteria (только для нод hysteria2; autoRoute, правила ElyTun не применяются).",
@@ -1710,7 +1651,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	public ICommand RemoveApplicationBypassCommand { get; }
 
-	public MainViewModel(bool launchElyTunOnStartup = false, int? handoffParentProcessId = null)
+	public MainViewModel(bool launchElyTunOnStartup = false, int? handoffParentProcessId = null, bool previewMode = false)
 	{
 		//IL_02f1: Unknown result type (might be due to invalid IL or missing references)
 		//IL_02fb: Expected O, but got Unknown
@@ -1763,6 +1704,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		};
 		_logFlushTimer.Tick += OnLogFlushTimerTick;
 		_logFlushTimer.Start();
+		// A previous crashed run can leave core processes behind; they keep
+		// ports like 1080 busy and block new connections until killed.
+		try
+		{
+			int staleCores = 0; // Path alone is not proof of ownership; hosts/jobs own process cleanup.
+			if (staleCores > 0)
+			{
+				OnLogReceived($"[warn] Закрыты зависшие ядра предыдущего запуска: {staleCores}");
+			}
+		}
+		catch
+		{
+		}
 		AllNodes = new ObservableCollection<VlessNode>();
 		Subscriptions = new ObservableCollection<Subscription>();
 		Profiles = new ObservableCollection<ProxyProfile>();
@@ -1772,8 +1726,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		RemoveSubscriptionCommand = new AsyncRelayCommand(() => RunSubscriptionMutationAsync(RemoveSubscriptionAsync), () => SelectedSubscription != null && !IsLoading);
 		UpdateSubscriptionCommand = new AsyncRelayCommand(() => RunSubscriptionMutationAsync(UpdateSelectedSubscriptionAsync), () => SelectedSubscription != null && !IsLoading);
 		UpdateAllSubscriptionsCommand = new AsyncRelayCommand(() => RunSubscriptionMutationAsync(UpdateAllSubscriptionsAsync), () => Subscriptions.Count > 0 && !IsLoading);
-		ConnectCommand = new AsyncRelayCommand(ConnectAsync, () => SelectedNode != null && !IsLoading);
-		DisconnectCommand = new AsyncRelayCommand(DisconnectAsync, () => IsConnected && !IsLoading);
+		ConnectCommand = new AsyncRelayCommand(ConnectAsync, () => SelectedNode != null && !IsLoading && _dpiTuningCancellation == null);
+		DisconnectCommand = new AsyncRelayCommand(DisconnectAsync, () => IsConnected || HasOwnedCoreRunning() || IsLoading || _coreLifecycleLock.State == ConnectionState.CleanupFailed);
 		ConnectFromProfileCommand = new AsyncRelayCommand(ConnectFromProfileAsync, () => SelectedProfileNode != null && !IsLoading);
 		PingAllCommand = new AsyncRelayCommand(PingAllAsync, () => AllNodes.Count > 0 && !IsLoading);
 		RunConnectionDiagnosticsCommand = new AsyncRelayCommand(RunConnectionDiagnosticsAsync, () => IsConnected && !IsLoading);
@@ -1808,7 +1762,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		RequestElyTunCommand = new AsyncRelayCommand(RequestElyTunAsync, () => !IsLoading && !_isRelaunchingForElevation);
 		AddApplicationBypassCommand = new AsyncRelayCommand(AddApplicationBypassAsync, () => !IsLoading);
 		RemoveApplicationBypassCommand = new RelayCommand(RemoveSelectedApplicationBypass, () => SelectedApplicationBypass != null && !IsLoading);
-		LoadAllDataAsync();
+		if (previewMode)
+		{
+			// Isolated UI previews must never read/write user settings or start cores.
+			_canSaveSettings = false;
+			_canSaveSubscriptions = false;
+			_canSaveProfiles = false;
+			_dataReady = true;
+		}
+		else
+		{
+			LoadAllDataAsync();
+		}
 	}
 
 	private async Task AddSubscriptionAsync()
@@ -2060,11 +2025,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			return;
 		}
 
-		Interlocked.Increment(ref _connectionGeneration);
+		_runtimeChanges.Cancel();
+		int requestGeneration = Interlocked.Increment(ref _connectionGeneration);
 		await _coreLifecycleLock.WaitAsync();
 		try
 		{
-			if (IsConnected && _connectedNode != null
+            if (_isDisposed || _coreLifecycleLock.ShuttingDown || requestGeneration != Volatile.Read(ref _connectionGeneration)) return;
+			if (!HasPendingConnectionSettings && IsConnected && _connectedNode != null
 				&& string.Equals(GetNodeKey(_connectedNode), GetNodeKey(node), StringComparison.Ordinal)
 				&& IsActiveCoreRunning())
 			{
@@ -2248,17 +2215,33 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private async Task ConnectToNodeCoreAsync(VlessNode? node)
 	{
+        int operationGeneration = Volatile.Read(ref _connectionGeneration);
+        if (_dpiTuningCancellation != null)
+        {
+            DialogService.Current.Notify("Подбор DPI", "Сначала остановите подбор DPI в настройках.");
+            return;
+        }
 		if (node == null)
 		{
+			return;
+		}
+		if (BlockTorrent && _torrentBlocker != null && !await _torrentBlocker.ScanAsync())
+		{
+			await DialogService.Current.AlertAsync("Торрент-клиент остаётся запущен", "Подключение остановлено: не удалось закрыть торрент-клиент. Закройте его вручную; подробности — в журнале.");
 			return;
 		}
 		Interlocked.Increment(ref _coreLifecycleTransition);
 		IsLoading = true;
 		StatusText = "Подключение...";
 		bool stoppedExistingConnection = false;
+        var previousConnection = _activeConnection;
+        var previousPlan = _resolvedPlan;
+        var previousOptions = _preparedOptions;
 		try
 		{
-			if ((!ElyTunEnabled && !ProxyProEnabled) || (ElyTunEnabled && TunCore == TunCoreKind.Xray))
+            PrepareCoreSelection(node);
+            if (!EnsureNodeSupportedBySelectedCore(node, true)) throw new NotSupportedException("Сервер не поддерживает выбранные параметры");
+			if ((!ElyTunEnabled && !UsesSingBoxProxy) || (ElyTunEnabled && EffectiveTunCore == TunCoreKind.Xray))
 			{
 				string xrayPath = _xrayManager.GetXrayPath();
 				if (!File.Exists(xrayPath))
@@ -2269,18 +2252,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 					return;
 				}
 			}
-			if (IsConnected)
-			{
-				DeactivateSystemProxyForDisconnectedServer(silent: true);
-				DeactivateProxyPro(silent: true);
-				await StopAllCoresAsync();
-				stoppedExistingConnection = true;
-				IsConnected = false;
-			}
+            // Actual owned processes are cleaned even when UI state says disconnected.
+            await ValidatePreparedConnectionAsync(node);
+            if (ElyTunEnabled && !EnsureElyTunCanRun(true) || ProxyProEnabled && !EnsureProxyProCanRun(true)) throw new InvalidOperationException("Компоненты подключения недоступны");
+            stoppedExistingConnection = true;
+            _coreLifecycleLock.State = IsConnected ? ConnectionState.Switching : ConnectionState.Connecting;
+            await StopAllCoresAsync();
+            IsConnected = false;
 			if ((!ElyTunEnabled || EnsureElyTunCanRun(showMessage: true)) && (!ProxyProEnabled || EnsureProxyProCanRun(showMessage: true)) && EnsureSocksPortAvailableForStart() && EnsureNodeSupportedBySelectedCore(node, showMessage: true))
 			{
+				_connectedNode = node;
 				await StartSelectedCoreAsync(node);
-				IsConnected = true;
+                if (_isDisposed || _coreLifecycleLock.ShuttingDown || operationGeneration != Volatile.Read(ref _connectionGeneration)) throw new OperationCanceledException("Подключение отменено");
+
+				_sessionSubscriptionName = SubscriptionName(node);
 				_connectedNode = node;
 				_autoReconnectPolicy.Reset();
 				ConnectedNodeName = node.DisplayName;
@@ -2295,7 +2280,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				{
 					ActivateProxyPro();
 				}
-				if (ElyTunEnabled)
+				ConfirmConnection(node);
+                if (ElyTunEnabled)
 				{
 					VerifyElyTunConnectivityAsync();
 				}
@@ -2307,18 +2293,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				ConnectedNodeName = string.Empty;
 			}
 		}
-		catch (Exception ex)
-		{
-			if (stoppedExistingConnection)
-			{
-				IsConnected = false;
-				_connectedNode = null;
-				ConnectionInfo = string.Empty;
-				ConnectedNodeName = string.Empty;
-			}
-			StatusText = "Ошибка подключения";
-			AppendLog("[err] " + ex.Message);
-		}
+        catch (Exception ex)
+        {
+            if (stoppedExistingConnection)
+            {
+                await RollbackConnectionAsync();
+                if (previousConnection != null && operationGeneration == Volatile.Read(ref _connectionGeneration) && !_coreLifecycleLock.ShuttingDown)
+                {
+                    try { await RestoreConnectionAsync(previousConnection, operationGeneration); }
+                    catch (Exception restoreError) { await RollbackConnectionAsync(); AppendLog("[err] Откат: " + restoreError.GetBaseException().Message); }
+                }
+            }
+            else { _resolvedPlan = previousPlan; _preparedOptions = previousOptions; }
+            StatusText = _coreLifecycleLock.State == ConnectionState.CleanupFailed ? "Очистка соединения не подтверждена — повторите отключение" : IsConnected ? "Восстановлено предыдущее соединение" : "Ошибка подключения";
+            AppendLog("[err] " + ex.GetBaseException().Message);
+            DialogService.Current.Notify("Не удалось подключиться", ex.GetBaseException().Message, NoticeKind.Error);
+        }
 		finally
 		{
 			IsLoading = false;
@@ -2328,6 +2318,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private async Task DisconnectAsync()
 	{
+        CancelServerProbe();
+		_runtimeChanges.Cancel();
 		Interlocked.Increment(ref _connectionGeneration);
 		await _coreLifecycleLock.WaitAsync();
 		try
@@ -2354,11 +2346,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			ConnectionInfo = string.Empty;
 			ConnectedNodeName = string.Empty;
 			StatusText = "Отключено";
+            _activeConnection = null;
+            _coreLifecycleLock.State = ConnectionState.Disconnected;
 		}
-		catch (Exception ex)
-		{
-			AppendLog("[err] Ошибка отключения: " + ex.Message);
-		}
+        catch (Exception ex)
+        {
+            _coreLifecycleLock.State = ConnectionState.CleanupFailed;
+            IsConnected = false;
+            StatusText = "Остановка не подтверждена — повторите отключение";
+            AppendLog("[err] Ошибка отключения: " + ex.GetBaseException().Message);
+        }
 		finally
 		{
 			IsLoading = false;
@@ -2460,6 +2457,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private Task PingAllAsync()
 	{
+        if (PingMode is not ("ElyTurbo" or "ElyHard"))
+            foreach (var node in AllNodes) { node.ProbeReport = ""; node.ProbeVerdict = ""; node.ProbeRating = null; node.ProbeSpeedMbps = null; }
 		return PingMode switch
 		{
 			"ProxyGet" => ProxyPingAllAsync(),
@@ -2595,162 +2594,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 	}
 
-	private async Task ElyTurboAllAsync()
-	{
-		IsLoading = true;
-		StatusText = "ElyTurbo серверов...";
-		PingSummary = string.Empty;
-		AppendLog($"[sys] Запуск ElyTurbo: сервисов {ElyTurboTargets.Length}, потоков: {ProxyPingConcurrency}");
-		List<VlessNode> nodes = AllNodes.ToList();
-		ConcurrentBag<ElyTurboNodeResult> results = new ConcurrentBag<ElyTurboNodeResult>();
-		int completed = 0;
-		try
-		{
-			SemaphoreSlim semaphore = new SemaphoreSlim(ProxyPingConcurrency);
-			try
-			{
-				await Task.WhenAll(((IEnumerable<VlessNode>)nodes).Select((Func<VlessNode, Task>)async delegate(VlessNode node)
-				{
-					await semaphore.WaitAsync();
-					try
-					{
-						ElyTurboNodeResult result2 = await MeasureElyTurboAsync(node);
-						results.Add(result2);
-						node.Latency = result2.AverageLatencyMs;
-						node.PingDetails = ((result2.SuccessCount > 0) ? $"{result2.SuccessCount}/{result2.TotalCount} · {result2.AverageLatencyMs} ms" : $"0/{result2.TotalCount}");
-					}
-					finally
-					{
-						semaphore.Release();
-						int current = Interlocked.Increment(ref completed);
-						if (current % 3 == 0 || current == nodes.Count)
-						{
-							ElyTurboNodeResult best = (from elyTurboNodeResult in results
-								orderby elyTurboNodeResult.SuccessCount descending, elyTurboNodeResult.AverageLatencyMs ?? int.MaxValue
-								select elyTurboNodeResult).FirstOrDefault();
-							string bestText = ((best == null) ? string.Empty : $" · лучший: {best.Node.DisplayName} {best.SuccessCount}/{best.TotalCount}");
-							await _dispatcher.InvokeAsync<string>((Func<string>)(() => StatusText = $"ElyTurbo: {current}/{nodes.Count}{bestText}"));
-						}
-					}
-				}));
-				List<ElyTurboNodeResult> ordered = (from elyTurboNodeResult in results
-					orderby elyTurboNodeResult.SuccessCount descending, elyTurboNodeResult.AverageLatencyMs ?? int.MaxValue, elyTurboNodeResult.FastestLatencyMs ?? int.MaxValue
-					select elyTurboNodeResult).ToList();
-				_dispatcher.Invoke((Action)delegate
-				{
-					AllNodes.Clear();
-					foreach (ElyTurboNodeResult current in ordered)
-					{
-						AllNodes.Add(current.Node);
-					}
-					SelectedNode = ordered.FirstOrDefault()?.Node;
-				});
-				ElyTurboNodeResult bestResult = ordered.FirstOrDefault();
-				if (bestResult == null || bestResult.SuccessCount == 0)
-				{
-					StatusText = "ElyTurbo: рабочие серверы не найдены";
-					PingSummary = "ElyTurbo: рабочие серверы не найдены";
-					AppendLog("[sys] ElyTurbo завершён: рабочие серверы не найдены");
-					return;
-				}
-				PingSummary = BuildElyTurboSummary(bestResult);
-				StatusText = $"ElyTurbo: лучший {bestResult.SuccessCount}/{bestResult.TotalCount}, {bestResult.AverageLatencyMs} ms";
-				AppendLog("[turbo] " + PingSummary);
-				foreach (ElyTurboNodeResult result in ordered.Take(5))
-				{
-					AppendLog($"[turbo] {result.Node.DisplayName}: {result.SuccessCount}/{result.TotalCount}, {FormatNullableLatency(result.AverageLatencyMs)}");
-				}
-			}
-			finally
-			{
-				if (semaphore != null)
-				{
-					((IDisposable)semaphore).Dispose();
-				}
-			}
-		}
-		finally
-		{
-			IsLoading = false;
-		}
-	}
+    private Task ElyTurboAllAsync() => RunServerProbesAsync(false);
+    private Task ElyHardAllAsync() => RunServerProbesAsync(true);
 
-	private async Task ElyHardAllAsync()
-	{
-		IsLoading = true;
-		StatusText = "ElyHard серверов...";
-		PingSummary = string.Empty;
-		AppendLog($"[sys] Запуск ElyHard: full real session, потоков: {ProxyPingConcurrency}");
-		List<VlessNode> nodes = AllNodes.ToList();
-		ConcurrentBag<ElyHardService.ElyHardNodeResult> results = new ConcurrentBag<ElyHardService.ElyHardNodeResult>();
-		int completed = 0;
-		ElyHardService.ElyHardOptions options = new ElyHardService.ElyHardOptions(2, TimeSpan.FromSeconds(3.0), TimeSpan.FromSeconds(6.0));
-		try
-		{
-			SemaphoreSlim semaphore = new SemaphoreSlim(ProxyPingConcurrency);
-			try
-			{
-				await Task.WhenAll(((IEnumerable<VlessNode>)nodes).Select((Func<VlessNode, Task>)async delegate(VlessNode node)
-				{
-					await semaphore.WaitAsync();
-					try
-					{
-						ElyHardService.ElyHardNodeResult result2 = await _elyHardService.CheckNodeAsync(node, options);
-						results.Add(result2);
-						node.Latency = result2.AverageLatencyMs;
-						node.PingDetails = ((result2.ReachableServices > 0) ? $"{result2.StableServices}/{result2.TotalServices} · {FormatNullableLatency(result2.AverageLatencyMs)}" : $"0/{result2.TotalServices}");
-					}
-					finally
-					{
-						semaphore.Release();
-						int current = Interlocked.Increment(ref completed);
-						if (current % 2 == 0 || current == nodes.Count)
-						{
-							ElyHardService.ElyHardNodeResult best = OrderElyHardResults(results).FirstOrDefault();
-							string bestText = ((best == null) ? string.Empty : $" · лучший: {best.Node.DisplayName} {best.StableServices}/{best.TotalServices}");
-							await _dispatcher.InvokeAsync<string>((Func<string>)(() => StatusText = $"ElyHard: {current}/{nodes.Count}{bestText}"));
-						}
-					}
-				}));
-				List<ElyHardService.ElyHardNodeResult> ordered = OrderElyHardResults(results).ToList();
-				_dispatcher.Invoke((Action)delegate
-				{
-					AllNodes.Clear();
-					foreach (ElyHardService.ElyHardNodeResult current in ordered)
-					{
-						AllNodes.Add(current.Node);
-					}
-					SelectedNode = ordered.FirstOrDefault()?.Node;
-				});
-				ElyHardService.ElyHardNodeResult bestResult = ordered.FirstOrDefault();
-				if (bestResult == null || bestResult.ReachableServices == 0)
-				{
-					StatusText = "ElyHard: рабочие серверы не найдены";
-					PingSummary = "ElyHard: рабочие серверы не найдены";
-					AppendLog("[sys] ElyHard завершён: рабочие серверы не найдены");
-					return;
-				}
-				PingSummary = BuildElyHardSummary(bestResult);
-				StatusText = $"ElyHard: лучший {bestResult.StableServices}/{bestResult.TotalServices}, {FormatNullableLatency(bestResult.AverageLatencyMs)}";
-				AppendLog("[hard] " + PingSummary);
-				foreach (ElyHardService.ElyHardNodeResult result in ordered.Take(5))
-				{
-					AppendLog($"[hard] {result.Node.DisplayName}: стабильно {result.StableServices}/{result.TotalServices}, попытки {result.TotalSuccessfulAttempts}/{result.TotalAttempts}, среднее {FormatNullableLatency(result.AverageLatencyMs)}");
-				}
-			}
-			finally
-			{
-				if (semaphore != null)
-				{
-					((IDisposable)semaphore).Dispose();
-				}
-			}
-		}
-		finally
-		{
-			IsLoading = false;
-		}
-	}
 
 	private static async Task<int?> MeasureTcpLatencyAsync(string host, int port)
 	{
@@ -2824,74 +2670,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		return result;
 	}
 
-	private async Task<ElyTurboNodeResult> MeasureElyTurboAsync(VlessNode node)
-	{
-		int probePort = GetFreeTcpPort();
-		ElyTurboNodeResult result;
-		try
-		{
-			_ = 2;
-			try
-			{
-				await using ProbeCoreRunner probeXray = await ProbeCoreRunner.StartAsync(node, probePort, BuildProbeOptions());
-				if (!(await WaitForLocalPortAsync(probePort, ProxyPingStartupTimeout)))
-				{
-					result = ElyTurboNodeResult.Empty(node, ElyTurboTargets.Length);
-				}
-				else
-				{
-					using HttpClientHandler handler = new HttpClientHandler
-					{
-						Proxy = new WebProxy($"socks5://127.0.0.1:{probePort}"),
-						UseProxy = true,
-						AllowAutoRedirect = false
-					};
-					HttpClient http = new HttpClient(handler)
-					{
-						Timeout = ProxyPingHttpTimeout
-					};
-					try
-					{
-						http.DefaultRequestHeaders.UserAgent.ParseAdd("ElyProxy/1.1");
-						result = new ElyTurboNodeResult(node, await Task.WhenAll(ElyTurboTargets.Select((ElyTurboTarget target) => MeasureElyTurboTargetAsync(http, target))));
-					}
-					finally
-					{
-						if (http != null)
-						{
-							((IDisposable)http).Dispose();
-						}
-					}
-				}
-			}
-			catch
-			{
-				result = ElyTurboNodeResult.Empty(node, ElyTurboTargets.Length);
-			}
-		}
-		finally
-		{
-		}
-		return result;
-	}
-
-	private static async Task<ElyTurboServiceResult> MeasureElyTurboTargetAsync(HttpClient http, ElyTurboTarget target)
-	{
-		try
-		{
-			Stopwatch sw = Stopwatch.StartNew();
-			using HttpResponseMessage response = await http.GetAsync(target.Url, HttpCompletionOption.ResponseHeadersRead);
-			sw.Stop();
-			int statusCode = (int)response.StatusCode;
-			bool isReachable = statusCode >= 200 && statusCode < 500;
-			return new ElyTurboServiceResult(target.Name, isReachable ? new int?((int)sw.ElapsedMilliseconds) : ((int?)null));
-		}
-		catch
-		{
-			return new ElyTurboServiceResult(target.Name, null);
-		}
-	}
-
 	private void SortNodesByLatency()
 	{
 		_dispatcher.Invoke((Action)delegate
@@ -2914,27 +2692,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		return port;
 	}
 
-	private static async Task<bool> WaitForLocalPortAsync(int port, TimeSpan timeout)
-	{
-		DateTime deadline = DateTime.UtcNow + timeout;
-		while (DateTime.UtcNow < deadline)
-		{
-			try
-			{
-				using TcpClient client = new TcpClient();
-				Task connectTask = client.ConnectAsync(IPAddress.Loopback, port);
-				if (await Task.WhenAny(connectTask, Task.Delay(250)) == connectTask && connectTask.IsCompletedSuccessfully)
-				{
-					return true;
-				}
-			}
-			catch
-			{
-			}
-			await Task.Delay(100);
-		}
-		return false;
-	}
+    private static async Task<bool> WaitForLocalPortAsync(int port, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            using var client = new TcpClient();
+            using var attempt = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
+            try { await client.ConnectAsync(IPAddress.Loopback, port, attempt.Token); return true; }
+            catch (SocketException) { }
+            catch (OperationCanceledException) { }
+            await Task.Delay(100);
+        }
+        return false;
+    }
 
 	private bool TryGetProxyPingUri(out Uri pingUri)
 	{
@@ -2976,25 +2747,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			return trimmed;
 		}
 		return "https://youtube.com";
-	}
-
-	private static string BuildElyTurboSummary(ElyTurboNodeResult result)
-	{
-		string services = string.Join(", ", result.Services.Select((ElyTurboServiceResult service) => service.Name + ": " + FormatNullableLatency(service.LatencyMs)));
-		return $"Лучший: {result.Node.DisplayName} · сервисы {result.SuccessCount}/{result.TotalCount} · среднее {FormatNullableLatency(result.AverageLatencyMs)} · {services}";
-	}
-
-	private static IOrderedEnumerable<ElyHardService.ElyHardNodeResult> OrderElyHardResults(IEnumerable<ElyHardService.ElyHardNodeResult> results)
-	{
-		return from result in results
-			orderby result.StableServices descending, result.ReachableServices descending, result.TotalSuccessfulAttempts descending, result.AverageLatencyMs ?? int.MaxValue, result.WorstLatencyMs ?? int.MaxValue
-			select result;
-	}
-
-	private static string BuildElyHardSummary(ElyHardService.ElyHardNodeResult result)
-	{
-		string services = string.Join(", ", result.Services.Select((ElyHardService.ElyHardServiceResult service) => service.CompactDisplay));
-		return $"ElyHard лучший: {result.Node.DisplayName} · стабильно {result.StableServices}/{result.TotalServices} · попытки {result.TotalSuccessfulAttempts}/{result.TotalAttempts} · среднее {FormatNullableLatency(result.AverageLatencyMs)} · худший {FormatNullableLatency(result.WorstLatencyMs)} · {services}";
 	}
 
 	private static string FormatNullableLatency(int? latency)
@@ -3389,6 +3141,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 	private void RememberConnectedNode(VlessNode node)
 	{
 		_lastConnectedNodeId = GetNodeKey(node);
+		RememberRecentServer(node);
 		SaveSettingsAsync();
 	}
 
@@ -3418,7 +3171,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private XrayTunOptions? BuildXrayOutboundOptionsOrNull()
 	{
-		if (FragmentMode == FragmentModeKind.Off && _perAppMode != PerAppModeKind.OnlySelected && GetApplicationBypassPaths().Count == 0)
+		if (!ExitProxyEnabled && FragmentMode == FragmentModeKind.Off && string.IsNullOrEmpty(_noiseType) && string.IsNullOrEmpty(DpiFingerprint) && _perAppMode != PerAppModeKind.OnlySelected && GetApplicationBypassPaths().Count == 0)
 		{
 			return null;
 		}
@@ -3435,19 +3188,27 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			FragmentLength = length,
 			FragmentInterval = interval,
 			RecordFragment = FragmentRecord,
-			NoiseType = (enabled ? _noiseType : string.Empty),
+			NoiseType = _noiseType,
 			NoisePacket = NoisePacket,
 			NoiseDelay = NoiseDelay,
 			PerAppMode = _perAppMode,
 			TlsSpoofEnabled = _tlsSpoofEnabled,
 			TlsSpoofSni = (_tlsSpoofEnabled ? TlsSpoofSni.Trim() : string.Empty),
-			TlsSpoofMethod = _tlsSpoofMethod
+			TlsSpoofMethod = _tlsSpoofMethod,
+            ExitProxy = ExitProxyEnabled ? _exitProxy : null,
+            DpiFingerprint = DpiFingerprint
 		};
 	}
 
 	private XrayTunOptions BuildProbeOptions()
 	{
-		return WithFragmentSettings(new XrayTunOptions("ElyProbe", 1500, GetElyTunDnsServers(), false, Array.Empty<string>(), Array.Empty<string>(), RoutingPreset.Custom, Array.Empty<string>()));
+		return WithFragmentSettings(new XrayTunOptions("ElyProbe", 1500, GetElyTunDnsServers(), false, Array.Empty<string>(), Array.Empty<string>(), RoutingPreset.Custom, Array.Empty<string>())) with
+        {
+            ExitProxy = null,
+            // Probe traffic must traverse the server even in OnlySelected routing mode.
+            PerAppMode = PerAppModeKind.Bypass,
+            BypassProcessPaths = Array.Empty<string>()
+        };
 	}
 
 	private (string Packets, string Length, string Interval) ResolveFragmentValues()	{
@@ -3470,17 +3231,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			.ToArray();
 	}
 
-	private void ApplyTunRuntimeSetting()
-	{
-		if ((ElyTunEnabled || ProxyProEnabled || SystemProxyEnabled) && IsConnected)
-		{
-			RestartActiveXrayAsync();
-		}
-		else
-		{
-			SaveSettingsAsync();
-		}
-	}
+    private void ApplyTunRuntimeSetting() => MarkConnectionSettingsPending();
 
 	private async Task ApplyRoutingPresetAsync()
 	{
@@ -3548,12 +3299,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			}
 
 			StatusText = "Остановка ядер перед перезапуском…";
-			await StopAllCoresAsync();
-			if (SystemProxyEnabled)
-			{
-				StopSystemProxy(silent: true);
-			}
-			DeactivateProxyPro(silent: true);
+			await ShutdownAsync();
 			await SaveSettingsAsync();
 
 			ElyTunElevationService.StartElevatedForElyTun();
@@ -3562,10 +3308,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			// A hard exit is deliberate: the elevated instance is already starting,
 			// and a graceful WPF shutdown can deadlock on sync-over-async cleanup
 			// (cores stop with blocking waits while the UI thread is closing).
-			Environment.Exit(0);
+			Application.Current.Shutdown();
 		}
 		catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
 		{
+            _shutdownComplete = false; _coreLifecycleLock.ResumeAfterFailedHandoff();
 			StatusText = "Запуск ElyTun отменён";
 			DialogService.Current.Notify("Запуск отменён", "ElyTun не включён. ElyProxy продолжает работать без прав администратора.", NoticeKind.Info);
 			await RestoreConnectionAfterFailedElevationAsync();
@@ -3705,7 +3452,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			}
 			return false;
 		}
-		if (TunCore == TunCoreKind.Xray)
+		if (EffectiveTunCore == TunCoreKind.Xray)
 		{
 			string xrayPath = _xrayManager.GetXrayPath();
 			if (!File.Exists(xrayPath))
@@ -3720,7 +3467,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				return false;
 			}
 		}
-		else if (TunCore == TunCoreKind.Tun2Proxy)
+		else if (EffectiveTunCore == TunCoreKind.Tun2Proxy)
 		{
 			string tun2ProxyPath = _tun2ProxyManager.GetTun2ProxyPath();
 			if (!File.Exists(tun2ProxyPath))
@@ -3735,7 +3482,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				return false;
 			}
 		}
-		else if (TunCore == TunCoreKind.Hysteria)
+		else if (EffectiveTunCore == TunCoreKind.Hysteria)
 		{
 			string hysteriaPath = _hysteriaManager.GetHysteriaPath();
 			if (!File.Exists(hysteriaPath))
@@ -3778,7 +3525,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private bool EnsureProxyProCanRun(bool showMessage)
 	{
-		string singBoxPath = _singBoxProxyManager.GetSingBoxPath();
+		string singBoxPath = UsesSingBoxProxy ? _singBoxProxyManager.GetSingBoxPath() : _xrayManager.GetXrayPath();
 		if (File.Exists(singBoxPath))
 		{
 			return true;
@@ -3962,17 +3709,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		{
 			return true;
 		}
-		string corePath = (ElyTunEnabled ? ((TunCore == TunCoreKind.SingBox) ? _singBoxTunManager.GetSingBoxPath() : ((TunCore == TunCoreKind.Hysteria) ? _hysteriaManager.GetHysteriaPath() : _xrayManager.GetXrayPath())) : (ProxyProEnabled ? _singBoxProxyManager.GetSingBoxPath() : _xrayManager.GetXrayPath()));
-		if (PortOwnerService.TryStopStaleCoreOnPort(SocksPort, corePath, out string cleanupMessage))
-		{
-			AppendLog(cleanupMessage);
-			if (IsLocalTcpPortAvailable(SocksPort))
-			{
-				return true;
-			}
-		}
 		StatusText = $"Порт {SocksPort} занят";
-		string owner = (string.IsNullOrWhiteSpace(cleanupMessage) ? PortOwnerService.DescribeTcpPortOwner(SocksPort) : cleanupMessage);
+		string owner = PortOwnerService.DescribeTcpPortOwner(SocksPort);
 		AppendLog("[err] " + owner);
 		return false;
 	}
@@ -3992,28 +3730,37 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 	}
 
-	private async Task ReconnectAsync(VlessNode node, int connectionGeneration)
+	private async Task ReconnectAsync(VlessNode node, int connectionGeneration, bool environmentChanged = false)
 	{
 		if (_isReconnecting || _isDisposed)
 		{
 			return;
 		}
 		_isReconnecting = true;
-		AppendLog("[sys] Обрыв соединения. Переподключение через 3 сек.: " + node.DisplayName);
+		AppendLog(environmentChanged ? "[sys] Изменение сети: проверка состояния через 3 сек." : "[sys] Обрыв соединения. Переподключение через 3 сек.: " + node.DisplayName);
 		bool lifecycleLockHeld = false;
 		try
 		{
-			if (!CanTryAutoReconnect())
-			{
-				return;
-			}
 			await Task.Delay(TimeSpan.FromSeconds(3.0));
 			await _coreLifecycleLock.WaitAsync();
 			lifecycleLockHeld = true;
-			if (_isDisposed || !AutoReconnect || IsConnected || Volatile.Read(ref _connectionGeneration) != connectionGeneration)
+			if (_isDisposed || _coreLifecycleLock.ShuttingDown || !AutoReconnect || Volatile.Read(ref _connectionGeneration) != connectionGeneration)
 			{
 				return;
 			}
+			// Network/TUN notifications are not failed connection attempts. Recheck
+			// under the lifecycle lock before consuming the recovery budget.
+			if (IsActiveCoreRunning())
+			{
+				if (!IsConnected)
+				{
+					IsConnected = true;
+					StatusText = "Подключено";
+				}
+				return;
+			}
+			IsConnected = false;
+			if (!CanTryAutoReconnect()) return;
 			IsLoading = true;
 			StatusText = "Переподключение...";
 			if (ElyTunEnabled && !EnsureElyTunCanRun(showMessage: true))
@@ -4035,19 +3782,25 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 					ConnectedNodeName = string.Empty;
 					return;
 				}
-				if (!EnsureNodeSupportedBySelectedCore(node, showMessage: true))
+				PrepareCoreSelection(node);
+                await ValidatePreparedConnectionAsync(node);
+                if (!EnsureNodeSupportedBySelectedCore(node, showMessage: true))
 				{
 					_connectedNode = null;
 					ConnectionInfo = string.Empty;
 					ConnectedNodeName = string.Empty;
 					return;
 				}
+				_connectedNode = node;
 				await StartSelectedCoreAsync(node);
+                if (_isDisposed || _coreLifecycleLock.ShuttingDown || connectionGeneration != Volatile.Read(ref _connectionGeneration)) throw new OperationCanceledException("Переподключение отменено");
 				IsConnected = true;
+				_sessionSubscriptionName = SubscriptionName(node);
 				_connectedNode = node;
 				ConnectedNodeName = node.DisplayName;
 				UpdateConnectionInfo(node);
 				RememberConnectedNode(node);
+				_autoReconnectPolicy.Reset();
 				_networkChangeGuardUntil = DateTime.UtcNow.AddSeconds(8.0);
 				if (SystemProxyEnabled)
 				{
@@ -4061,6 +3814,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 		catch (Exception ex)
 		{
+            if (lifecycleLockHeld) await RollbackConnectionAsync();
 			StatusText = "Ошибка переподключения";
 			AppendLog("[err] Не удалось переподключиться: " + ex.Message);
 		}
@@ -4083,9 +3837,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 		StatusText = "Автопереподключение остановлено";
 		AppendLog("[err] Автопереподключение остановлено после 3 неудачных попыток.");
-		_connectedNode = null;
-		ConnectionInfo = string.Empty;
-		ConnectedNodeName = string.Empty;
+		// Keep the target available for a manual retry and for the connection card.
+		// Stopping recovery does not itself stop a core or discard session identity.
 		return false;
 	}
 
@@ -4170,41 +3923,46 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 	}
 
-	private void OnStatusChanged(bool running)
-	{
-		bool suppressedDisconnect = !running && Volatile.Read(ref _coreLifecycleTransition) > 0;
+    private void OnStatusChanged(bool running)
+    {
+        if (running || _isDisposed || _coreLifecycleLock.ShuttingDown || Volatile.Read(ref _coreLifecycleTransition) > 0) return;
+        int generation = Volatile.Read(ref _connectionGeneration);
+        _dispatcher.InvokeAsync(() => { _ = HandleCoreExitAsync(generation); });
+    }
 
-		_dispatcher.InvokeAsync((Action)delegate
-		{
-			if (suppressedDisconnect)
-			{
-				return;
-			}
-
-			IsConnected = running;
-			StatusText = (running ? "Подключено" : "Отключено");
-			if (!running)
-			{
-				ActiveConfigHash = string.Empty;
-				ConnectionInfo = string.Empty;
-				ConnectedNodeName = string.Empty;
-				DeactivateSystemProxyForDisconnectedServer(silent: true);
-				DeactivateProxyPro(silent: true);
-				if (AutoReconnect && !_isReconnecting && !_isDisposed && !_isUpdating && _connectedNode != null)
-				{
-					ReconnectAsync(_connectedNode, Volatile.Read(ref _connectionGeneration));
-				}
-			}
-		});
-	}
+    private async Task HandleCoreExitAsync(int generation)
+    {
+        VlessNode? node = null;
+        bool reconnect = false;
+        await _coreLifecycleLock.WaitAsync();
+        try
+        {
+            if (_isDisposed || _coreLifecycleLock.ShuttingDown || generation != Volatile.Read(ref _connectionGeneration) || IsActiveCoreRunning()) return;
+            node = _activeConnection?.Node ?? _connectedNode;
+            IsConnected = false;
+            _coreLifecycleLock.State = ConnectionState.Recovering;
+            await StopAllCoresAsync();
+            _coreLifecycleLock.State = ConnectionState.Disconnected;
+            StatusText = "Соединение прервано; сетевые настройки восстановлены";
+            reconnect = AutoReconnect && !_isReconnecting && !_isUpdating && node != null;
+        }
+        catch (Exception ex)
+        {
+            _coreLifecycleLock.State = ConnectionState.CleanupFailed;
+            StatusText = "Авария ядра: очистка не подтверждена";
+            AppendLog("[err] " + ex.GetBaseException().Message);
+        }
+        finally { _coreLifecycleLock.Release(); }
+        if (reconnect && node != null) await ReconnectAsync(node, generation);
+    }
 
 	private void OnXrayStatusChanged(bool running)
 	{
-		if ((!ElyTunEnabled && !ProxyProEnabled) || (ElyTunEnabled && TunCore == TunCoreKind.Xray))
+		if ((!ElyTunEnabled && !UsesSingBoxProxy) || (ElyTunEnabled && EffectiveTunCore == TunCoreKind.Xray))
 		{
 			OnStatusChanged(running);
 		}
-		else if (ElyTunEnabled && TunCore == TunCoreKind.Tun2Proxy && !running && IsConnected)
+		else if (ElyTunEnabled && EffectiveTunCore == TunCoreKind.Tun2Proxy && !running && IsConnected)
 		{
 			OnStatusChanged(running: false);
 		}
@@ -4212,7 +3970,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private void OnSingBoxTunStatusChanged(bool running)
 	{
-		if (ElyTunEnabled && TunCore == TunCoreKind.SingBox)
+		if (ElyTunEnabled && EffectiveTunCore == TunCoreKind.SingBox)
 		{
 			OnStatusChanged(running);
 		}
@@ -4220,11 +3978,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private void OnSingBoxProxyStatusChanged(bool running)
 	{
-		if (ProxyProEnabled)
+		if (!ElyTunEnabled && UsesSingBoxProxy)
 		{
 			OnStatusChanged(running);
 		}
-		else if (ElyTunEnabled && TunCore == TunCoreKind.Tun2Proxy && !running && IsConnected)
+		else if (ElyTunEnabled && EffectiveTunCore == TunCoreKind.Tun2Proxy && !running && IsConnected)
 		{
 			OnStatusChanged(running: false);
 		}
@@ -4232,7 +3990,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private void OnTun2ProxyStatusChanged(bool running)
 	{
-		if (ElyTunEnabled && TunCore == TunCoreKind.Tun2Proxy)
+		if (ElyTunEnabled && EffectiveTunCore == TunCoreKind.Tun2Proxy)
 		{
 			OnStatusChanged(running);
 		}
@@ -4240,7 +3998,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private void OnHysteriaStatusChanged(bool running)
 	{
-		if (RequiresHysteriaCore(_connectedNode) || (ElyTunEnabled && TunCore == TunCoreKind.Hysteria))
+		if (RequiresHysteriaCore(_connectedNode) || (ElyTunEnabled && EffectiveTunCore == TunCoreKind.Hysteria))
 		{
 			OnStatusChanged(running);
 		}
@@ -4250,8 +4008,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 	{
 		if (ElyTunEnabled)
 		{
-			XrayTunOptions options = BuildElyTunOptionsOrNull() ?? throw new InvalidOperationException("Параметры ElyTun не подготовлены.");
-			switch (TunCore)
+			XrayTunOptions options = _preparedOptions ?? BuildElyTunOptionsOrNull() ?? throw new InvalidOperationException("Параметры ElyTun не подготовлены.");
+			switch (EffectiveTunCore)
 			{
 			case TunCoreKind.Xray:
 				WarnAboutRoutingPreset("Xray TUN", presetSupported: false);
@@ -4276,7 +4034,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				break;
 			}
 		}
-		else if (ProxyProEnabled)
+		else if (UsesSingBoxProxy)
 		{
 			if (RequiresHysteriaCore(node))
 			{
@@ -4290,7 +4048,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			else
 			{
 				WarnAboutRoutingPreset("sing-box", presetSupported: true);
-				XrayTunOptions options2 = BuildProxyProOptionsOrNull() ?? throw new InvalidOperationException("Параметры Proxy Pro не подготовлены.");
+				XrayTunOptions options2 = _preparedOptions ?? BuildProxyProOptionsOrNull() ?? throw new InvalidOperationException("Параметры Proxy Pro не подготовлены.");
 				await _singBoxProxyManager.StartAsync(node, SocksPort, WithClashApi(options2));
 				ActiveConfigHash = _singBoxProxyManager.LastConfigHash ?? string.Empty;
 				StartTrafficMonitor();
@@ -4300,7 +4058,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		{
 			WarnAboutRoutingPreset("Proxy Lite (PAC)", presetSupported: false);
 			WarnIfSpoofUnsupported("Proxy Lite (PAC)");
-			XrayTunOptions? fragmentOptions = BuildXrayOutboundOptionsOrNull();
+			XrayTunOptions? fragmentOptions = _preparedOptions ?? BuildXrayOutboundOptionsOrNull();
 			if (fragmentOptions != null)
 			{
 				await _xrayManager.StartAsync(node, SocksPort, fragmentOptions, includeTunInbound: false);
@@ -4311,6 +4069,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			}
 			ActiveConfigHash = _xrayManager.LastConfigHash ?? string.Empty;
 		}
+        if (!(ElyTunEnabled && EffectiveTunCore == TunCoreKind.Hysteria)
+            && !await WaitForLocalPortAsync(SocksPort, TimeSpan.FromSeconds(8)))
+            throw new IOException($"Ядро не открыло локальный порт {SocksPort}. Соединение будет отменено.");
+        if (!(ElyTunEnabled && EffectiveTunCore == TunCoreKind.Hysteria))
+            await ConnectionReadiness.RequireSocksAsync(SocksPort);
+        // OS route and third-party HTTPS checks are diagnostic only. A blocked
+        // endpoint or a different Windows route representation must not tear down a ready core.
 	}
 
 	private void WarnIfSpoofUnsupported(string coreName)
@@ -4390,7 +4155,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private async Task StartTun2ProxyAsync(VlessNode node, XrayTunOptions options)
 	{
-		IReadOnlyList<string> endpointCidrs = await ServerAddressResolver.ResolveEndpointCidrsAsync(node.Address, TimeSpan.FromSeconds(3.0), AppendLog);
+		IReadOnlyList<string> endpointCidrs = _preparedEndpointCidrs ?? await ServerAddressResolver.ResolveEndpointCidrsAsync(node.Address, TimeSpan.FromSeconds(3.0), AppendLog);
 		if (RequiresHysteriaCore(node))
 		{
 			WarnAboutRoutingPreset("Hysteria 2 (tun2proxy)", presetSupported: false);
@@ -4399,7 +4164,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			ActiveConfigHash = _hysteriaManager.LastConfigHash ?? string.Empty;
 			AppendLog("[sys] tun2proxy: backend Hysteria 2 (SOCKS 127.0.0.1:" + SocksPort + ")");
 		}
-		else if (ProxyProtocolSupport.SupportsXray(node))
+		else if (_resolvedPlan?.Core == ProxyCoreKind.Xray)
 		{
 			WarnAboutRoutingPreset("Xray (tun2proxy)", presetSupported: false);
 			WarnIfSpoofUnsupported("Xray (tun2proxy)");
@@ -4434,11 +4199,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		{
 			return false;
 		}
-		return ProxyProEnabled || (ElyTunEnabled && TunCore == TunCoreKind.Tun2Proxy);
+		return ProxyProEnabled || (ElyTunEnabled && EffectiveTunCore == TunCoreKind.Tun2Proxy);
 	}
 
 	private bool EnsureNodeSupportedBySelectedCore(VlessNode node, bool showMessage)
 	{
+        if (!EnsureProxyChainSupported(node, showMessage)) return false;
 		if (_perAppMode == PerAppModeKind.OnlySelected)
 		{
 			if (!IsPerAppSupported)
@@ -4464,7 +4230,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				return false;
 			}
 		}
-		if (ElyTunEnabled && TunCore == TunCoreKind.Hysteria)
+		if (ElyTunEnabled && EffectiveTunCore == TunCoreKind.Hysteria)
 		{
 			string protocol = (node.Protocol ?? "vless").ToLowerInvariant();
 			if (protocol is not ("hysteria2" or "hy2"))
@@ -4504,14 +4270,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		string? limitation = null;
 		if (ElyTunEnabled)
 		{
-			limitation = TunCore switch
+			limitation = EffectiveTunCore switch
 			{
 				TunCoreKind.Xray => ProxyProtocolSupport.DescribeXrayLimitation(node),
+				TunCoreKind.Hysteria => null,
 				TunCoreKind.Tun2Proxy => ((ProxyProtocolSupport.SupportsXray(node) || ProxyProtocolSupport.SupportsSingBox(node)) ? null : $"Протокол {node.ProtocolDisplay} не поддерживается доступными ядрами."),
 				_ => ProxyProtocolSupport.DescribeSingBoxLimitation(node)
 			};
 		}
-		else if (ProxyProEnabled)
+		else if (UsesSingBoxProxy)
 		{
 			limitation = ProxyProtocolSupport.DescribeSingBoxLimitation(node);
 		}
@@ -4534,7 +4301,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private string GetTunCoreDisplayName()
 	{
-		return TunCore switch
+		return EffectiveTunCore switch
 		{
 			TunCoreKind.Xray => "Xray TUN",
 			TunCoreKind.Tun2Proxy => "tun2proxy",
@@ -4547,31 +4314,41 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 	{
 		if (ElyTunEnabled)
 		{
-			return TunCore switch
+			return EffectiveTunCore switch
 			{
 				TunCoreKind.Xray => _xrayManager.IsRunning,
-				TunCoreKind.Tun2Proxy => _tun2ProxyManager.IsRunning,
+				TunCoreKind.Tun2Proxy => _tun2ProxyManager.IsRunning && (_xrayManager.IsRunning || _singBoxProxyManager.IsRunning || _hysteriaManager.IsRunning),
 				TunCoreKind.Hysteria => _hysteriaManager.IsRunning,
 				_ => _singBoxTunManager.IsRunning
 			};
 		}
-		if (ProxyProEnabled)
+		if (UsesSingBoxProxy)
 		{
 			return (UsesHysteriaCore(_connectedNode) ? _hysteriaManager.IsRunning : _singBoxProxyManager.IsRunning);
 		}
 		return _xrayManager.IsRunning;
 	}
 
-	private async Task StopAllCoresAsync()
-	{
-		StopTrafficMonitor();
-		ActiveConfigHash = string.Empty;
-		await _tun2ProxyManager.StopAsync();
-		await _hysteriaManager.StopAsync();
-		await _xrayManager.StopAsync();
-		await _singBoxTunManager.StopAsync();
-		await _singBoxProxyManager.StopAsync();
-	}
+    private async Task StopAllCoresAsync()
+    {
+        bool ownedCoreWasRunning = HasOwnedCoreRunning();
+        bool retryRecovery = _coreLifecycleLock.State == ConnectionState.CleanupFailed;
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        AppendLog("[sys] Остановка сетевой сессии: ожидание подтверждений ядер");
+        StopTrafficMonitor();
+        ActiveConfigHash = string.Empty;
+        await LifecycleCleanup.RunAsync(ClearProxySettingsAsync,
+            _tun2ProxyManager.StopAsync, _hysteriaManager.StopAsync, _xrayManager.StopAsync,
+            _singBoxTunManager.StopAsync, _singBoxProxyManager.StopAsync);
+        if (ownedCoreWasRunning)
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(2);
+            while (!IsLocalTcpPortAvailable(SocksPort) && DateTime.UtcNow < deadline) await Task.Delay(75);
+            if (!IsLocalTcpPortAvailable(SocksPort)) throw new IOException($"Порт {SocksPort} после остановки остаётся занят. " + PortOwnerService.DescribeTcpPortOwner(SocksPort));
+        }
+        if (retryRecovery) await TunStartupRecovery.RecoverAsync(UseHelperService);
+        AppendLog($"[sys] Все ядра остановлены за {watch.ElapsedMilliseconds} мс");
+    }
 
 	private async void OnSubscriptionUpdateTimerTick(object? sender, EventArgs e)
 	{
@@ -4663,10 +4440,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			return;
 		}
 		_lastEnvironmentReconnectAt = DateTime.UtcNow;
-		AppendLog("[sys] " + reason + ": переподключение…");
+		AppendLog("[sys] " + reason + ": проверка соединения…");
 		_ = _dispatcher.InvokeAsync((Action)delegate
 		{
-			_ = ReconnectAsync(node, Volatile.Read(ref _connectionGeneration));
+			_ = ReconnectAsync(node, Volatile.Read(ref _connectionGeneration), environmentChanged: true);
 		});
 	}
 
@@ -4749,6 +4526,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		{
 			StatusText = "Ошибка системного прокси";
 			AppendLog("[err] Не удалось включить системный прокси: " + ex.Message);
+            throw;
 		}
 	}
 
@@ -4756,8 +4534,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 	{
 		if (ProxyProEnabled && _windowsProxyRecoveryService.ActiveState == null)
 		{
-			_windowsProxyRecoveryService.PrepareForManualProxy(SocksPort, GetSystemProxyRules());
-			_windowsProxyService.EnableManualProxy(SocksPort, GetSystemProxyRules());
+			_windowsProxyRecoveryService.PrepareForManualProxy(SocksPort, GetSystemProxyRules(), _preparedOptions?.HttpPort > 0 ? _preparedOptions.HttpPort : SocksPort);
+			_windowsProxyService.EnableManualProxyPorts(SocksPort, _preparedOptions?.HttpPort > 0 ? _preparedOptions.HttpPort : SocksPort, GetSystemProxyRules());
 			StatusText = "Proxy Pro включён";
 			AppendLog("[sys] Proxy Pro включён: системный HTTP/HTTPS/SOCKS-прокси");
 		}
@@ -4786,106 +4564,26 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 	}
 
-	private async Task ApplyProxyProSettingAsync(bool enabled)
-	{
-		_ = 1;
-		try
-		{
-			if (enabled && !EnsureProxyProCanRun(showMessage: true))
-			{
-				return;
-			}
-			if (enabled && SystemProxyEnabled)
-			{
-				StopSystemProxy(silent: true);
-				_systemProxyEnabled = false;
-				OnPropertyChanged("SystemProxyEnabled");
-			}
-			if (enabled && ElyTunEnabled)
-			{
-				_elyTunEnabled = false;
-				OnPropertyChanged("ElyTunEnabled");
-			}
-			if (!enabled)
-			{
-				DeactivateProxyPro(silent: false);
-			}
-			if (IsConnected)
-			{
-				await RestartActiveXrayAsync();
-				if (enabled)
-				{
-					ActivateProxyPro();
-				}
-			}
-			else
-			{
-				StatusText = (enabled ? "Proxy Pro включится после подключения" : "Proxy Pro выключен");
-			}
-			await SaveSettingsAsync();
-		}
-		catch (Exception ex)
-		{
-			if (enabled)
-			{
-				DeactivateProxyPro(silent: true);
-				_proxyProEnabled = false;
-				OnPropertyChanged("ProxyProEnabled");
-			}
-			StatusText = "Ошибка Proxy Pro";
-			AppendLog("[err] Не удалось изменить Proxy Pro: " + ex.Message);
-		}
-	}
+    private async Task ApplyProxyProSettingAsync(bool enabled)
+    {
+        if (enabled && !EnsureProxyProCanRun(true)) return;
+        if (enabled) SelectExclusiveMode("pro");
+        await ApplyLatestRuntimeChangeAsync();
+    }
 
-	private async Task ApplyElyTunSettingAsync(bool enabled)
-	{
-		_ = 1;
-		try
-		{
-			if (!enabled || EnsureElyTunCanRun(showMessage: true))
-			{
-				if (enabled && SystemProxyEnabled)
-				{
-					StopSystemProxy(silent: true);
-					_systemProxyEnabled = false;
-					OnPropertyChanged("SystemProxyEnabled");
-					AppendLog("[sys] Системный прокси выключен: ElyTun использует полный TUN-режим");
-				}
-				if (enabled && ProxyProEnabled)
-				{
-					DeactivateProxyPro(silent: true);
-					_proxyProEnabled = false;
-					OnPropertyChanged("ProxyProEnabled");
-					AppendLog("[sys] Proxy Pro выключен: ElyTun использует TUN-режим");
-				}
-				if (IsConnected)
-				{
-					await RestartActiveXrayAsync();
-				}
-				else
-				{
-					StatusText = (enabled ? "ElyTun включится после подключения" : "ElyTun выключен");
-				}
-				await SaveSettingsAsync();
-			}
-		}
-		catch (Exception ex)
-		{
-			if (enabled)
-			{
-				_elyTunEnabled = false;
-				OnPropertyChanged("ElyTunEnabled");
-			}
-			StatusText = "Ошибка ElyTun";
-			AppendLog("[err] Не удалось изменить режим ElyTun: " + ex.Message);
-		}
-	}
+    private async Task ApplyElyTunSettingAsync(bool enabled)
+    {
+        if (enabled && !EnsureElyTunCanRun(true)) return;
+        if (enabled) SelectExclusiveMode("tun");
+        await ApplyLatestRuntimeChangeAsync();
+    }
 
 	private async Task RestartActiveXrayAsync()
 	{
 		await _coreLifecycleLock.WaitAsync();
 		try
 		{
+            if (_coreLifecycleLock.ShuttingDown) return;
 			await RestartActiveCoreAsync();
 		}
 		finally
@@ -4896,23 +4594,29 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private async Task RestartActiveCoreAsync()
 	{
-		if (_connectedNode == null || !IsConnected || (ElyTunEnabled && !EnsureElyTunCanRun(showMessage: true)) || (ProxyProEnabled && !EnsureProxyProCanRun(showMessage: true)))
+		if (_connectedNode == null || !IsConnected || _coreLifecycleLock.ShuttingDown)
 		{
 			return;
 		}
+		var previousConnection = _activeConnection;
+        int generation = Volatile.Read(ref _connectionGeneration);
+        bool transitioned = false;
 		Interlocked.Increment(ref _coreLifecycleTransition);
 		try
 		{
 			IsLoading = true;
 			StatusText = (ElyTunEnabled ? "Перезапуск ElyTun..." : (ProxyProEnabled ? "Перезапуск Proxy Pro..." : "Перезапуск Xray..."));
-			if (ProxyProEnabled)
-			{
-				DeactivateProxyPro(silent: true);
-			}
-			await StopAllCoresAsync();
+            PrepareCoreSelection(_connectedNode);
+            if (ElyTunEnabled && !EnsureElyTunCanRun(true) || ProxyProEnabled && !EnsureProxyProCanRun(true))
+                throw new InvalidOperationException("Новые параметры соединения недоступны.");
+            await ValidatePreparedConnectionAsync(_connectedNode);
+            if (!EnsureNodeSupportedBySelectedCore(_connectedNode, true)) throw new InvalidOperationException("Выбранные параметры не поддерживаются.");
+			transitioned = true;
+            await StopAllCoresAsync();
 			IsConnected = false;
 			await StartSelectedCoreAsync(_connectedNode);
-			IsConnected = true;
+            if (_coreLifecycleLock.ShuttingDown || generation != Volatile.Read(ref _connectionGeneration)) throw new OperationCanceledException("Перезапуск отменён");
+
 			UpdateConnectionInfo(_connectedNode);
 			if (SystemProxyEnabled)
 			{
@@ -4922,23 +4626,27 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			{
 				ActivateProxyPro();
 			}
-			if (ElyTunEnabled)
+			ConfirmConnection(_connectedNode);
+            if (ElyTunEnabled)
 			{
 				VerifyElyTunConnectivityAsync();
 			}
 		}
-		catch (Exception ex)
-		{
-			IsConnected = IsActiveCoreRunning();
-			if (!IsConnected)
-			{
-				_connectedNode = null;
-				ConnectionInfo = string.Empty;
-				ConnectedNodeName = string.Empty;
-			}
-			StatusText = "Ошибка перезапуска соединения";
-			AppendLog("[err] Не удалось перезапустить соединение: " + ex.Message);
-		}
+        catch (Exception ex)
+        {
+            if (transitioned) await RollbackConnectionAsync();
+            if (previousConnection != null)
+            {
+                if (transitioned)
+                {
+                    try { await RestoreConnectionAsync(previousConnection, generation); }
+                    catch (Exception restoreError) { await RollbackConnectionAsync(); AppendLog("[err] Откат: " + restoreError.GetBaseException().Message); }
+                }
+                else { _resolvedPlan = previousConnection.Plan; _preparedOptions = previousConnection.Options; }
+            }
+            StatusText = _coreLifecycleLock.State == ConnectionState.CleanupFailed ? "Очистка соединения не подтверждена — повторите отключение" : IsConnected ? "Восстановлено предыдущее соединение" : "Ошибка перезапуска соединения";
+            AppendLog("[err] Не удалось перезапустить соединение: " + ex.GetBaseException().Message);
+        }
 		finally
 		{
 			IsLoading = false;
@@ -4946,112 +4654,69 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 	}
 
+	private int _elyTunConnectivityGeneration;
+
+	private CancellationTokenSource? _elyTunConnectivityCancellation;
+
 	private async Task VerifyElyTunConnectivityAsync()
 	{
-		await Task.Delay(TimeSpan.FromSeconds(3.0));
+		if (_isDisposed || !IsConnected || !ElyTunEnabled) return;
+		int checkGeneration = Interlocked.Increment(ref _elyTunConnectivityGeneration);
+		int connectionGeneration = Volatile.Read(ref _connectionGeneration);
+		VlessNode? checkedNode = _connectedNode;
+		using var cancellation = new CancellationTokenSource();
+		var previous = Interlocked.Exchange(ref _elyTunConnectivityCancellation, cancellation);
+		try { previous?.Cancel(); } catch (ObjectDisposedException) { }
+		bool IsCurrent() => !_isDisposed && IsConnected && ElyTunEnabled && IsActiveCoreRunning()
+			&& checkGeneration == Volatile.Read(ref _elyTunConnectivityGeneration)
+			&& connectionGeneration == Volatile.Read(ref _connectionGeneration)
+			&& ReferenceEquals(checkedNode, _connectedNode);
 		try
 		{
-			using HttpClientHandler handler = new HttpClientHandler
+			await Task.Delay(TimeSpan.FromSeconds(3), cancellation.Token);
+			if (!IsCurrent()) return;
+			using var handler = new SocketsHttpHandler
 			{
 				UseProxy = false,
-				AllowAutoRedirect = false
+				AllowAutoRedirect = false,
+				ConnectTimeout = TimeSpan.FromSeconds(3)
 			};
-			using HttpClient http = new HttpClient(handler)
+			using var http = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+			var service = new ElyTunConnectivityService(http);
+			var result = await service.CheckAsync(cancellation.Token);
+			if (!result.Reachable && IsCurrent())
 			{
-				Timeout = TimeSpan.FromSeconds(8.0)
-			};
-			http.DefaultRequestHeaders.UserAgent.ParseAdd("ElyProxy/ElyTun");
-			Stopwatch sw = Stopwatch.StartNew();
-			HttpResponseMessage response = await http.GetAsync("https://www.gstatic.com/generate_204", HttpCompletionOption.ResponseHeadersRead);
-			try
-			{
-				sw.Stop();
-				int statusCode = (int)response.StatusCode;
-				if (statusCode >= 200 && statusCode < 400)
-				{
-					await _dispatcher.InvokeAsync((Action)delegate
-					{
-						StatusText = $"ElyTun работает: {sw.ElapsedMilliseconds} ms";
-						AppendLog($"[sys] ElyTun self-test OK: HTTP {response.StatusCode}, {sw.ElapsedMilliseconds} ms");
-					});
-					return;
-				}
-				await _dispatcher.InvokeAsync((Action)delegate
-				{
-					StatusText = "ElyTun: HTTP-тест не прошёл";
-					AppendLog($"[err] ElyTun self-test failed: HTTP {response.StatusCode}");
-				});
+				// DNS/routes can still settle immediately after the core starts.
+				await Task.Delay(TimeSpan.FromSeconds(2), cancellation.Token);
+				if (!IsCurrent()) return;
+				result = await service.CheckAsync(cancellation.Token);
 			}
-			finally
-			{
-				if (response != null)
-				{
-					((IDisposable)response).Dispose();
-				}
-			}
+			if (!IsCurrent()) return;
+			StatusText = result.Reachable
+				? $"ElyTun: HTTPS доступен, {result.ElapsedMilliseconds} мс"
+				: "ElyTun подключён · HTTPS не подтверждён";
+			AppendLog(result.Reachable
+				? $"[sys] ElyTun self-test OK: {result.Details}, {result.ElapsedMilliseconds} ms"
+				: $"[warn] ElyTun: ядро работает, но HTTPS-проверка не прошла: {result.Details}. Проверьте сайты или нажмите «Диагностика». Это не подтверждает отсутствие интернета.");
 		}
+		catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
 		catch (Exception ex)
 		{
-			Exception ex2 = ex;
-			await _dispatcher.InvokeAsync((Action)delegate
-			{
-				StatusText = "ElyTun: сеть не отвечает";
-				AppendLog("[err] ElyTun self-test failed: " + ex2.GetType().Name + ": " + ex2.Message);
-			});
+			if (!IsCurrent()) return;
+			StatusText = "ElyTun подключён · HTTPS не подтверждён";
+			AppendLog("[warn] ElyTun self-test: проверка не завершена: " + ex.GetType().Name + ": " + ex.Message);
+		}
+		finally
+		{
+			Interlocked.CompareExchange(ref _elyTunConnectivityCancellation, null, cancellation);
 		}
 	}
 
-	private async Task ApplySystemProxySettingAsync(bool enabled)
-	{
-		_ = 3;
-		try
-		{
-			if (enabled && ElyTunEnabled)
-			{
-				_elyTunEnabled = false;
-				OnPropertyChanged("ElyTunEnabled");
-				AppendLog("[sys] ElyTun выключен: системный прокси использует PAC-режим");
-				if (IsConnected)
-				{
-					await RestartActiveXrayAsync();
-				}
-			}
-			if (enabled && ProxyProEnabled)
-			{
-				DeactivateProxyPro(silent: true);
-				_proxyProEnabled = false;
-				OnPropertyChanged("ProxyProEnabled");
-				if (IsConnected)
-				{
-					await RestartActiveXrayAsync();
-				}
-			}
-			if (enabled && IsConnected)
-			{
-				await StartSystemProxyAsync();
-			}
-			else if (enabled)
-			{
-				StatusText = "Системный прокси включится после подключения";
-			}
-			else
-			{
-				StopSystemProxy(silent: false);
-			}
-			await SaveSettingsAsync();
-		}
-		catch (Exception ex)
-		{
-			if (enabled)
-			{
-				_pacServerService.Stop();
-				_systemProxyEnabled = false;
-				OnPropertyChanged("SystemProxyEnabled");
-			}
-			StatusText = "Ошибка системного прокси";
-			AppendLog("[err] Не удалось изменить системный прокси: " + ex.Message);
-		}
-	}
+    private async Task ApplySystemProxySettingAsync(bool enabled)
+    {
+        if (enabled) SelectExclusiveMode("pac");
+        await ApplyLatestRuntimeChangeAsync();
+    }
 
 	private async Task RestartSystemProxyAsync()
 	{
@@ -5114,6 +4779,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private void AppendLog(string message)
 	{
+        if (message.StartsWith("[sys]") || message.StartsWith("[err]") || message.StartsWith("[warn]")) LifecycleLog.Write("client", message);
+		// AppendLog is also called from system/background threads (network
+		// change and power events). Touching LogText there raises
+		// PropertyChanged off the UI thread, and the window's log filter then
+		// reads its TextBox from that thread — an unhandled VerifyAccess
+		// exception that silently killed the process. Route background
+		// messages through the thread-safe queue instead.
+		if (!_dispatcher.CheckAccess())
+		{
+			OnLogReceived(message);
+			return;
+		}
+
 		string timestamp = DateTime.Now.ToString("HH:mm:ss");
 		LogText += $"[{timestamp}] {message}\n";
 		if (LogText.Length > 50000)
@@ -5268,7 +4946,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		bool installed = _helperServiceRunning || HelperServiceInstaller.IsServiceInstalled();
 		if (_helperServiceRunning)
 		{
-			HelperServiceStatus = "Служба запущена.";
+			HelperServiceStatus = IsHelperServiceInAppDirectory()
+				? "Служба запущена из папки программы. Нажмите «Установить», чтобы перенести её: иначе обновления будут пропускать файлы службы."
+				: "Служба запущена.";
 		}
 		else if (installed)
 		{
@@ -5279,6 +4959,32 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			HelperServiceStatus = HelperServiceInstaller.IsHelperAvailable()
 				? "Служба не установлена."
 				: "ElyProxy.Helper.exe не найден в сборке.";
+		}
+	}
+
+	private static bool IsHelperServiceInAppDirectory()
+	{
+		try
+		{
+			using RegistryKey? key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\ElyProxyHelper");
+			if (key?.GetValue("ImagePath") is not string imagePath || imagePath.Length == 0)
+			{
+				return false;
+			}
+
+			string executable = imagePath.StartsWith('"')
+				? imagePath.Substring(1, Math.Max(0, imagePath.IndexOf('"', 1) - 1))
+				: imagePath.Split(' ')[0];
+			if (executable.Length == 0)
+			{
+				return false;
+			}
+
+			return executable.StartsWith(AppDomain.CurrentDomain.BaseDirectory, StringComparison.OrdinalIgnoreCase);
+		}
+		catch
+		{
+			return false;
 		}
 	}
 
@@ -5297,6 +5003,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			foreach (string coreId in CoreUpdateService.CoreIds)
 			{
 				string installed = await CoreVersionService.GetInstalledVersionAsync(coreId);
+                SetSettingsCoreVersion(coreId, installed);
 				try
 				{
 					CoreRelease latest = await _coreUpdateService.GetLatestAsync(coreId);
@@ -5463,10 +5170,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		catch (Exception ex)
 		{
 			SetUpdateState("Не удалось проверить обновления", "Обновления · ошибка", Brushes.IndianRed);
-			AppendLog("[warn] Обновления: " + ex.Message);
+			AppendLog("[warn] Обновления: " + NetworkErrorMessage.Describe(ex));
 			if (showNoUpdateMessage)
 			{
-				DialogService.Current.Notify("Обновления", "Не удалось проверить обновления: " + ex.Message, NoticeKind.Error);
+				DialogService.Current.Notify("Обновления", "Не удалось проверить обновления: " + NetworkErrorMessage.Describe(ex), NoticeKind.Error);
 			}
 			return false;
 		}
@@ -5498,6 +5205,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		}
 		catch (Exception ex)
 		{
+            _shutdownComplete = false; _coreLifecycleLock.ResumeAfterFailedHandoff();
 			_isUpdating = false;
 			SetUpdateState("Не удалось установить обновление", "Обновления · ошибка", Brushes.IndianRed);
 			AppendLog("[err] Обновления: " + ex.Message);
@@ -5512,10 +5220,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	private async Task StopForUpdateAsync()
 	{
-		if (IsConnected)
-		{
-			await StopAllCoresAsync();
-		}
+        await ShutdownAsync();
 		if (SystemProxyEnabled)
 		{
 			StopSystemProxy(silent: true);
@@ -5548,6 +5253,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			SocksPort = ((settings.SocksPort > 0) ? settings.SocksPort : 1080);
 			AutoConnect = settings.AutoConnect;
 			AutoReconnect = settings.AutoReconnect;
+			BlockTorrent = settings.BlockTorrent;
 			ShowLogs = settings.ShowLogs;
 			PingMode = settings.PingMode;
 			ProxyPingUrl = settings.ProxyPingUrl;
@@ -5559,14 +5265,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			ProxyProEnabled = !elevatedElyTunLaunch && settings.ProxyProEnabled;
 			ElyTunEnabled = elevatedElyTunLaunch || (!ProxyProEnabled && settings.ElyTunEnabled && (isAdministrator || helperReady));
 			ElyTunIpv6Enabled = settings.ElyTunIpv6Enabled;
+			_proxyCoreSelection = settings.ProxyCore;
+			OnPropertyChanged(nameof(ProxyCoreIndex));
 			TunCore = (Enum.IsDefined(settings.TunCore) ? settings.TunCore : TunCoreKind.SingBox);
 			Hysteria2Engine = (Enum.IsDefined(settings.Hysteria2Engine) ? settings.Hysteria2Engine : Hysteria2Engine.SingBox);
 			UseHelperService = settings.UseHelperService;
+			_exitProxy = settings.ExitProxy;
+            ExitProxyEnabled = settings.ExitProxyEnabled;
+            OnPropertyChanged(nameof(ExitProxySummary));
 			FragmentMode = (Enum.IsDefined(settings.FragmentMode) ? settings.FragmentMode : FragmentModeKind.Off);
 			FragmentPackets = (string.IsNullOrWhiteSpace(settings.FragmentPackets) ? "tlshello" : settings.FragmentPackets);
 			FragmentLength = (string.IsNullOrWhiteSpace(settings.FragmentLength) ? "100-200" : settings.FragmentLength);
 			FragmentInterval = (string.IsNullOrWhiteSpace(settings.FragmentInterval) ? "10-20" : settings.FragmentInterval);
 			FragmentRecord = settings.FragmentRecord;
+            DpiFingerprint = settings.DpiFingerprint;
 			PerAppMode = (Enum.IsDefined(settings.PerAppMode) ? settings.PerAppMode : PerAppModeKind.Bypass);
 			TlsSpoofEnabled = settings.TlsSpoofEnabled;
 			TlsSpoofSni = (settings.TlsSpoofSni ?? string.Empty);
@@ -5587,6 +5299,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			});
 			NoisePacket = (settings.NoisePacket ?? string.Empty);
 			NoiseDelay = (string.IsNullOrWhiteSpace(settings.NoiseDelay) ? "10-16" : settings.NoiseDelay);
+            _dpiDefaults = settings.DpiDefaults ?? DpiSettings.Migrate(settings);
+            _serverDpi = settings.ServerDpi ?? new();
 			RoutingPreset = (Enum.IsDefined(settings.RoutingPreset) ? settings.RoutingPreset : RoutingPreset.Custom);
 			SystemProxyEnabled = !elevatedElyTunLaunch && !ProxyProEnabled && !ElyTunEnabled && (settings.SystemProxyEnabled || settings.PacModeEnabled);
 			MainViewModel mainViewModel2 = this;
@@ -5614,10 +5328,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			SubscriptionUpdateIntervalMinutes = settings.SubscriptionUpdateIntervalMinutes;
 			AutoUpdate = settings.AutoUpdate;
 			ThemeMode = settings.ThemeMode;
-			BackdropMode = settings.BackdropMode;
 			MotionMode = settings.MotionMode;
 			ServerBadgeMode = settings.ServerBadgeMode;
 			_lastConnectedNodeId = settings.LastConnectedNodeId;
+			_favoriteServers = new(settings.FavoriteServerIds ?? new(), StringComparer.Ordinal);
+			_recentServers = (settings.RecentServerIds ?? new()).Distinct().Take(30).ToList();
+			OnPropertyChanged("ServerLibrary");
 			_manualNodes.Clear();
 			List<VlessNode> manualNodes = settings.ManualNodes;
 			if (manualNodes != null && manualNodes.Count > 0)
@@ -5661,6 +5377,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 			CommandManager.InvalidateRequerySuggested();
 			RefreshAllNodes();
 			AppendLog($"[sys] Загружено: {Subscriptions.Count} подписок, {AllNodes.Count} серверов, {Profiles.Count} профилей");
+            var identityNodes = AllNodes.ToArray();
+            _favoriteServers = new(ServerLibraryIdentity.Migrate(_favoriteServers, identityNodes), StringComparer.Ordinal);
+            _recentServers = ServerLibraryIdentity.Migrate(_recentServers, identityNodes).Take(30).ToList();
+            // Persist generated identities before a later favorite save can refer to them.
+            if (_canSaveSubscriptions) await _storageService.SaveSubscriptionsAsync(Subscriptions);
+            await SaveSettingsAsync();
+            OnPropertyChanged("ServerLibrary");
+            try
+            {
+                await TunStartupRecovery.RecoverAsync(UseHelperService);
+                AppendLog("[sys] Проверка восстановления прежних TUN-сессий завершена");
+            }
+            catch (Exception ex) { AppendLog("[warn] Восстановление TUN: " + ex.GetBaseException().Message); }
 			SelectLastConnectedNode();
 			if (_launchElyTunOnStartup)
 			{
@@ -5791,10 +5520,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				AutoStartWithWindows = AutoStartWithWindows,
 				AutoConnect = AutoConnect,
 				AutoReconnect = AutoReconnect,
+				BlockTorrent = BlockTorrent,
 				ShowLogs = ShowLogs,
 				AutoUpdate = AutoUpdate,
 				ThemeMode = ThemeMode,
-				BackdropMode = BackdropMode,
 				MotionMode = MotionMode,
 				ServerBadgeMode = ServerBadgeMode,
 				PingMode = PingMode,
@@ -5809,13 +5538,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				ElyTunEnabled = ElyTunEnabled,
 				ElyTunIpv6Enabled = ElyTunIpv6Enabled,
 				TunCore = TunCore,
+                ProxyCore = _proxyCoreSelection,
+                DpiDefaults = _dpiDefaults,
+                ServerDpi = _serverDpi,
 				Hysteria2Engine = Hysteria2Engine,
 				UseHelperService = UseHelperService,
+                ExitProxyEnabled = ExitProxyEnabled,
+                ExitProxy = _exitProxy,
 				FragmentMode = FragmentMode,
 				FragmentPackets = FragmentPackets,
 				FragmentLength = FragmentLength,
 				FragmentInterval = FragmentInterval,
 				FragmentRecord = FragmentRecord,
+            DpiFingerprint = DpiFingerprint,
 				PerAppMode = PerAppMode,
 				TlsSpoofEnabled = TlsSpoofEnabled,
 				TlsSpoofSni = TlsSpoofSni,
@@ -5827,6 +5562,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 				PreviousAutoConfigUrl = _previousAutoConfigUrl,
 				SubscriptionUpdateIntervalMinutes = SubscriptionUpdateIntervalMinutes,
 				LastConnectedNodeId = _lastConnectedNodeId,
+				FavoriteServerIds = _favoriteServers.ToList(),
+				RecentServerIds = _recentServers.ToList(),
 				ManualNodes = _manualNodes.ToList()
 			};
 			await _storageService.SaveSettingsAsync(settings);
@@ -5846,7 +5583,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
 	public void Dispose()
 	{
+        _runtimeChanges.Dispose();
+        _dpiTuningCancellation?.Cancel();
 		_isDisposed = true;
+		try { _elyTunConnectivityCancellation?.Cancel(); } catch (ObjectDisposedException) { }
+		_torrentBlocker?.Dispose();
 		_subscriptionUpdateTimer.Stop();
 		_logFlushTimer.Stop();
 		_subscriptionUpdateTimer.Tick -= OnSubscriptionUpdateTimerTick;
@@ -5855,25 +5596,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 		SystemEvents.PowerModeChanged -= OnSystemPowerModeChanged;
 		try
 		{
-			if (SystemProxyEnabled)
-			{
-				StopSystemProxy(silent: true);
-			}
-			DeactivateProxyPro(silent: true);
+			ClearProxySettingsAsync().GetAwaiter().GetResult();
 		}
 		catch
 		{
 		}
-		_pacServerService.Dispose();
-		_xrayManager.Dispose();
-		_singBoxTunManager.Dispose();
-		_singBoxProxyManager.Dispose();
-		_tun2ProxyManager.Dispose();
-		_hysteriaManager.Dispose();
-		_coreUpdateService.Dispose();
-		_geoDataUpdateService.Dispose();
-		_trafficMonitor.Dispose();
-		_subscriptionService.Dispose();
+        foreach (IDisposable resource in new IDisposable[] { _pacServerService, _xrayManager, _singBoxTunManager,
+            _singBoxProxyManager, _tun2ProxyManager, _hysteriaManager, _coreUpdateService, _geoDataUpdateService,
+            _trafficMonitor, _subscriptionService })
+        {
+            try { resource.Dispose(); }
+            catch (Exception ex) { Services.LifecycleLog.Write("dispose", ex.GetBaseException().Message); }
+        }
 		GC.SuppressFinalize(this);
 	}
 }

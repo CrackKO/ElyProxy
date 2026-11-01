@@ -42,6 +42,6 @@ public class RelayCommand : ICommand
 
 	public void Execute(object? parameter)
 	{
-		_execute(parameter);
+		if (CanExecute(parameter)) _execute(parameter);
 	}
 }

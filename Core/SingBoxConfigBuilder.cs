@@ -753,6 +753,16 @@ public sealed class SingBoxConfigBuilder
 		{
 			outbounds.Add(BuildProxyOutbound(node, options));
 		}
+		if (options.ExitProxy is { } exit)
+        {
+            ProxyChainPolicy.Validate(node, exit);
+            var entry = outbounds.OfType<JObject>().Single(o => (string?)o["tag"] == "proxy");
+            entry["tag"] = "chain-entry";
+            // DPI settings belong to the entry transport, not the exit proxy.
+            var final = BuildSocksOutbound(exit, options with { FragmentEnabled = false, RecordFragment = false, TlsSpoofEnabled = false, DpiFingerprint = "" });
+            final["detour"] = "chain-entry";
+            outbounds.Insert(0, final);
+        }
 		outbounds.Add(new JObject
 		{
 			["type"] = "direct",
@@ -983,7 +993,7 @@ public sealed class SingBoxConfigBuilder
 			["utls"] = new JObject
 			{
 				["enabled"] = true,
-				["fingerprint"] = (string.IsNullOrWhiteSpace(node.Fingerprint) ? "chrome" : node.Fingerprint)
+				["fingerprint"] = (!string.IsNullOrWhiteSpace(options.DpiFingerprint) ? options.DpiFingerprint : (string.IsNullOrWhiteSpace(node.Fingerprint) ? "chrome" : node.Fingerprint))
 			}
 		};
 		if (node.AllowInsecure)
@@ -1003,11 +1013,8 @@ public sealed class SingBoxConfigBuilder
 		{
 			tls["fragment"] = true;
 			tls["fragment_fallback_delay"] = FragmentFallbackDelay(options.FragmentInterval);
-			if (options.RecordFragment)
-			{
-				tls["record_fragment"] = true;
-			}
 		}
+		if (options.RecordFragment) tls["record_fragment"] = true;
 		if (security == "tls" && options is { TlsSpoofEnabled: true } && !string.IsNullOrWhiteSpace(options.TlsSpoofSni))
 		{
 			tls["spoof"] = options.TlsSpoofSni;
@@ -1026,7 +1033,7 @@ public sealed class SingBoxConfigBuilder
 		if (!string.IsNullOrWhiteSpace(interval))
 		{
 			string first = interval.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? string.Empty;
-			if (int.TryParse(first, out int milliseconds) && milliseconds > 0)
+			if (int.TryParse(first, out int milliseconds) && milliseconds >= 0)
 			{
 				return milliseconds + "ms";
 			}

@@ -118,6 +118,36 @@ public sealed class WindowsProxyRecoveryServiceTests : IDisposable
         Assert.True(File.Exists(Path.Combine(_directory, "windows-proxy-recovery.json")));
     }
 
+    [Fact]
+    public void PartialManualWriteIsRecoveredAndForeignReplacementIsPreserved()
+    {
+        var original = OriginalSettings() with { ProxyEnable = Dword(0) };
+        var proxy = new FakeWindowsProxyService { CurrentSettings = original };
+        var recovery = new WindowsProxyRecoveryService(proxy, new StorageService(_directory));
+        recovery.PrepareForManualProxy(1080, ["localhost"]);
+        proxy.CurrentSettings = original with { ProxyEnable = Dword(1) };
+        Assert.Equal(WindowsProxyRecoveryStatus.Restored, recovery.RestoreActive().Status);
+        Assert.Equal(original, proxy.CurrentSettings);
+        recovery.PrepareForManualProxy(1080, ["localhost"]);
+        var foreign = original with { ProxyEnable = Dword(1), ProxyServer = String("other-vpn:8080") };
+        proxy.CurrentSettings = foreign;
+        Assert.Equal(WindowsProxyRecoveryStatus.UserSettingsPreserved, recovery.RestoreActive().Status);
+        Assert.Equal(foreign, proxy.CurrentSettings);
+    }
+
+    [Fact]
+    public void SplitHttpPortIsRecognizedAndRestored()
+    {
+        var original = OriginalSettings();
+        var proxy = new FakeWindowsProxyService { CurrentSettings = original };
+        var recovery = new WindowsProxyRecoveryService(proxy, new StorageService(_directory));
+        recovery.PrepareForManualProxy(1080, ["localhost"], 18081);
+        ((IWindowsProxyService)proxy).EnableManualProxyPorts(1080, 18081, ["localhost"]);
+        Assert.Contains("http=127.0.0.1:18081", proxy.CurrentSettings.ProxyServer!.StringValue);
+        Assert.Equal(WindowsProxyRecoveryStatus.Restored, recovery.RestoreActive().Status);
+        Assert.Equal(original, proxy.CurrentSettings);
+    }
+
     private static WindowsProxySnapshot OriginalSettings() => new(
         Dword(1),
         String("proxy.example.org:8080"),

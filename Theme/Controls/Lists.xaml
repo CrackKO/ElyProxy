@@ -21,12 +21,12 @@
                    Orientation="{TemplateBinding Orientation}"
                    IsDirectionReversed="True">
               <Track.DecreaseRepeatButton>
-                <RepeatButton Command="ScrollBar.PageUpCommand"
+                <RepeatButton x:Name="DecreaseButton" Command="ScrollBar.PageUpCommand"
                               Focusable="False"
                               Template="{StaticResource TransparentRepeatButton}" />
               </Track.DecreaseRepeatButton>
               <Track.IncreaseRepeatButton>
-                <RepeatButton Command="ScrollBar.PageDownCommand"
+                <RepeatButton x:Name="IncreaseButton" Command="ScrollBar.PageDownCommand"
                               Focusable="False"
                               Template="{StaticResource TransparentRepeatButton}" />
               </Track.IncreaseRepeatButton>
@@ -36,7 +36,7 @@
                     <ControlTemplate TargetType="{x:Type Thumb}">
                       <Border x:Name="ThumbBd"
                               Width="6"
-                              Height="6"
+                              MinHeight="18"
                               CornerRadius="3"
                               Background="{DynamicResource FgDimBrush}"
                               Opacity="0.5"
@@ -44,6 +44,12 @@
                               VerticalAlignment="Stretch"
                               SnapsToDevicePixels="True" />
                       <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding Orientation, RelativeSource={RelativeSource AncestorType=ScrollBar}}" Value="Horizontal">
+                          <Setter TargetName="ThumbBd" Property="Width" Value="Auto" />
+                          <Setter TargetName="ThumbBd" Property="Height" Value="6" />
+                          <Setter TargetName="ThumbBd" Property="MinHeight" Value="0" />
+                          <Setter TargetName="ThumbBd" Property="MinWidth" Value="18" />
+                        </DataTrigger>
                         <Trigger Property="IsMouseOver" Value="True">
                           <Setter TargetName="ThumbBd" Property="Opacity" Value="0.85" />
                         </Trigger>
@@ -59,6 +65,9 @@
           </Grid>
           <ControlTemplate.Triggers>
             <Trigger Property="Orientation" Value="Horizontal">
+              <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False" />
+              <Setter TargetName="DecreaseButton" Property="Command" Value="ScrollBar.PageLeftCommand" />
+              <Setter TargetName="IncreaseButton" Property="Command" Value="ScrollBar.PageRightCommand" />
               <Setter Property="Height" Value="10" />
               <Setter Property="MinHeight" Value="10" />
               <Setter TargetName="Thumb" Property="Width" Value="Auto" />

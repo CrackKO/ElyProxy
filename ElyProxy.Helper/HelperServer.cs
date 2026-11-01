@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using ElyProxy.Helper.Runtime;
 using System.IO.Pipes;
 using System.Security.AccessControl;
 using System.Security.Principal;
@@ -95,6 +96,7 @@ internal sealed class HelperServer
 
 	private readonly CancellationTokenSource _cancellation = new CancellationTokenSource();
 	private Task? _acceptLoop;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<NamedPipeServerStream, Task> _sessions = new();
 
 	public void Start()
 	{
@@ -105,7 +107,9 @@ internal sealed class HelperServer
 	{
 		try
 		{
-			_cancellation.Cancel();
+            _cancellation.Cancel();
+            foreach (var pipe in _sessions.Keys) pipe.Dispose();
+            try { Task.WhenAll(_sessions.Values).Wait(TimeSpan.FromSeconds(15)); } catch (Exception ex) { HelperLifecycleLog.Write("service-stop", ex); }
 		}
 		catch
 		{
@@ -133,7 +137,9 @@ internal sealed class HelperServer
 				continue;
 			}
 			NamedPipeServerStream connected = pipe;
-			_ = Task.Run(() => SessionLoopAsync(connected), CancellationToken.None);
+			var session = Task.Run(() => SessionLoopAsync(connected), CancellationToken.None);
+            _sessions[connected] = session;
+            _ = session.ContinueWith(t => { _sessions.TryRemove(connected, out _); }, TaskScheduler.Default);
 		}
 	}
 
@@ -165,6 +171,7 @@ internal sealed class HelperServer
 		{
 			using StreamReader reader = new StreamReader(pipe);
 			using StreamWriter writer = new StreamWriter(pipe) { AutoFlush = true };
+            await WriteEventAsync(writer, writeLock, new HelperEvent { Type = "hello", Message = "stop-ack-v2" });
 			while (true)
 			{
 				string? line = await reader.ReadLineAsync();
@@ -186,11 +193,24 @@ internal sealed class HelperServer
 				}
 				switch (request.Operation)
 				{
+                case "recover":
+                    try
+                    {
+                        await OwnedTunSession.RecoverAsync();
+                        await WriteEventAsync(writer, writeLock, new HelperEvent { Type = "recovered", Id = request.Id });
+                    }
+                    catch (Exception ex) { await WriteEventAsync(writer, writeLock, HelperEvent.Failure(request.Id ?? "", ex.Message)); }
+                    break;
 				case "start":
 					await HandleStartAsync(request, processes, writer, writeLock);
 					break;
 				case "stop":
-					HandleStop(request.Id, processes);
+					try
+                    {
+                        HandleStop(request.Id, processes);
+                        await WriteEventAsync(writer, writeLock, new HelperEvent { Type = "stopped", Id = request.Id });
+                    }
+                    catch (Exception ex) { await WriteEventAsync(writer, writeLock, HelperEvent.Failure(request.Id ?? "", ex.Message)); }
 					break;
 				case "stopall":
 					HandleStopAll(processes);
@@ -230,18 +250,7 @@ internal sealed class HelperServer
 		try
 		{
 			HandleStop(id, processes);
-			ProcessStartInfo startInfo = new ProcessStartInfo
-			{
-				FileName = request.File,
-				Arguments = (request.Arguments ?? string.Empty),
-				WorkingDirectory = (string.IsNullOrWhiteSpace(request.WorkingDirectory) ? Path.GetDirectoryName(request.File) ?? string.Empty : request.WorkingDirectory),
-				UseShellExecute = false,
-				CreateNoWindow = true,
-				RedirectStandardOutput = true,
-				RedirectStandardError = true,
-				StandardOutputEncoding = System.Text.Encoding.UTF8,
-				StandardErrorEncoding = System.Text.Encoding.UTF8
-			};
+            ProcessStartInfo startInfo = CoreHostLaunch.Create(Environment.ProcessPath!, request.File!, request.Arguments ?? "", request.WorkingDirectory);
 			Process process = new Process
 			{
 				StartInfo = startInfo,
@@ -295,48 +304,34 @@ internal sealed class HelperServer
 		{
 			return;
 		}
+        try { KillProcess(process); }
+        catch
+        {
+            if (process.HasExited) { process.Dispose(); processes.Remove(id); }
+            throw;
+        }
 		processes.Remove(id);
-		KillProcess(process);
 	}
 
-	private static void HandleStopAll(Dictionary<string, Process> processes)
-	{
-		foreach (Process process in processes.Values)
-		{
-			KillProcess(process);
-		}
-		processes.Clear();
-	}
+    private static void HandleStopAll(Dictionary<string, Process> processes)
+    {
+        foreach (var id in processes.Keys.ToArray())
+        {
+            try { HandleStop(id, processes); }
+            catch (Exception ex) { HelperLifecycleLog.Write("stop-failed", ex); }
+        }
+    }
 
-	private static void KillProcess(Process process)
-	{
-		try
-		{
-			if (!process.HasExited)
-			{
-				process.Kill(entireProcessTree: true);
-				process.WaitForExit(5000);
-			}
-		}
-		catch
-		{
-		}
-		finally
-		{
-			try
-			{
-				process.Dispose();
-			}
-			catch
-			{
-			}
-		}
-	}
+    private static void KillProcess(Process process)
+    {
+        OwnedProcessStopper.StopAsync(process).GetAwaiter().GetResult();
+        process.Dispose();
+    }
 
 	private static async Task WriteEventAsync(StreamWriter writer, SemaphoreSlim writeLock, HelperEvent payload)
 	{
 		string json = JsonSerializer.Serialize(payload, JsonOptions);
-		await writeLock.WaitAsync();
+		try { await writeLock.WaitAsync(); } catch (ObjectDisposedException) { return; }
 		try
 		{
 			await writer.WriteLineAsync(json);
@@ -346,7 +341,7 @@ internal sealed class HelperServer
 		}
 		finally
 		{
-			writeLock.Release();
+			try { writeLock.Release(); } catch (ObjectDisposedException) { }
 		}
 	}
 }

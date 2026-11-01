@@ -15,6 +15,8 @@ public class ConfigBuilder
 	public string Build(VlessNode node, int socksPort = 1080, XrayTunOptions? tunOptions = null, bool includeTunInbound = true)
 	{
 		JArray inbounds = new JArray { BuildSocksInbound(socksPort) };
+        if (tunOptions is { HttpPort: > 0 })
+            inbounds.Add(new JObject { ["tag"] = "http-in", ["listen"] = "127.0.0.1", ["port"] = tunOptions.HttpPort, ["protocol"] = "http", ["settings"] = new JObject() });
 		if (tunOptions != null && includeTunInbound)
 		{
 			inbounds.Add(BuildTunInbound(tunOptions));
@@ -107,14 +109,31 @@ public class ConfigBuilder
 			_ => throw new NotSupportedException($"Протокол {node.ProtocolDisplay} не поддерживается ядром Xray. Выберите ядро sing-box.")
 		};
 		JArray outbounds = new JArray();
+		if (!string.IsNullOrWhiteSpace(options?.DpiFingerprint) && proxy["streamSettings"] is JObject fingerprintStream)
+		{
+			foreach (string key in new[] { "tlsSettings", "realitySettings" })
+				if (fingerprintStream[key] is JObject tls) tls["fingerprint"] = options.DpiFingerprint;
+		}
 		outbounds.Add(proxy);
-		if (options is { FragmentEnabled: true })
+		if (options != null && (options.FragmentEnabled || !string.IsNullOrWhiteSpace(options.NoiseType)))
 		{
 			JObject stream = (proxy["streamSettings"] as JObject) ?? new JObject();
 			stream["sockopt"] = new JObject { ["dialerProxy"] = "fragment" };
 			proxy["streamSettings"] = stream;
 			outbounds.Add(BuildFragmentOutbound(options));
 		}
+		if (options?.ExitProxy is { } exit)
+        {
+            ProxyChainPolicy.Validate(node, exit);
+            proxy["tag"] = "chain-entry";
+            var final = BuildSocksProxyOutbound(exit);
+            final["tag"] = "proxy";
+            var stream = final["streamSettings"] as JObject ?? new JObject();
+            stream["sockopt"] = new JObject { ["dialerProxy"] = "chain-entry" };
+            final["streamSettings"] = stream;
+            // Default outbound must remain the final hop, never the entry server.
+            outbounds.Insert(0, final);
+        }
 		outbounds.Add(new JObject
 		{
 			["tag"] = "direct",
@@ -139,6 +158,7 @@ public class ConfigBuilder
 				["interval"] = Fallback(options.FragmentInterval, "10-20")
 			}
 		};
+		if (!options.FragmentEnabled) settings.Remove("fragment");
 		if (!string.IsNullOrWhiteSpace(options.NoiseType))
 		{
 			settings["noises"] = new JArray(new JObject
@@ -257,12 +277,19 @@ public class ConfigBuilder
 			});
 		}
 		bool isHttp = string.Equals(node.Protocol, "http", StringComparison.OrdinalIgnoreCase);
-		return new JObject
+		var outbound = new JObject
 		{
 			["tag"] = "proxy",
 			["protocol"] = (isHttp ? "http" : "socks"),
 			["settings"] = new JObject { ["servers"] = new JArray(server) }
 		};
+        if (isHttp && string.Equals(node.Security, "tls", StringComparison.OrdinalIgnoreCase))
+        {
+            var stream = BuildStreamSettings(node);
+            if (stream["tlsSettings"] is JObject tls) tls["serverName"] = Fallback(node.SNI, node.Address);
+            outbound["streamSettings"] = stream;
+        }
+        return outbound;
 	}
 
 	private static JArray BuildSocksOutbounds(SocksNode node)

@@ -4,6 +4,13 @@ namespace ElyProxy.Models;
 
 public class AppSettings
 {
+    public DpiSettings? DpiDefaults { get; set; }
+    public Dictionary<string, DpiSettings> ServerDpi { get; set; } = new();
+    public bool ExitProxyEnabled { get; set; }
+    public VlessNode? ExitProxy { get; set; }
+
+	public ElyProxy.Core.ProxyCoreKind? ProxyCore { get; set; }
+
 	public int SocksPort { get; set; } = 1080;
 
 	public bool MinimizeToTray { get; set; } = true;
@@ -14,7 +21,9 @@ public class AppSettings
 
 	public bool AutoReconnect { get; set; }
 
-	public bool ShowLogs { get; set; } = true;
+	public bool BlockTorrent { get; set; }
+
+	public bool ShowLogs { get; set; }
 
 	public bool AutoUpdate { get; set; }
 
@@ -56,6 +65,8 @@ public class AppSettings
 
 	public bool FragmentRecord { get; set; }
 
+    public string DpiFingerprint { get; set; } = "";
+
 	public PerAppMode PerAppMode { get; set; } = PerAppMode.Bypass;
 
 	public string NoiseType { get; set; } = string.Empty;
@@ -78,11 +89,13 @@ public class AppSettings
 
 	public string? LastConnectedNodeId { get; set; }
 
+    public List<string> FavoriteServerIds { get; set; } = new();
+
+    public List<string> RecentServerIds { get; set; } = new();
+
 	public List<VlessNode> ManualNodes { get; set; } = new List<VlessNode>();
 
-	public string ThemeMode { get; set; } = "System";
-
-	public string BackdropMode { get; set; } = "Auto";
+	public string ThemeMode { get; set; } = "Dark";
 
 	public string MotionMode { get; set; } = "System";
 

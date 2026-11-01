@@ -26,11 +26,11 @@ public static class ServerAddressResolver
 			}
 			catch (OperationCanceledException)
 			{
-				warningSink?.Invoke("[warn] Не удалось вовремя определить IP сервера: " + address + ". Запуск продолжается.");
+				throw new IOException("Не удалось определить IP сервера. TUN не запущен, чтобы исключить петлю маршрутизации.");
 			}
 			catch (Exception ex)
 			{
-				warningSink?.Invoke($"[warn] Не удалось определить IP сервера: {address} ({ex.GetType().Name}). Запуск продолжается.");
+				throw new IOException("Не удалось определить IP сервера. TUN не запущен.", ex);
 			}
 		}
 		return addresses

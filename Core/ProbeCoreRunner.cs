@@ -19,14 +19,14 @@ public sealed class ProbeCoreRunner : IAsyncDisposable
 		_singBox = singBox;
 	}
 
-	public static async Task<ProbeCoreRunner> StartAsync(VlessNode node, int port, XrayTunOptions options)
+	public static async Task<ProbeCoreRunner> StartAsync(VlessNode node, int port, XrayTunOptions options, bool? useSingBox = null)
 	{
-		if (ProxyProtocolSupport.SupportsXray(node))
+		if (useSingBox != true && ProxyProtocolSupport.SupportsXray(node))
 		{
 			XrayManager xray = new XrayManager(new ProcessManager());
 			try
 			{
-				await xray.StartAsync(node, port).ConfigureAwait(false);
+				await xray.StartAsync(node, port, options, includeTunInbound: false).ConfigureAwait(false);
 				return new ProbeCoreRunner(xray, null);
 			}
 			catch
@@ -36,7 +36,7 @@ public sealed class ProbeCoreRunner : IAsyncDisposable
 				throw;
 			}
 		}
-		if (ProxyProtocolSupport.SupportsSingBox(node))
+		if (useSingBox != false && ProxyProtocolSupport.SupportsSingBox(node))
 		{
 			SingBoxProxyManager singBox = new SingBoxProxyManager(new ProcessManager());
 			try

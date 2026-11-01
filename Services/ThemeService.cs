@@ -1,7 +1,5 @@
 using System.Windows;
-using System.Windows.Media;
 using ElyProxy.Controls.Motion;
-using ElyProxy.Interop;
 using ElyProxy.Models;
 using ElyProxy.Utils;
 using Microsoft.Win32;
@@ -15,19 +13,12 @@ public enum AppThemeMode
     Dark
 }
 
-public enum AppBackdropMode
-{
-    Auto,
-    Mica,
-    Acrylic,
-    None
-}
-
 /// <summary>
-/// Owns the Apple design tokens, the window backdrop and the motion preference.
-/// Deliberately does not use WPF-UI's theme manager: its backdrop helper left the
-/// accent policy applied (so switching stuck) and its theme watcher re-applied a
-/// backdrop of its own, fighting the window state we set.
+/// Owns the Apple design tokens and the motion preference. There is no window
+/// backdrop: Mica/Acrylic blur was removed because it behaved poorly (stale
+/// frames, inconsistent switching), so every surface is fully opaque.
+/// Deliberately does not use WPF-UI's theme manager either: its theme watcher
+/// re-applied a backdrop of its own, fighting the window state we set.
 /// </summary>
 public sealed class ThemeService
 {
@@ -37,7 +28,6 @@ public sealed class ThemeService
     private static readonly Uri DarkTokensUri = new("pack://application:,,,/ElyProxy;component/Theme/Tokens.Dark.xaml", UriKind.Absolute);
     private static readonly Uri HighContrastTokensUri = new("pack://application:,,,/ElyProxy;component/Theme/Tokens.HighContrast.xaml", UriKind.Absolute);
 
-    private Window? _window;
     private bool _listening;
 
     private ThemeService()
@@ -49,25 +39,11 @@ public sealed class ThemeService
 
     public AppThemeMode ThemeMode { get; private set; } = AppThemeMode.System;
 
-    public AppBackdropMode BackdropMode { get; private set; } = AppBackdropMode.Auto;
-
     public MotionMode MotionMode { get; private set; } = MotionMode.System;
 
     public bool IsDarkTheme { get; private set; } = true;
 
     public event EventHandler? Changed;
-
-    public void Attach(Window window)
-    {
-        if (_window is not null)
-        {
-            _window.SourceInitialized -= OnWindowSourceInitialized;
-        }
-
-        _window = window;
-        window.SourceInitialized += OnWindowSourceInitialized;
-        ApplyAll();
-    }
 
     /// <summary>
     /// Applies the saved appearance before the main window is created, so the
@@ -94,7 +70,6 @@ public sealed class ThemeService
             }
 
             ThemeMode = Enum.TryParse<AppThemeMode>(settings.ThemeMode, ignoreCase: true, out var theme) ? theme : AppThemeMode.System;
-            BackdropMode = Enum.TryParse<AppBackdropMode>(settings.BackdropMode, ignoreCase: true, out var backdrop) ? backdrop : AppBackdropMode.Auto;
             MotionMode = Enum.TryParse<MotionMode>(settings.MotionMode, ignoreCase: true, out var motion) ? motion : MotionMode.System;
 
             ApplyAll();
@@ -114,18 +89,6 @@ public sealed class ThemeService
 
         ThemeMode = mode;
         ApplyTheme();
-        Changed?.Invoke(this, EventArgs.Empty);
-    }
-
-    public void SetBackdropMode(AppBackdropMode mode)
-    {
-        if (BackdropMode == mode)
-        {
-            return;
-        }
-
-        BackdropMode = mode;
-        ApplyBackdrop();
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -167,89 +130,6 @@ public sealed class ThemeService
         }
 
         SwapTokens(IsDarkTheme, SystemParameters.HighContrast);
-        ApplyBackdrop();
-    }
-
-    private BackdropKind ResolveBackdrop()
-    {
-        if (BackdropMode == AppBackdropMode.None
-            || SystemParameters.HighContrast
-            || !MotionPreferences.SystemTransparencyEnabled)
-        {
-            return BackdropKind.None;
-        }
-
-        var isWindows11 = Environment.OSVersion.Version.Build >= 22000;
-
-        return BackdropMode switch
-        {
-            // Mica needs Windows 11; on Windows 10 fall back to Acrylic.
-            AppBackdropMode.Mica => isWindows11 ? BackdropKind.Mica : BackdropKind.Acrylic,
-            AppBackdropMode.Acrylic => BackdropKind.Acrylic,
-            _ => isWindows11 ? BackdropKind.Mica : BackdropKind.Acrylic
-        };
-    }
-
-    private void ApplyBackdrop()
-    {
-        var kind = ResolveBackdrop();
-
-        // With a real backdrop the shell surfaces stay translucent (the blur
-        // shows through); without one they become opaque so the difference is
-        // actually visible instead of "nothing changed".
-        SetShellSurface(kind != BackdropKind.None);
-
-        var window = _window;
-        if (window is null)
-        {
-            return;
-        }
-
-        // Keep the WPF host transparent in every mode. Giving it a nearly
-        // transparent theme-coloured brush creates a second composition surface
-        // on Windows 10, which is what caused stale light/dark frames with Acrylic.
-        window.Background = Brushes.Transparent;
-
-        var strongerBlur = BackdropMode == AppBackdropMode.Acrylic;
-        WindowBackdropInterop.Apply(window, kind, IsDarkTheme, strongerBlur);
-        ForceRepaint(window);
-    }
-
-    private void OnWindowSourceInitialized(object? sender, EventArgs e)
-    {
-        if (sender is Window window && ReferenceEquals(window, _window))
-        {
-            ApplyBackdrop();
-        }
-    }
-
-    private static void SetShellSurface(bool translucent)
-    {
-        var app = Application.Current;
-        if (app is null)
-        {
-            return;
-        }
-
-        var brush = (translucent
-            ? app.TryFindResource("MaterialThinBrush")
-            : app.TryFindResource("Bg2Brush")) as Brush;
-
-        if (brush is not null)
-        {
-            app.Resources["ShellSurfaceBrush"] = brush;
-        }
-    }
-
-    private static void ForceRepaint(Window window)
-    {
-        window.InvalidateVisual();
-        if (window.Content is UIElement content)
-        {
-            content.InvalidateVisual();
-        }
-
-        window.UpdateLayout();
     }
 
     private static bool IsSystemLightTheme()

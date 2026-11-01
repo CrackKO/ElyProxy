@@ -51,7 +51,14 @@ public sealed class HelperProcessManager : IProcessManager
 		public string? Message { get; set; }
 	}
 
-	private const string PipeName = "ElyProxyHelper";
+	private readonly string _pipeName;
+    private TaskCompletionSource<int>? _started;
+    private TaskCompletionSource<bool>? _ready;
+    private TaskCompletionSource<bool>? _stopped;
+    private volatile bool _disposed;
+    private bool _legacyService = true;
+    private TaskCompletionSource<bool>? _hello;
+    public HelperProcessManager(string pipeName = "ElyProxyHelper") { _pipeName = pipeName; }
 
 	private readonly SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
 	private NamedPipeClientStream? _pipe;
@@ -98,13 +105,18 @@ public sealed class HelperProcessManager : IProcessManager
 		}
 		try
 		{
-			if (stopExisting)
+			if (_activeId != null)
 			{
 				await StopCoreAsync().ConfigureAwait(false);
 			}
 			await EnsureConnectedAsync(CancellationToken.None).ConfigureAwait(false);
+            try { await _hello!.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false); }
+            catch (TimeoutException) { throw new InvalidOperationException("Обновите службу-помощник: Настройки → ElyTun → Установить службу. Старая служба не подтверждает очистку сетевой сессии."); }
 			string id = Guid.NewGuid().ToString("N");
 			_activeId = id;
+            _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            _stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
 			_running = false;
 			Interlocked.Exchange(ref _activeProcessId, 0);
 			HelperRequest request = new HelperRequest
@@ -117,6 +129,9 @@ public sealed class HelperProcessManager : IProcessManager
 			};
 			await _writer!.WriteLineAsync(JsonSerializer.Serialize(request)).ConfigureAwait(false);
 			await _writer.FlushAsync().ConfigureAwait(false);
+            await _started.Task.WaitAsync(TimeSpan.FromSeconds(12)).ConfigureAwait(false);
+            if (!_legacyService) await _ready!.Task.WaitAsync(TimeSpan.FromSeconds(25)).ConfigureAwait(false);
+            else ErrorReceived?.Invoke("[warn] Служба-помощник старой версии. Обновите её в настройках для подтверждённой очистки TUN.");
 		}
 		finally
 		{
@@ -126,9 +141,9 @@ public sealed class HelperProcessManager : IProcessManager
 
 	public async Task StopAsync()
 	{
-		if (!await _lock.WaitAsync(TimeSpan.FromSeconds(2.0)).ConfigureAwait(false))
+		if (!await _lock.WaitAsync(TimeSpan.FromSeconds(45)).ConfigureAwait(false))
 		{
-			return;
+            throw new TimeoutException("Служба-помощник занята: остановка не подтверждена.");
 		}
 		try
 		{
@@ -140,22 +155,23 @@ public sealed class HelperProcessManager : IProcessManager
 		}
 	}
 
-	private async Task StopCoreAsync()
-	{
-		if (_writer != null && _activeId != null && _running)
-		{
-			try
-			{
-				HelperRequest request = new HelperRequest { Operation = "stop", Id = _activeId };
-				await _writer.WriteLineAsync(JsonSerializer.Serialize(request)).ConfigureAwait(false);
-				await _writer.FlushAsync().ConfigureAwait(false);
-			}
-			catch
-			{
-			}
-		}
-		_running = false;
-	}
+    private async Task StopCoreAsync()
+    {
+        if (_activeId == null) return;
+        if (_stopped?.Task.IsFaulted == true) _stopped = null;
+        var stopped = _stopped ??= new(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!stopped.Task.IsCompletedSuccessfully)
+        {
+            if (_writer == null || _pipe is not { IsConnected: true })
+                throw new IOException("Связь со службой потеряна. Завершение ядра не подтверждено.");
+            var request = new HelperRequest { Operation = "stop", Id = _activeId };
+            await _writer.WriteLineAsync(JsonSerializer.Serialize(request)).WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+            await _writer.FlushAsync().WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+        }
+        await stopped.Task.WaitAsync(TimeSpan.FromSeconds(40)).ConfigureAwait(false);
+        _activeId = null;
+        _running = false;
+    }
 
 	private async Task EnsureConnectedAsync(CancellationToken cancellationToken)
 	{
@@ -164,10 +180,11 @@ public sealed class HelperProcessManager : IProcessManager
 			return;
 		}
 		CloseConnection();
-		NamedPipeClientStream pipe = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+		NamedPipeClientStream pipe = new NamedPipeClientStream(".", _pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
 		using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		timeout.CancelAfter(TimeSpan.FromSeconds(3.0));
 		await pipe.ConnectAsync(timeout.Token).ConfigureAwait(false);
+		_hello = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		_pipe = pipe;
 		_writer = new StreamWriter(pipe, new UTF8Encoding(false)) { AutoFlush = true };
 		_reader = Task.Run(() => ReadLoopAsync(pipe));
@@ -185,6 +202,7 @@ public sealed class HelperProcessManager : IProcessManager
 				{
 					break;
 				}
+                if (!ReferenceEquals(pipe, _pipe)) return;
 				HandleEvent(line);
 			}
 		}
@@ -193,13 +211,18 @@ public sealed class HelperProcessManager : IProcessManager
 		}
 		finally
 		{
-			_running = false;
+            if (ReferenceEquals(pipe, _pipe))
+            {
+            _started?.TrySetException(new IOException("Связь со службой потеряна во время запуска."));
+            // Never report stopped merely because the pipe has disconnected.
+            _stopped?.TrySetException(new IOException("Связь со службой потеряна до подтверждения остановки."));
 			int processId = Interlocked.Exchange(ref _activeProcessId, 0);
 			if (processId != 0)
 			{
 				this.ProcessExited?.Invoke(-1);
 				this.ProcessExitedForProcess?.Invoke(processId, -1);
 			}
+            }
 		}
 	}
 
@@ -224,8 +247,10 @@ public sealed class HelperProcessManager : IProcessManager
 			_running = true;
 			Interlocked.Exchange(ref _activeProcessId, payload.ProcessId);
 			this.ProcessStartedForProcess?.Invoke(payload.ProcessId);
+            _started?.TrySetResult(payload.ProcessId);
 			break;
 		case "stdout":
+            if (payload.Line == "[elyproxy-host-ready]") { _ready?.TrySetResult(true); break; }
 			this.OutputReceived?.Invoke(payload.Line ?? string.Empty);
 			this.OutputReceivedForProcess?.Invoke(Interlocked.CompareExchange(ref _activeProcessId, 0, 0), payload.Line ?? string.Empty);
 			break;
@@ -233,8 +258,14 @@ public sealed class HelperProcessManager : IProcessManager
 			this.ErrorReceived?.Invoke(payload.Line ?? string.Empty);
 			this.ErrorReceivedForProcess?.Invoke(Interlocked.CompareExchange(ref _activeProcessId, 0, 0), payload.Line ?? string.Empty);
 			break;
+        case "stopped":
+            _running = false;
+            _stopped?.TrySetResult(true);
+            break;
 		case "exit":
+            _ready?.TrySetException(new IOException("Ядро завершилось до готовности сетевой сессии."));
 			_running = false;
+            if (_legacyService) _stopped?.TrySetResult(true);
 			int processId = Interlocked.Exchange(ref _activeProcessId, 0);
 			this.ProcessExited?.Invoke(payload.ExitCode);
 			if (processId != 0)
@@ -242,8 +273,14 @@ public sealed class HelperProcessManager : IProcessManager
 				this.ProcessExitedForProcess?.Invoke(processId, payload.ExitCode);
 			}
 			break;
+        case "hello":
+            _legacyService = payload.Message != "stop-ack-v2";
+            if (!_legacyService) _hello?.TrySetResult(true);
+            break;
 		case "error":
-			_running = false;
+            var error = new IOException(payload.Message ?? "Ошибка службы-помощника.");
+            _started?.TrySetException(error);
+            _stopped?.TrySetException(error);
 			this.ErrorReceived?.Invoke(payload.Message ?? string.Empty);
 			break;
 		}
@@ -271,8 +308,10 @@ public sealed class HelperProcessManager : IProcessManager
 
 	public void Dispose()
 	{
-		StopCoreAsync().GetAwaiter().GetResult();
-		CloseConnection();
+		if (_disposed) return;
+        _disposed = true;
+        try { StopAsync().GetAwaiter().GetResult(); }
+        finally { CloseConnection(); }
 		_lock.Dispose();
 		GC.SuppressFinalize(this);
 	}

@@ -33,7 +33,7 @@ public sealed class CoreUpdateService : IDisposable
 	private readonly Func<string, CancellationToken, Task<string>> _versionProbe;
 
 	public CoreUpdateService()
-		: this(new HttpClient { Timeout = TimeSpan.FromSeconds(60) })
+		: this(new HttpClient(new DiagnosticHttpHandler("core-updates")) { Timeout = TimeSpan.FromSeconds(60) })
 	{
 	}
 

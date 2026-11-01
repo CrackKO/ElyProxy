@@ -127,6 +127,12 @@ public partial class SubscriptionsView : UserControl
         }
     }
 
-    private static Subscription? ResolveSubscription(object sender) =>
-        (sender as FrameworkElement)?.DataContext as Subscription;
+    private static Subscription? ResolveSubscription(object sender)
+    {
+        if ((sender as FrameworkElement)?.DataContext is Subscription subscription) return subscription;
+        // Context menus live outside the visual tree and inherit the view model.
+        if (sender is MenuItem item && ItemsControl.ItemsControlFromItemContainer(item) is ContextMenu menu)
+            return (menu.PlacementTarget as FrameworkElement)?.DataContext as Subscription;
+        return null;
+    }
 }

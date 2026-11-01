@@ -16,7 +16,7 @@ public sealed class UpdateService : IDisposable
     private readonly string? _updatesDirectory;
 
     public UpdateService()
-        : this(new HttpClient { Timeout = TimeSpan.FromSeconds(15) })
+        : this(new HttpClient(new DiagnosticHttpHandler("updates")) { Timeout = TimeSpan.FromSeconds(15) })
     {
     }
 

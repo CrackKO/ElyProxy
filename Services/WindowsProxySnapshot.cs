@@ -93,6 +93,8 @@ public sealed class WindowsProxyRecoveryState
 
     public int? OwnedManualPort { get; set; }
 
+    public int? OwnedHttpPort { get; set; }
+
     public string[] OwnedBypassRules { get; set; } = Array.Empty<string>();
 }
 

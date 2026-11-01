@@ -30,11 +30,12 @@ public sealed class WindowsProxyRecoveryService
         SaveState(state);
     }
 
-    public void PrepareForManualProxy(int port, IEnumerable<string> bypassRules)
+    public void PrepareForManualProxy(int port, IEnumerable<string> bypassRules, int? httpPort = null)
     {
         WindowsProxyRecoveryState state = GetOrCreateState(WindowsProxyRecoveryMode.Manual);
         state.OwnedPacUrls.Clear();
         state.OwnedManualPort = port;
+        state.OwnedHttpPort = httpPort;
         state.OwnedBypassRules = bypassRules.ToArray();
         ActiveState = state;
         SaveState(state);
@@ -140,8 +141,10 @@ public sealed class WindowsProxyRecoveryService
         state.Mode switch
         {
             WindowsProxyRecoveryMode.Pac => _windowsProxyService.IsOwnedByPac(current, state.OwnedPacUrls),
-            WindowsProxyRecoveryMode.Manual => state.OwnedManualPort.HasValue
-                && _windowsProxyService.IsOwnedByManualProxy(current, state.OwnedManualPort.Value, state.OwnedBypassRules),
+            WindowsProxyRecoveryMode.Manual => IsPartialManualStateOwned(state, current) || state.OwnedManualPort.HasValue
+                && (state.OwnedHttpPort is { } httpPort && httpPort != state.OwnedManualPort
+                    ? current.ProxyServer?.StringValue == $"http=127.0.0.1:{httpPort};https=127.0.0.1:{httpPort};socks=127.0.0.1:{state.OwnedManualPort}"
+                    : _windowsProxyService.IsOwnedByManualProxy(current, state.OwnedManualPort.Value, state.OwnedBypassRules)),
             _ => false
         };
 
@@ -151,10 +154,48 @@ public sealed class WindowsProxyRecoveryService
         {
             // PAC mode changes only AutoConfigURL; preserve any other Windows proxy edits made later.
             _windowsProxyService.RestorePacSettings(state.OriginalSettings);
+            if (_windowsProxyService.CaptureCurrentSettings().AutoConfigUrl != state.OriginalSettings.AutoConfigUrl)
+                throw new IOException("Восстановление PAC не подтверждено.");
             return;
         }
 
-        _windowsProxyService.RestoreManualProxySettings(state.OriginalSettings);
+        var current = _windowsProxyService.CaptureCurrentSettings();
+        var expected = ExpectedManual(state);
+        var original = state.OriginalSettings;
+        var target = current with
+        {
+            ProxyEnable = current.ProxyEnable == expected.ProxyEnable ? original.ProxyEnable : current.ProxyEnable,
+            ProxyServer = current.ProxyServer == expected.ProxyServer ? original.ProxyServer : current.ProxyServer,
+            ProxyOverride = current.ProxyOverride == expected.ProxyOverride ? original.ProxyOverride : current.ProxyOverride,
+            AutoConfigUrl = current.AutoConfigUrl == expected.AutoConfigUrl ? original.AutoConfigUrl : current.AutoConfigUrl
+        };
+        _windowsProxyService.RestoreManualProxySettings(target);
+        if (_windowsProxyService.CaptureCurrentSettings() != target)
+            throw new IOException("Восстановление системного прокси не подтверждено.");
+    }
+
+    private static WindowsProxySnapshot ExpectedManual(WindowsProxyRecoveryState state)
+    {
+        int port = state.OwnedManualPort ?? 0;
+        int http = state.OwnedHttpPort ?? port;
+        return new(
+            new() { Kind = Microsoft.Win32.RegistryValueKind.DWord, DwordValue = 1 },
+            new() { Kind = Microsoft.Win32.RegistryValueKind.String, StringValue = $"http=127.0.0.1:{http};https=127.0.0.1:{http};socks=127.0.0.1:{port}" },
+            new() { Kind = Microsoft.Win32.RegistryValueKind.String, StringValue = string.Join(';', state.OwnedBypassRules.Select(r => r.Trim()).Where(r => r.Length > 0 && !r.Contains('/')).Append("<local>").Distinct(StringComparer.OrdinalIgnoreCase)) }, null);
+    }
+
+    private static bool IsPartialManualStateOwned(WindowsProxyRecoveryState state, WindowsProxySnapshot current)
+    {
+        if (!state.OwnedManualPort.HasValue) return false;
+        var expected = ExpectedManual(state);
+        var original = state.OriginalSettings;
+        // A foreign replacement server must never be disabled by our recovery.
+        if (current.ProxyServer != expected.ProxyServer && current.ProxyServer != original.ProxyServer) return false;
+        return current.ProxyServer == expected.ProxyServer ||
+            (current != original &&
+             (current.ProxyEnable == expected.ProxyEnable && current.ProxyEnable != original.ProxyEnable ||
+              current.ProxyOverride == expected.ProxyOverride && current.ProxyOverride != original.ProxyOverride ||
+              current.AutoConfigUrl == null && original.AutoConfigUrl != null));
     }
 
     private WindowsProxyRecoveryState ReadState()

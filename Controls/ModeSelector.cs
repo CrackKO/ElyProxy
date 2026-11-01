@@ -70,36 +70,49 @@ public class ModeSelector : SegmentedControl
         set => SetValue(ElyTunRequestCommandProperty, value);
     }
 
+    public static readonly DependencyProperty ModeRequestCommandProperty = DependencyProperty.Register(
+        nameof(ModeRequestCommand), typeof(ICommand), typeof(ModeSelector));
+    public ICommand? ModeRequestCommand
+    {
+        get => (ICommand?)GetValue(ModeRequestCommandProperty);
+        set => SetValue(ModeRequestCommandProperty, value);
+    }
+
     protected override void OnSelectionChanged(SelectionChangedEventArgs e)
     {
+        // SelectionChanged may be deferred by WPF while source bindings change.
+        // It is presentation, never an instruction to mutate the connection.
         base.OnSelectionChanged(e);
-        if (_syncing || SelectedIndex < 0)
-        {
-            return;
-        }
+    }
 
-        if (SelectedIndex == 3 && ElyTunRequestCommand is { } requestCommand)
+    protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject source &&
+            ItemsControl.ContainerFromElement(this, source) is ListBoxItem item)
         {
-            SyncFromFlags();
-            if (requestCommand.CanExecute(null))
-            {
-                requestCommand.Execute(null);
-            }
+            RequestMode(ItemContainerGenerator.IndexFromContainer(item));
+            e.Handled = true;
+        }
+        base.OnPreviewMouseLeftButtonDown(e);
+    }
 
-            return;
-        }
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        int index = e.Key switch
+        {
+            Key.Left => Math.Max(0, SelectedIndex - 1),
+            Key.Right => Math.Min(Items.Count - 1, SelectedIndex + 1),
+            Key.Home => 0, Key.End => Items.Count - 1,
+            _ => -1
+        };
+        if (index >= 0) { RequestMode(index); e.Handled = true; }
+        base.OnPreviewKeyDown(e);
+    }
 
-        _syncing = true;
-        try
-        {
-            SetCurrentValue(ProxyLiteEnabledProperty, SelectedIndex == 1);
-            SetCurrentValue(ProxyProEnabledProperty, SelectedIndex == 2);
-            SetCurrentValue(ElyTunEnabledProperty, SelectedIndex == 3);
-        }
-        finally
-        {
-            _syncing = false;
-        }
+    private void RequestMode(int index)
+    {
+        if (index < 0 || index >= Items.Count) return;
+        if (ModeRequestCommand?.CanExecute(index) == true) ModeRequestCommand.Execute(index);
     }
 
     private static void OnModeFlagChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>

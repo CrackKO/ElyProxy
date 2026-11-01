@@ -19,7 +19,7 @@ public class SubscriptionService : IDisposable
 		{
 			AutomaticDecompression = DecompressionMethods.All
 		};
-		_httpClient = new HttpClient(handler)
+		_httpClient = new HttpClient(new DiagnosticHttpHandler("subscription", handler))
 		{
 			Timeout = TimeSpan.FromSeconds(30.0)
 		};
@@ -154,12 +154,12 @@ public class SubscriptionService : IDisposable
 		{
 			throw;
 		}
-		catch (HttpRequestException)
+		catch (HttpRequestException ex)
 		{
 			return new SubscriptionRefreshResult(
 				SubscriptionRefreshStatus.RequestFailed,
 				Array.Empty<VlessNode>(),
-				"Не удалось загрузить подписку из-за сетевой ошибки.");
+				NetworkErrorMessage.Describe(ex));
 		}
 		catch (Exception ex)
 		{

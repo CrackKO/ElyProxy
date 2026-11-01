@@ -10,6 +10,7 @@
     <Version>1.0.0</Version>
     <UseWindowsForms>false</UseWindowsForms>
     <UseWPF>false</UseWPF>
+    <DefineConstants>$(DefineConstants);ELYPROXY_HELPER</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,6 +20,9 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="ElyProxy.Tests" />
+    <Compile Include="../Core/OwnedProcessStopper.cs" Link="Core/OwnedProcessStopper.cs" />
+    <Compile Include="../Core/CoreHostLaunch.cs" Link="Core/CoreHostLaunch.cs" />
+    <Compile Include="../Core/ProcessJob.cs" Link="Core/ProcessJob.cs" />
   </ItemGroup>
 
 </Project>

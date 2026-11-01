@@ -58,7 +58,7 @@ public sealed class ConnectionDiagnosticsService
                 break;
             case "ElyTun":
                 integrationPassed = coreRunning;
-                integrationDetails = integrationPassed ? "режим TUN работает внутри sing-box" : "TUN-ядро не запущено";
+                integrationDetails = integrationPassed ? "TUN-ядро запущено" : "TUN-ядро не запущено";
                 break;
             default:
                 integrationPassed = true;
@@ -70,7 +70,7 @@ public sealed class ConnectionDiagnosticsService
         {
             "Proxy Lite" => "Подключитесь и включите Proxy Lite; проверьте адрес PAC в Параметрах Windows → Сеть и Интернет → Прокси.",
             "Proxy Pro" => "Повторно включите Proxy Pro; проверьте, не изменены ли системные настройки прокси Windows.",
-            "ElyTun" => "Подключитесь в ElyTun с правами администратора и проверьте наличие sing-box.",
+            "ElyTun" => "Проверьте выбранное ядро TUN и службу-помощник в настройках ElyTun, затем подключитесь снова.",
             _ => "Откройте настройки режима и включите нужный прокси после подключения."
         };
         checks.Add(new ConnectionDiagnosticCheck("Режим Windows", integrationPassed, integrationDetails, integrationAction));
@@ -128,6 +128,11 @@ public sealed class ConnectionDiagnosticsService
         var stopwatch = Stopwatch.StartNew();
         try
         {
+            if (mode == "ElyTun")
+            {
+                var result = await new ElyTunConnectivityService(client).CheckAsync(cancellationToken);
+                return (result.Reachable, $"{result.Details}, {result.ElapsedMilliseconds} мс");
+            }
             using HttpResponseMessage response = await client.GetAsync(ProbeUri, cancellationToken);
             stopwatch.Stop();
             int statusCode = (int)response.StatusCode;

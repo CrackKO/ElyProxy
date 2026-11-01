@@ -28,7 +28,7 @@ public sealed class ProcessManagerRouter : IProcessManager
 		_helper.ProcessExitedForProcess += (processId, code) => this.ProcessExitedForProcess?.Invoke(processId, code);
 	}
 
-	public bool IsRunning => _active.IsRunning;
+	public bool IsRunning => _local.IsRunning || _helper.IsRunning;
 
 	public event Action<string>? OutputReceived;
 
@@ -58,19 +58,23 @@ public sealed class ProcessManagerRouter : IProcessManager
 				HelperRuntime.LastFallbackReason = "Служба-помощник ElyProxy недоступна; TUN запущен напрямую (может потребоваться UAC).";
 			}
 		}
+        // Stop both owners before switching local/helper backends.
+        await StopAsync().ConfigureAwait(false);
 		_active = target;
 		await target.StartAsync(executablePath, arguments, workingDirectory, stopExisting).ConfigureAwait(false);
 	}
 
 	public async Task StopAsync()
 	{
-		await _active.StopAsync().ConfigureAwait(false);
+		var errors = new System.Collections.Generic.List<Exception>();
+        try { await _local.StopAsync().ConfigureAwait(false); } catch (Exception ex) { errors.Add(ex); }
+        try { await _helper.StopAsync().ConfigureAwait(false); } catch (Exception ex) { errors.Add(ex); }
+        if (errors.Count > 0) throw new AggregateException("Не все ядра остановлены.", errors);
 	}
 
 	public void Dispose()
 	{
-		_local.Dispose();
-		_helper.Dispose();
+		try { _local.Dispose(); } finally { _helper.Dispose(); }
 		GC.SuppressFinalize(this);
 	}
 }

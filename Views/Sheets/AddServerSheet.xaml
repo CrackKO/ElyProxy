@@ -1,22 +1,33 @@
 <UserControl x:Class="ElyProxy.Views.Sheets.AddServerSheet"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:controls="clr-namespace:ElyProxy.Controls"
-             x:Name="Root"
-             Width="400">
-  <StackPanel>
-    <TextBlock Text="Вставьте ссылку vless://, vmess://, trojan://, ss://, hysteria2:// или tuic:// — сервер добавится в список вручную."
-               Style="{StaticResource Text.Callout}"
-               TextWrapping="Wrap"
-               Margin="0,0,0,10" />
-    <TextBox x:Name="UriBox"
-             controls:Placeholder.Text="vless://uuid@host:443?...#name"
-             Text="{Binding Uri, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" />
-    <TextBlock Text="{Binding UriError, ElementName=Root}"
-               Foreground="{DynamicResource RedBrush}"
-               FontSize="12"
-               TextWrapping="Wrap"
-               Margin="2,8,0,0"
-               Visibility="{Binding UriError, ElementName=Root, Converter={StaticResource StringToVis}}" />
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:controls="clr-namespace:ElyProxy.Controls" x:Name="Root" Width="440">
+ <StackPanel>
+  <ComboBox x:Name="InputMode" SelectedIndex="0" SelectionChanged="Mode_Changed" AutomationProperties.Name="Способ добавления" Margin="0,0,0,14">
+   <ComboBoxItem Content="По ссылке"/><ComboBoxItem Content="По параметрам"/>
+  </ComboBox>
+  <StackPanel x:Name="LinkPanel">
+   <TextBlock Text="Вставьте ссылку сервера, в том числе socks5://, socks://, http:// или https://." Style="{StaticResource Text.Callout}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+   <TextBox x:Name="UriBox" controls:Placeholder.Text="socks5://user:password@host:8000" Text="{Binding Uri, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Ссылка сервера"/>
   </StackPanel>
+  <StackPanel x:Name="ParametersPanel" Visibility="Collapsed">
+   <TextBlock Text="Тип прокси" Style="{StaticResource Text.Caption}" Margin="0,0,0,5"/>
+   <ComboBox x:Name="ProxyType" SelectedIndex="0" SelectionChanged="Parameters_Changed" AutomationProperties.Name="Тип прокси">
+    <ComboBoxItem Content="SOCKS5"/><ComboBoxItem Content="HTTP"/><ComboBoxItem Content="HTTPS (TLS до прокси)"/>
+   </ComboBox>
+   <TextBlock Text="Если провайдер пишет HTTPS / SOCKS5, начните с SOCKS5. HTTPS здесь означает TLS-соединение с самим прокси." Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,10"/>
+   <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
+    <StackPanel Margin="0,0,10,0"><TextBlock Text="IP или домен" Style="{StaticResource Text.Caption}" Margin="0,0,0,5"/><TextBox x:Name="HostBox" TextChanged="Parameters_Changed" controls:Placeholder.Text="proxy.example.com" AutomationProperties.Name="IP или домен"/></StackPanel>
+    <StackPanel Grid.Column="1"><TextBlock Text="Порт" Style="{StaticResource Text.Caption}" Margin="0,0,0,5"/><TextBox x:Name="PortBox" TextChanged="Parameters_Changed" controls:Placeholder.Text="8000" AutomationProperties.Name="Порт"/></StackPanel>
+   </Grid>
+   <TextBlock Text="Логин (если требуется)" Style="{StaticResource Text.Caption}" Margin="0,12,0,5"/>
+   <TextBox x:Name="UsernameBox" TextChanged="Parameters_Changed" AutomationProperties.Name="Логин"/>
+   <TextBlock Text="Пароль" Style="{StaticResource Text.Caption}" Margin="0,12,0,5"/>
+   <PasswordBox MinHeight="38" Padding="10,7" Background="{DynamicResource FillTertiaryBrush}" Foreground="{DynamicResource FgBrush}" BorderBrush="{DynamicResource BorderBr}" x:Name="SecretBox" PasswordChanged="Parameters_Changed" AutomationProperties.Name="Пароль"/>
+   <TextBlock Text="Название (необязательно)" Style="{StaticResource Text.Caption}" Margin="0,12,0,5"/>
+   <TextBox x:Name="NameBox" TextChanged="Parameters_Changed" controls:Placeholder.Text="Мой прокси" AutomationProperties.Name="Название сервера"/>
+  </StackPanel>
+  <TextBlock Text="{Binding UriError, ElementName=Root}" Foreground="{DynamicResource RedBrush}" FontSize="12" TextWrapping="Wrap" Margin="2,8,0,0" Visibility="{Binding UriError, ElementName=Root, Converter={StaticResource StringToVis}}"/>
+ </StackPanel>
 </UserControl>
