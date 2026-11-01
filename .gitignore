@@ -4,6 +4,19 @@ obj/
 publish/
 out/
 
+## Generated build / test artifacts
+dist/
+release-build/
+testResults.xml
+
+## Internal tooling / unrelated staging
+.opencode/
+deployment/elyaxis-staging/
+
+## Python caches
+**/__pycache__/
+*.pyc
+
 ## User-specific
 *.rsuser
 *.suo
@@ -37,10 +50,11 @@ bld/
 project.lock.json
 project.fragment.lock.json
 
-## Xray binary (user downloads separately)
-bin/xray/xray.exe
-bin/xray/geoip.dat
-bin/xray/geosite.dat
+## Locally installed active cores
+## A preserved downloaded Xray bundle lives under vendor/xray/; active local cores stay untracked.
+/xray/
+/tun2proxy/
+/hysteria/
 
 ## Temp
 *.tmp

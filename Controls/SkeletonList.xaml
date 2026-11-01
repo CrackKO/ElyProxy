@@ -1,0 +1,27 @@
+<UserControl x:Class="ElyProxy.Controls.SkeletonList"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             IsHitTestVisible="False">
+  <ItemsControl x:Name="RowsHost" Margin="4">
+    <ItemsControl.ItemTemplate>
+      <DataTemplate>
+        <Grid Margin="9,8">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <Border Style="{StaticResource SkeletonBlock}"
+                  Height="12"
+                  Width="210"
+                  HorizontalAlignment="Left" />
+          <Border Grid.Row="1"
+                  Style="{StaticResource SkeletonBlock}"
+                  Height="10"
+                  Width="132"
+                  HorizontalAlignment="Left"
+                  Margin="0,7,0,0" />
+        </Grid>
+      </DataTemplate>
+    </ItemsControl.ItemTemplate>
+  </ItemsControl>
+</UserControl>

@@ -1,128 +1,217 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using ElyProxy.Models;
 
 namespace ElyProxy.Core;
 
 public class XrayManager : IDisposable
 {
-    private readonly ProcessManager _processManager;
-    private readonly ConfigBuilder _configBuilder;
-    private string? _configPath;
+	private readonly IProcessManager _processManager;
 
-    public bool IsRunning => _processManager.IsRunning;
+	private readonly ConfigBuilder _configBuilder;
 
-    public event Action<string>? LogReceived;
-    public event Action<bool>? StatusChanged;
+	private string? _configPath;
 
-    public XrayManager()
-    {
-        _processManager = new ProcessManager();
-        _configBuilder = new ConfigBuilder();
+	private TaskCompletionSource<bool>? _startCompletion;
 
-        _processManager.OutputReceived += line => LogReceived?.Invoke($"[xray] {line}");
-        _processManager.ErrorReceived += line => LogReceived?.Invoke($"[xray] {line}");
-        _processManager.ProcessExited += code =>
-        {
-            LogReceived?.Invoke($"[sys] Xray завершён, код: {code}");
-            CleanupConfig();
-            StatusChanged?.Invoke(false);
-        };
-    }
+	public bool IsRunning => _processManager.IsRunning;
 
-    public string GetXrayPath()
-    {
-        var appDir = AppDomain.CurrentDomain.BaseDirectory;
+	public string? LastConfigHash { get; private set; }
 
-        var candidates = new[]
-        {
-            Path.Combine(appDir, "xray", "xray.exe"),
-            Path.Combine(appDir, "bin", "xray", "xray.exe"),
-            Path.Combine(appDir, "xray.exe"),
-        };
+	public event Action<string>? LogReceived;
 
-        return candidates.FirstOrDefault(File.Exists) ?? candidates[0];
-    }
+	public event Action<bool>? StatusChanged;
 
-    public async Task StartAsync(VlessNode node, int socksPort = 1080)
-    {
-        var xrayPath = GetXrayPath();
-        if (!File.Exists(xrayPath))
-        {
-            throw new FileNotFoundException(
-                $"Xray не найден по пути: {xrayPath}\n" +
-                "Скачайте xray-core: github.com/XTLS/Xray-core/releases",
-                xrayPath);
-        }
+	public XrayManager(IProcessManager? processManager = null)
+	{
+		_processManager = processManager ?? new ProcessManagerRouter();
+		_configBuilder = new ConfigBuilder();
+		_processManager.OutputReceived += OnProcessLine;
+		_processManager.ErrorReceived += OnProcessLine;
+		_processManager.ProcessExited += OnProcessExited;
+	}
 
-        var configJson = _configBuilder.Build(node, socksPort);
-        await WriteConfigAsync(configJson);
+	public string GetXrayPath()
+	{
+		return CoreLocator.Resolve("xray", "xray.exe", "xray", Path.Combine("bin", "xray"), string.Empty);
+	}
 
-        LogReceived?.Invoke($"[sys] Конфиг: {_configPath}");
-        LogReceived?.Invoke($"[sys] Запуск Xray: {xrayPath}");
-        LogReceived?.Invoke($"[sys] Сервер: {node.DisplayName} ({node.Address}:{node.Port})");
-        LogReceived?.Invoke($"[sys] SOCKS5: 127.0.0.1:{socksPort}");
+	public async Task StartAsync(VlessNode node, int socksPort = 1080, XrayTunOptions? tunOptions = null, bool includeTunInbound = true)
+	{
+		string xrayPath = GetXrayPath();
+		if (!File.Exists(xrayPath))
+		{
+			throw new FileNotFoundException("Xray не найден по пути: " + xrayPath + "\nСкачайте xray-core: github.com/XTLS/Xray-core/releases", xrayPath);
+		}
+		bool usesTun = tunOptions != null && includeTunInbound;
+		await StopBeforeStartAsync();
+		if (usesTun)
+		{
+			await Task.Delay(TimeSpan.FromSeconds(1.0));
+		}
+		string configJson = _configBuilder.Build(node, socksPort, tunOptions, includeTunInbound);
+		LastConfigHash = ConfigHash.Compute(configJson);
+		this.LogReceived?.Invoke("[sys] Хеш конфига: " + LastConfigHash);
+		await WriteConfigAsync(configJson);
+		PrepareStartWait();
+		this.LogReceived?.Invoke("[sys] Конфиг: " + _configPath);
+		this.LogReceived?.Invoke("[sys] Запуск Xray: " + xrayPath);
+		this.LogReceived?.Invoke($"[sys] Сервер: {node.DisplayName} ({node.Address}:{node.Port})");
+		this.LogReceived?.Invoke($"[sys] SOCKS5: 127.0.0.1:{socksPort}");
+		if (usesTun)
+		{
+			this.LogReceived?.Invoke($"[sys] ElyTun: {tunOptions.InterfaceName}, MTU {tunOptions.Mtu}");
+			this.LogReceived?.Invoke("[sys] ElyTun DNS: " + string.Join(", ", tunOptions.DnsServers));
+		}
+		if (tunOptions is { FragmentEnabled: true })
+		{
+			this.LogReceived?.Invoke("[sys] Обход DPI: фрагментация TLS включена" + (string.IsNullOrWhiteSpace(tunOptions.NoiseType) ? "" : ", noise " + tunOptions.NoiseType));
+		}
+		string xrayDir = Path.GetDirectoryName(xrayPath);
+		await _processManager.StartAsync(xrayPath, "run -config \"" + _configPath + "\"", xrayDir, stopExisting: false);
+		await EnsureStartedAsync(usesTun ? TimeSpan.FromSeconds(25.0) : TimeSpan.FromSeconds(5.0));
+		this.StatusChanged?.Invoke(obj: true);
+	}
 
-        var xrayDir = Path.GetDirectoryName(xrayPath)!;
-        await _processManager.StartAsync(xrayPath, $"run -config \"{_configPath}\"", xrayDir);
-        StatusChanged?.Invoke(true);
-    }
+	public async Task StartSocksAsync(SocksNode node, int socksPort = 1080)
+	{
+		string xrayPath = GetXrayPath();
+		if (!File.Exists(xrayPath))
+		{
+			throw new FileNotFoundException("Xray не найден", xrayPath);
+		}
+		await StopBeforeStartAsync();
+		string configJson = _configBuilder.BuildSocks(node, socksPort);
+		LastConfigHash = ConfigHash.Compute(configJson);
+		this.LogReceived?.Invoke("[sys] Хеш конфига: " + LastConfigHash);
+		await WriteConfigAsync(configJson);
+		PrepareStartWait();
+		this.LogReceived?.Invoke($"[sys] SOCKS outbound: {node.Address}:{node.Port}");
+		string xrayDir = Path.GetDirectoryName(xrayPath);
+		await _processManager.StartAsync(xrayPath, "run -config \"" + _configPath + "\"", xrayDir, stopExisting: false);
+		await EnsureStartedAsync(TimeSpan.FromSeconds(5.0));
+		this.StatusChanged?.Invoke(obj: true);
+	}
 
-    public async Task StartSocksAsync(SocksNode node, int socksPort = 1080)
-    {
-        var xrayPath = GetXrayPath();
-        if (!File.Exists(xrayPath))
-            throw new FileNotFoundException("Xray не найден", xrayPath);
+	public async Task StartSocksBackendAsync(VlessNode node, int socksPort, XrayTunOptions routingOptions)
+	{
+		string xrayPath = GetXrayPath();
+		if (!File.Exists(xrayPath))
+		{
+			throw new FileNotFoundException("Xray не найден по пути: " + xrayPath, xrayPath);
+		}
+		await StopBeforeStartAsync();
+		string configJson = _configBuilder.Build(node, socksPort, routingOptions, includeTunInbound: false);
+		LastConfigHash = ConfigHash.Compute(configJson);
+		this.LogReceived?.Invoke("[sys] Хеш конфига: " + LastConfigHash);
+		await WriteConfigAsync(configJson);
+		PrepareStartWait();
+		this.LogReceived?.Invoke("[sys] Xray SOCKS backend: 127.0.0.1:" + socksPort);
+		this.LogReceived?.Invoke($"[sys] Сервер: {node.DisplayName} ({node.Address}:{node.Port})");
+		string xrayDir = Path.GetDirectoryName(xrayPath);
+		await _processManager.StartAsync(xrayPath, "run -config \"" + _configPath + "\"", xrayDir, stopExisting: false);
+		await EnsureStartedAsync(TimeSpan.FromSeconds(5.0));
+		this.StatusChanged?.Invoke(obj: true);
+	}
 
-        var configJson = _configBuilder.BuildSocks(node, socksPort);
-        await WriteConfigAsync(configJson);
+	public async Task StopAsync()
+	{
+		await _processManager.StopAsync().ConfigureAwait(false);
+		CleanupConfig();
+		this.StatusChanged?.Invoke(obj: false);
+		this.LogReceived?.Invoke("[sys] Xray остановлен");
+	}
 
-        LogReceived?.Invoke($"[sys] SOCKS outbound: {node.Address}:{node.Port}");
+	public async Task RestartAsync(VlessNode node, int socksPort = 1080, XrayTunOptions? tunOptions = null)
+	{
+		await StopAsync();
+		if (tunOptions != null)
+		{
+			await Task.Delay(TimeSpan.FromSeconds(2.0));
+		}
+		await StartAsync(node, socksPort, tunOptions);
+	}
 
-        var xrayDir = Path.GetDirectoryName(xrayPath)!;
-        await _processManager.StartAsync(xrayPath, $"run -config \"{_configPath}\"", xrayDir);
-        StatusChanged?.Invoke(true);
-    }
+	private async Task StopBeforeStartAsync()
+	{
+		await _processManager.StopAsync().ConfigureAwait(false);
+		CleanupConfig();
+	}
 
-    public async Task StopAsync()
-    {
-        await _processManager.StopAsync();
-        CleanupConfig();
-        StatusChanged?.Invoke(false);
-        LogReceived?.Invoke("[sys] Xray остановлен");
-    }
+	private async Task WriteConfigAsync(string configJson)
+	{
+		string tempDir = Path.Combine(Path.GetTempPath(), "ElyProxy");
+		Directory.CreateDirectory(tempDir);
+		_configPath = Path.Combine(tempDir, $"config_{Guid.NewGuid():N}.json");
+		await File.WriteAllTextAsync(_configPath, configJson);
+	}
 
-    public async Task RestartAsync(VlessNode node, int socksPort = 1080)
-    {
-        await StopAsync();
-        await StartAsync(node, socksPort);
-    }
+	private void PrepareStartWait()
+	{
+		_startCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+	}
 
-    private async Task WriteConfigAsync(string configJson)
-    {
-        var tempDir = Path.Combine(Path.GetTempPath(), "ElyProxy");
-        Directory.CreateDirectory(tempDir);
-        _configPath = Path.Combine(tempDir, $"config_{Guid.NewGuid():N}.json");
-        await File.WriteAllTextAsync(_configPath, configJson);
-    }
+	private async Task EnsureStartedAsync(TimeSpan timeout)
+	{
+		TaskCompletionSource<bool> startCompletion = _startCompletion ?? throw new InvalidOperationException("Ожидание запуска Xray не было подготовлено.");
+		if (await Task.WhenAny(startCompletion.Task, Task.Delay(timeout)) != startCompletion.Task)
+		{
+			if (!_processManager.IsRunning)
+			{
+				throw new InvalidOperationException("Xray завершился сразу после запуска. Проверьте лог выше.");
+			}
+			throw new TimeoutException("Xray не подтвердил запуск вовремя. Проверьте лог выше.");
+		}
+		await startCompletion.Task;
+	}
 
-    private void CleanupConfig()
-    {
-        if (_configPath == null) return;
+	private void OnProcessLine(string line)
+	{
+		this.LogReceived?.Invoke("[xray] " + line);
+		if (line.Contains("core:", StringComparison.OrdinalIgnoreCase) && line.Contains("started", StringComparison.OrdinalIgnoreCase))
+		{
+			_startCompletion?.TrySetResult(result: true);
+		}
+		else if (line.Contains("Failed to start:", StringComparison.OrdinalIgnoreCase))
+		{
+			_startCompletion?.TrySetException(new InvalidOperationException(line));
+		}
+	}
 
-        try
-        {
-            if (File.Exists(_configPath))
-                File.Delete(_configPath);
-        }
-        catch { }
+	private void OnProcessExited(int code)
+	{
+		_startCompletion?.TrySetException(new InvalidOperationException($"Xray завершился при запуске, код: {code}"));
+		this.LogReceived?.Invoke($"[sys] Xray завершён, код: {code}");
+		CleanupConfig();
+		this.StatusChanged?.Invoke(obj: false);
+	}
 
-        _configPath = null;
-    }
+	private void CleanupConfig()
+	{
+		if (_configPath == null)
+		{
+			return;
+		}
+		try
+		{
+			if (File.Exists(_configPath))
+			{
+				File.Delete(_configPath);
+			}
+		}
+		catch
+		{
+		}
+		_configPath = null;
+	}
 
-    public void Dispose()
-    {
-        _processManager.StopAsync().GetAwaiter().GetResult();
-        CleanupConfig();
-        _processManager.Dispose();
-        GC.SuppressFinalize(this);
-    }
+	public void Dispose()
+	{
+		_processManager.StopAsync().GetAwaiter().GetResult();
+		CleanupConfig();
+		_processManager.Dispose();
+		GC.SuppressFinalize(this);
+	}
 }

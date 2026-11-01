@@ -1,0 +1,340 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="clr-namespace:ElyProxy.Controls" xmlns:converters="clr-namespace:ElyProxy.Controls.Converters" xmlns:behaviors="clr-namespace:ElyProxy.Controls.Behaviors" x:Class="ElyProxy.Views.Sections.ServersView">
+  <UserControl.Resources>
+    <converters:EqualsToVisibilityConverter x:Key="EqualsToVis"/>
+    <ContextMenu x:Key="ServerRowMenu" x:Shared="False" DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+      <MenuItem Header="Подключить" Command="{Binding ConnectCommand}"/>
+      <MenuItem Header="Избранное" Click="FavoriteMenu_Click"/>
+      <MenuItem Header="В профиль" Command="{Binding AddToProfileCommand}"/>
+      <Separator/>
+      <MenuItem Header="Копировать прокси" Command="{Binding CopyProxyCommand}"/>
+      <MenuItem Header="Поделиться…" Click="RowShare_Click"/>
+    </ContextMenu>
+            <DataTemplate x:Key="ServerTemplate">
+              <Grid Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}" ContextMenu="{StaticResource ServerRowMenu}">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="36"/>
+                  <ColumnDefinition Width="42"/>
+                  <ColumnDefinition Width="41"/>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="125"/>
+                  <ColumnDefinition Width="105"/>
+                  <ColumnDefinition Width="200"/>
+                  <ColumnDefinition Width="32"/>
+                </Grid.ColumnDefinitions>
+                <Button Content="{Binding FavoriteGlyph}" Padding="0" MinHeight="30" FontSize="21" Click="Favorite_Click" ToolTip="Добавить или убрать из избранного" AutomationProperties.Name="Избранное">
+                  <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource GhostButton}">
+                      <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsFavorite}" Value="True">
+                          <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Button.Style>
+                </Button>
+                <Button Grid.Column="1" Click="RowConnect_Click" Width="30" Height="30" Margin="0,0,12,0" Padding="0" VerticalAlignment="Center" ToolTip="{Binding ActionLabel}" AutomationProperties.Name="{Binding ActionLabel}">
+                  <Button.Style>
+                    <Style TargetType="Button">
+                      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                      <Setter Property="Background" Value="Transparent"/>
+                      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                      <Setter Property="Template">
+                        <Setter.Value>
+                          <ControlTemplate TargetType="Button">
+                            <Border x:Name="Circle" CornerRadius="15" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1.5">
+                              <Grid>
+                                <TextBlock x:Name="Glyph" Text="{Binding ActionGlyph}" FontSize="13" Foreground="{TemplateBinding Foreground}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <controls:BusyRing Width="18" Height="18" Visibility="{Binding IsWorking, Converter={StaticResource BoolToVis}}"/>
+                              </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Circle" Property="Background" Value="{DynamicResource SelectionBrush}"/></Trigger>
+                              <Trigger Property="IsPressed" Value="True"><Setter TargetName="Circle" Property="Opacity" Value="0.65"/></Trigger>
+                              <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Circle" Property="BorderThickness" Value="3"/></Trigger>
+                              <DataTrigger Binding="{Binding IsActive}" Value="True"><Setter Property="Foreground" Value="{DynamicResource GreenBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource GreenBrush}"/></DataTrigger>
+                              <DataTrigger Binding="{Binding IsWorking}" Value="True"><Setter TargetName="Glyph" Property="Visibility" Value="Collapsed"/></DataTrigger>
+                              <DataTrigger Binding="{Binding DataContext.IsLoading, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                            </ControlTemplate.Triggers>
+                          </ControlTemplate>
+                        </Setter.Value>
+                      </Setter>
+                    </Style>
+                  </Button.Style>
+                </Button>
+                <Border Grid.Column="2" Width="30" Height="30" CornerRadius="15" Background="{DynamicResource FillTertiaryBrush}" Margin="0,0,11,0" VerticalAlignment="Center" Visibility="{Binding DataContext.ServerBadgeMode, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BadgeVis}}">
+                  <Grid>
+                    <Image Panel.ZIndex="1" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True">
+                      <Image.Source>
+                        <MultiBinding Converter="{StaticResource FlagImage}">
+                          <Binding Path="Node.DisplayName"/>
+                          <Binding Path="DataContext.ServerBadgeMode" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
+                        </MultiBinding>
+                      </Image.Source>
+                      <Image.Clip>
+                        <EllipseGeometry Center="15,15" RadiusX="15" RadiusY="15"/>
+                      </Image.Clip>
+                    </Image>
+                    <TextBlock Style="{StaticResource Text.CaptionStrong}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                      <TextBlock.Text>
+                        <MultiBinding Converter="{StaticResource BadgeText}">
+                          <Binding Path="Node.DisplayName"/>
+                          <Binding Path="DataContext.ServerBadgeMode" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
+                        </MultiBinding>
+                      </TextBlock.Text>
+                    </TextBlock>
+                  </Grid>
+                </Border>
+                <Grid Grid.Column="3" VerticalAlignment="Center" Margin="0,0,10,0">
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                  </Grid.RowDefinitions>
+                  <TextBlock Text="{Binding Name}" Padding="0,0,12,0" Style="{StaticResource Text.BodyStrong}" FontSize="13" LineHeight="18" TextTrimming="CharacterEllipsis" ToolTip="{Binding Node.DisplayName}"/>
+                  <Ellipse Width="6" Height="6" Fill="{DynamicResource GreenBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" Visibility="{Binding IsActive, Converter={StaticResource BoolToVis}}" ToolTip="Подключено"/>
+                  <TextBlock Grid.Row="1" Text="{Binding Address}" Style="{StaticResource Text.Caption}" FontSize="11" LineHeight="14" TextTrimming="CharacterEllipsis" ToolTip="{Binding Address}"/>
+                </Grid>
+                <TextBlock Grid.Column="4" Text="{Binding SubscriptionName}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,8,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding SubscriptionName}"/>
+                <Border Grid.Column="5" Style="{StaticResource Chip}" HorizontalAlignment="Left" MaxWidth="99">
+                  <TextBlock Text="{Binding Node.ProtocolDisplay}" Style="{StaticResource ChipText}"/>
+                </Border>
+                <StackPanel Grid.Column="6" VerticalAlignment="Center" ToolTip="{Binding LatencyHint}">
+                <TextBlock Text="{Binding QualityText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip="{Binding LatencyHint}">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}">
+                      <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding LatencyBand}" Value="Good"><Setter Property="Foreground" Value="{DynamicResource GreenBrush}"/></DataTrigger>
+                        <DataTrigger Binding="{Binding LatencyBand}" Value="Medium"><Setter Property="Foreground" Value="{DynamicResource YellowBrush}"/></DataTrigger>
+                        <DataTrigger Binding="{Binding LatencyBand}" Value="High"><Setter Property="Foreground" Value="{DynamicResource RedBrush}"/></DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+                  <TextBlock Text="{Binding QualityMetrics}" Style="{StaticResource Text.Micro}" Foreground="{DynamicResource FgDimBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding LatencyHint}" />
+                </StackPanel>
+                <Button Grid.Column="7" Content="⋯" Style="{StaticResource GhostButton}" Padding="0" MinHeight="30" Click="RowMenu_Click" ToolTip="Действия с сервером" AutomationProperties.Name="Действия с сервером"/>
+              </Grid>
+            </DataTemplate>
+  </UserControl.Resources>
+  <Grid Margin="20,14,20,12">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <Grid Margin="0,0,0,10">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <StackPanel>
+        <TextBlock Text="Серверы" Style="{StaticResource Text.LargeTitle}"/>
+        <TextBlock x:Name="LibrarySummary" Style="{StaticResource Text.Caption}" Margin="0,3,0,0"/>
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+        <Button Content="Обновить все" Style="{StaticResource SecondaryButton}" Command="{Binding UpdateAllSubscriptionsCommand}" Margin="0,0,8,0"/>
+        <Button Content="＋ Добавить" Style="{StaticResource PrimaryButton}" Click="AddMenu_Click">
+          <Button.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="Добавить подписку" Click="AddSubscription_Click"/>
+              <MenuItem Header="Добавить сервер вручную" Click="AddServer_Click"/>
+            </ContextMenu>
+          </Button.ContextMenu>
+        </Button>
+      </StackPanel>
+    </Grid>
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <ListBox x:Name="SubscriptionTabs" Background="Transparent" BorderThickness="0" SelectionChanged="SubscriptionTabs_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled" Margin="0,0,0,10">
+        <ListBox.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal"/>
+          </ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
+        <ListBox.ItemContainerStyle>
+          <Style TargetType="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="Foreground" Value="{DynamicResource FgSecBrush}"/>
+            <Setter Property="Template">
+              <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                  <Border x:Name="Pill" Padding="{TemplateBinding Padding}" CornerRadius="8" Background="{DynamicResource FillTertiaryBrush}" BorderBrush="{DynamicResource BorderBr}" BorderThickness="1">
+                    <ContentPresenter/>
+                  </Border>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                      <Setter TargetName="Pill" Property="Background" Value="{DynamicResource SelectionBrush}"/>
+                      <Setter TargetName="Pill" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                    </Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate>
+              </Setter.Value>
+            </Setter>
+          </Style>
+        </ListBox.ItemContainerStyle>
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+              <Border Background="{DynamicResource FillSecondaryBrush}" CornerRadius="8" Padding="6,1" Margin="8,0,0,0">
+                <TextBlock Text="{Binding Count}" FontSize="11"/>
+              </Border>
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <ComboBox Grid.Column="1" x:Name="SourcePicker" Width="205" MinWidth="0" Margin="8,0,0,10" Visibility="Collapsed" DisplayMemberPath="Name" SelectedItem="{Binding SelectedItem, ElementName=SubscriptionTabs, Mode=TwoWay}" ToolTip="Быстрый выбор из всех подписок" AutomationProperties.Name="Выбрать подписку"/>
+    </Grid>
+    <Grid Grid.Row="2" Margin="0,0,0,8">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="140"/>
+        <ColumnDefinition Width="145"/>
+        <ColumnDefinition Width="140"/>
+      </Grid.ColumnDefinitions>
+      <TextBox x:Name="SearchBox" controls:Placeholder.Text="Сервер, страна или адрес…" AutomationProperties.Name="Поиск по серверам" TextChanged="SearchBox_TextChanged" Margin="0,0,8,0"/>
+      <ComboBox MinWidth="0" x:Name="CountryBox" Grid.Column="1" Margin="0,0,8,0" DisplayMemberPath="Name" SelectionChanged="CountryBox_SelectionChanged" AutomationProperties.Name="Страна"/>
+      <ComboBox MinWidth="0" x:Name="SortBox" Grid.Column="2" Margin="0,0,8,0" SelectionChanged="SortBox_SelectionChanged" AutomationProperties.Name="Сортировка серверов">
+        <ComboBoxItem Content="Как в подписке" IsSelected="True"/>
+        <ComboBoxItem Content="По имени"/>
+        <ComboBoxItem Content="По задержке"/>
+        <ComboBoxItem Content="По качеству"/>
+        <ComboBoxItem Content="По скорости"/>
+      </ComboBox>
+      <ComboBox MinWidth="0" x:Name="ProtocolBox" Grid.Column="3" SelectionChanged="ProtocolBox_SelectionChanged" AutomationProperties.Name="Протокол">
+        <ComboBoxItem Content="Все протоколы" IsSelected="True"/>
+        <ComboBoxItem Content="VLESS"/>
+        <ComboBoxItem Content="VMess"/>
+        <ComboBoxItem Content="Trojan"/>
+        <ComboBoxItem Content="Shadowsocks"/>
+        <ComboBoxItem Content="Hysteria2"/>
+        <ComboBoxItem Content="TUIC"/>
+        <ComboBoxItem Content="AnyTLS"/>
+        <ComboBoxItem Content="SSH"/>
+        <ComboBoxItem Content="WireGuard"/>
+        <ComboBoxItem Content="Naive"/>
+        <ComboBoxItem Content="ShadowTLS"/>
+        <ComboBoxItem Content="SOCKS"/>
+        <ComboBoxItem Content="HTTP"/>
+      </ComboBox>
+    </Grid>
+    <Grid Grid.Row="3" Margin="0,0,0,8">
+      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <StackPanel Orientation="Horizontal">
+        <Button x:Name="AllTab" Content="Все" Tag="all" Click="Scope_Click" Style="{StaticResource GhostButton}"/>
+        <Button x:Name="FavoritesTab" Content="Избранное" Tag="favorites" Click="Scope_Click" Style="{StaticResource GhostButton}"/>
+        <Button x:Name="RecentTab" Content="Недавние" Tag="recent" Click="Scope_Click" Style="{StaticResource GhostButton}"/>
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal">
+        <Button Content="Проверить задержку" ToolTip="Проверить все серверы, включая скрытые фильтрами" Style="{StaticResource SecondaryButton}" Command="{Binding PingAllCommand}" Margin="0,0,6,0"/>
+        <Button Content="Остановить проверку" Command="{Binding CancelServerProbeCommand}" Visibility="{Binding IsServerProbing, Converter={StaticResource BoolToVis}}" Margin="0,0,6,0" Style="{StaticResource SecondaryButton}" />
+          <Button Content="Отчёт проверки" Command="{Binding CopyServerProbeReportCommand}" Margin="0,0,6,0" Style="{StaticResource SecondaryButton}" />
+          <Button Content="Диагностика" Style="{StaticResource SecondaryButton}" Command="{Binding RunConnectionDiagnosticsCommand}"/>
+      </StackPanel>
+    </Grid>
+    <Border Grid.Row="4" x:Name="PinnedServer" CornerRadius="12" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource BorderBr}" BorderThickness="1" Padding="12,10" Margin="0,0,0,10" Visibility="Collapsed">
+      <Grid>
+        <Border Width="3" HorizontalAlignment="Left" CornerRadius="2" Background="{DynamicResource GreenBrush}" Margin="-8,0,0,0"/>
+      <StackPanel>
+        <Grid Margin="2,0,2,8">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <StackPanel Orientation="Horizontal"><Ellipse Width="6" Height="6" Fill="{DynamicResource GreenBrush}" Margin="0,0,7,0"/><TextBlock Text="Текущее подключение" Foreground="{DynamicResource GreenBrush}" FontWeight="SemiBold" FontSize="12"/></StackPanel>
+          <TextBlock Grid.Column="1" Text="Закреплено до отключения" Style="{StaticResource Text.Caption}" FontSize="11"/>
+        </Grid>
+        <ContentControl x:Name="PinnedServerContent" ContentTemplate="{StaticResource ServerTemplate}" HorizontalContentAlignment="Stretch"/>
+      </StackPanel>
+      </Grid>
+    </Border>
+    <Border Grid.Row="5" Style="{StaticResource AppleInsetGroup}" ClipToBounds="True">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="32"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Grid Margin="12,0,26,0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="36"/>
+                  <ColumnDefinition Width="42"/>
+            <ColumnDefinition Width="41"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="125"/>
+            <ColumnDefinition Width="105"/>
+            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="32"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock Text="☆" VerticalAlignment="Center" Foreground="{DynamicResource FgDimBrush}"/>
+          <TextBlock Grid.Column="3" Text="Сервер" Style="{StaticResource Text.Caption}" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="4" Text="Подписка" Style="{StaticResource Text.Caption}" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="5" Text="Протокол" Style="{StaticResource Text.Caption}" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="6" ToolTip="A — рекомендуется; B — можно; C/D — медленно или с перебоями; F — нет успешных контрольных ответов; ? — проверка не завершена. Балл 0–100 — рейтинг качества, не вероятность." Text="Качество / задержка" Style="{StaticResource Text.Caption}" VerticalAlignment="Center"/>
+        </Grid>
+        <ListView Grid.Row="1" x:Name="ServerList" ItemTemplate="{StaticResource ServerTemplate}" Style="{StaticResource AppleListView}" SelectionChanged="ServerList_SelectionChanged" MouseDoubleClick="ServerList_MouseDoubleClick" KeyDown="ServerList_KeyDown" PreviewMouseRightButtonDown="ServerList_PreviewMouseRightButtonDown" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True" VirtualizingPanel.ScrollUnit="Pixel">
+          <ListView.Template>
+            <ControlTemplate TargetType="ListView">
+              <ScrollViewer Focusable="False" CanContentScroll="True" behaviors:SmoothScroll.IsEnabled="True" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <ItemsPresenter/>
+              </ScrollViewer>
+            </ControlTemplate>
+          </ListView.Template>
+          <ListView.ItemsPanel>
+            <ItemsPanelTemplate>
+              <VirtualizingStackPanel/>
+            </ItemsPanelTemplate>
+          </ListView.ItemsPanel>
+          <ListView.ItemContainerStyle>
+            <Style TargetType="ListViewItem">
+              <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+              <Setter Property="Padding" Value="12,5"/>
+              <Setter Property="Foreground" Value="{DynamicResource FgBrush}"/>
+              <Setter Property="Template">
+                <Setter.Value>
+                  <ControlTemplate TargetType="ListViewItem">
+                    <Border x:Name="Row" Padding="{TemplateBinding Padding}" Background="Transparent" BorderBrush="{DynamicResource BorderBr}" BorderThickness="0,0,0,1">
+                      <ContentPresenter/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                      <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource FillTertiaryBrush}"/>
+                      </Trigger>
+                      <Trigger Property="IsSelected" Value="True">
+                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource SelectionBrush}"/>
+                      </Trigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </Setter.Value>
+              </Setter>
+            </Style>
+          </ListView.ItemContainerStyle>
+
+        </ListView>
+        <controls:EmptyState Grid.Row="1" x:Name="NoSearchResults" Title="Ничего не найдено" Description="Измените поиск, подписку или фильтры." ActionText="Сбросить фильтры" Visibility="Collapsed"/>
+        <controls:EmptyState Grid.Row="1" x:Name="EmptyServers" Title="Серверов пока нет" Description="Добавьте подписку или сервер вручную." ActionText="Добавить подписку" Visibility="Collapsed"/>
+      </Grid>
+    </Border>
+    <Grid Grid.Row="6" Margin="0,8,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <TextBlock x:Name="ResultSummary" Style="{StaticResource Text.Caption}"/>
+      <TextBlock Grid.Column="1" Text="{Binding PingSummary}" Style="{StaticResource Text.Caption}" HorizontalAlignment="Right" MaxWidth="240" TextTrimming="CharacterEllipsis" ToolTip="{Binding PingSummary}" Margin="16,0,0,0"/>
+      <Button Grid.Column="2" Content="Копировать отчёт" Style="{StaticResource LinkButton}" Margin="12,0,0,0" Command="{Binding CopyDiagnosticsCommand}" Visibility="{Binding HasDiagnosticsReport, Converter={StaticResource BoolToVis}}"/>
+      <Button Grid.Column="3" Content="Проверить компоненты" Style="{StaticResource LinkButton}" Margin="12,0,0,0" Command="{Binding CheckRuntimeComponentsCommand}" Visibility="{Binding AllNodes.Count, Converter={StaticResource ZeroToVis}}"/>
+    </Grid>
+  </Grid>
+</UserControl>

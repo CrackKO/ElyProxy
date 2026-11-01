@@ -1,0 +1,68 @@
+<UserControl x:Class="ElyProxy.Views.Sheets.ApplicationPickerSheet"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:ElyProxy.Controls"
+             x:Name="Root"
+             Width="560">
+  <StackPanel>
+    <TextBlock Text="Выберите запущенное приложение. Его сетевые подключения будут идти напрямую и не попадут под правила маршрутизации VPN."
+               Style="{StaticResource Text.Callout}"
+               TextWrapping="Wrap"
+               Margin="0,0,0,12" />
+
+    <Grid Margin="0,0,0,10">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <TextBox x:Name="SearchBox"
+               Grid.Column="0"
+               controls:Placeholder.Text="Поиск по названию или пути"
+               AutomationProperties.Name="Поиск приложения"
+               TextChanged="SearchBox_TextChanged" />
+      <Button Grid.Column="1"
+              Content="Обновить"
+              Style="{StaticResource SecondaryButton}"
+              Margin="8,0,0,0"
+              Click="Refresh_Click" />
+    </Grid>
+
+    <ListView x:Name="ApplicationList"
+              Style="{StaticResource AppleListView}"
+              ScrollViewer.CanContentScroll="False"
+              Height="250"
+              ItemsSource="{Binding FilteredApplications, ElementName=Root}"
+              SelectedItem="{Binding SelectedApplication, ElementName=Root, Mode=TwoWay}"
+              AutomationProperties.Name="Список работающих приложений">
+      <ListView.ItemTemplate>
+        <DataTemplate>
+          <Grid Margin="2,4">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+              <TextBlock Text="{Binding Name}"
+                         Style="{StaticResource Text.BodyStrong}"
+                         TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{Binding ExecutablePath}"
+                         Style="{StaticResource Text.Caption}"
+                         TextTrimming="CharacterEllipsis"
+                         ToolTip="{Binding ExecutablePath}" />
+            </StackPanel>
+            <Border Grid.Column="1" Style="{StaticResource Chip}" Margin="8,0,0,0">
+              <TextBlock Style="{StaticResource ChipText}"
+                         Text="{Binding InstanceCount, StringFormat=Запущено: {0}}" />
+            </Border>
+          </Grid>
+        </DataTemplate>
+      </ListView.ItemTemplate>
+    </ListView>
+
+    <Button Content="Выбрать .exe из файла…"
+            Style="{StaticResource GhostButton}"
+            HorizontalAlignment="Left"
+            Margin="0,10,0,0"
+            Click="Browse_Click" />
+  </StackPanel>
+</UserControl>

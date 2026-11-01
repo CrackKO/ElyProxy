@@ -7,6 +7,9 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>ElyProxy</RootNamespace>
     <AssemblyName>ElyProxy</AssemblyName>
+    <Version>1.4.5</Version>
+    <AssemblyVersion>1.4.5.0</AssemblyVersion>
+    <FileVersion>1.4.5.0</FileVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -16,19 +19,58 @@
   <ItemGroup>
     <Using Remove="System.Drawing" />
     <Using Remove="System.Windows.Forms" />
+    <Compile Remove="tests\**\*.cs" />
+    <Compile Remove="ElyProxy.Updater\**\*.cs" />
+    <Compile Remove="ElyProxy.Helper\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="QRCoder" Version="1.8.0" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.0" />
+    <PackageReference Include="YamlDotNet" Version="18.1.0" />
   </ItemGroup>
 
   <ItemGroup>
     <Resource Include="icon.ico" />
+    <Resource Include="Assets\Flags\**\*.png" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="bin\xray\*">
+    <None Update="bin\xray\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </None>
+    <!-- Locally placed Xray binaries (untracked): copy next to the app so both
+         dotnet run and publish find xray/xray.exe, geoip.dat, geosite.dat. -->
+    <None Update="xray\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </None>
+    <None Update="sing-box\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </None>
+    <!-- tun2proxy runtime (untracked locally placed binary, like xray/). -->
+    <None Update="tun2proxy\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </None>
+    <None Update="Assets\RoscomVPN\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </None>
   </ItemGroup>
+
+  <Target Name="PublishUpdater" AfterTargets="Publish">
+    <MSBuild Projects="ElyProxy.Updater\ElyProxy.Updater.csproj" Targets="Restore;Publish" Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishDir=$(PublishDir)updater\" />
+  </Target>
+  <Target Name="PublishHelper" AfterTargets="Publish">
+    <MSBuild Projects="ElyProxy.Helper\ElyProxy.Helper.csproj" Targets="Restore;Publish" Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishDir=$(PublishDir)helper\" />
+  </Target>
 </Project>

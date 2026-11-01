@@ -1,0 +1,85 @@
+<UserControl x:Class="ElyProxy.Views.Sheets.SubscriptionSettingsSheet"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:ElyProxy.Controls"
+             x:Name="Root"
+             Width="420">
+  <StackPanel>
+    <TextBlock Text="Индивидуальные настройки подписки. Пустые поля используют глобальные значения."
+               Style="{StaticResource Text.Callout}"
+               TextWrapping="Wrap"
+               Margin="0,0,0,10" />
+    <StackPanel Orientation="Horizontal">
+      <TextBlock Text="User-Agent" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+      <controls:InfoHint Text="Каким клиентом представляться серверу подписки. Некоторые провайдеры отдают разный набор серверов (или включают режим HWID) в зависимости от клиента. Выберите готовый пресет популярного клиента или введите свой." />
+    </StackPanel>
+    <ComboBox x:Name="PresetBox"
+              Margin="0,6,0,0"
+              AutomationProperties.Name="Пресет User-Agent"
+              SelectionChanged="PresetBox_SelectionChanged" />
+    <TextBox Margin="0,6,0,0"
+             controls:Placeholder.Text="По умолчанию (ElyProxy/1.0)"
+             Text="{Binding UserAgent, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" />
+    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+      <TextBlock Text="HWID (X-Hwid)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+      <controls:InfoHint Text="Идентификатор устройства для провайдеров, которые считают устройства по HWID. Пусто — заголовок не отправляется. Генерация создаёт случайный GUID; не меняйте его без причины и не делитесь им." />
+    </StackPanel>
+    <Grid Margin="0,6,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <TextBox Grid.Column="0"
+               controls:Placeholder.Text="Пусто — не отправлять"
+               AutomationProperties.Name="HWID"
+               Text="{Binding Hwid, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" />
+      <Button Grid.Column="1"
+              Content="Сгенерировать"
+              Style="{StaticResource SecondaryButton}"
+              Margin="6,0,0,0"
+              Click="GenerateHwid_Click"
+              AutomationProperties.Name="Сгенерировать HWID" />
+    </Grid>
+    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+      <TextBlock Text="Дополнительные заголовки" Style="{StaticResource Text.Body}" VerticalAlignment="Center" />
+      <controls:InfoHint Text="По одному заголовку в строке в формате «Имя: значение» (например, X-Device-Os: Android). Заголовки Host, Content-Length, User-Agent и X-Hwid здесь игнорируются — для них есть отдельные поля." />
+    </StackPanel>
+    <TextBox Margin="0,6,0,0"
+             AcceptsReturn="True"
+             Height="54"
+             TextWrapping="NoWrap"
+             VerticalScrollBarVisibility="Auto"
+             FontFamily="{StaticResource AppMonoFontFamily}"
+             FontSize="12"
+             AutomationProperties.Name="Дополнительные заголовки подписки"
+             Text="{Binding CustomHeadersText, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" />
+    <TextBlock Text="Интервал автообновления, мин" Style="{StaticResource Text.Body}" Margin="0,12,0,0" />
+    <TextBlock Text="0 — использовать глобальный интервал из настроек."
+               Style="{StaticResource Text.Caption}"
+               Margin="0,2,0,0" />
+    <TextBox Margin="0,6,0,0"
+             AutomationProperties.Name="Интервал автообновления подписки"
+             Text="{Binding UpdateIntervalMinutes, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" />
+    <TextBlock Text="Фильтр серверов" Style="{StaticResource Text.Body}" Margin="0,12,0,0" />
+    <TextBlock Text="Оставить только серверы, в имени которых есть эта строка."
+               Style="{StaticResource Text.Caption}"
+               Margin="0,2,0,0" />
+    <TextBox Margin="0,6,0,0"
+             AutomationProperties.Name="Фильтр серверов подписки"
+             Text="{Binding ServerFilter, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" />
+    <TextBlock Text="Сортировка" Style="{StaticResource Text.Body}" Margin="0,12,0,0" />
+    <ComboBox Margin="0,6,0,0"
+              AutomationProperties.Name="Сортировка серверов подписки"
+              SelectedIndex="{Binding SortModeIndex, ElementName=Root, Mode=TwoWay}">
+      <ComboBoxItem Content="Как в подписке" />
+      <ComboBoxItem Content="По имени" />
+      <ComboBoxItem Content="По задержке" />
+    </ComboBox>
+    <TextBlock Text="{Binding ValidationError, ElementName=Root}"
+               Foreground="{DynamicResource RedBrush}"
+               FontSize="12"
+               TextWrapping="Wrap"
+               Margin="2,8,0,0"
+               Visibility="{Binding ValidationError, ElementName=Root, Converter={StaticResource StringToVis}}" />
+  </StackPanel>
+</UserControl>
